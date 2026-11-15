@@ -5,7 +5,7 @@ const K = {
   subs() {
     const t = DB.puede("tiendas"), p = DB.puede("productos");
     return [["tipos", "Tipos de cliente", t], ["zonas", "Zonas", t], ["familias", "Familias", p], ["unidades", "Unidades", p],
-      ["listas", "Listas de precio", p], ["descuentos", "Descuentos", p], ["promos", "Promociones", p]].filter((x) => x[2]);
+      ["listas", "Listas de precio", p], ["descuentos", "Descuentos", p], ["promos", "Promociones", p], ["transportes", "Transportes", t || p]].filter((x) => x[2]);
   },
 
   async render(box, sub) {
@@ -22,6 +22,34 @@ const K = {
     if (sub === "listas") return this.listas(kb, re);
     if (sub === "descuentos") return this.descuentos(kb, re);
     if (sub === "promos") return this.promos(kb, re);
+    if (sub === "transportes") return this.transportes(kb, re);
+  },
+
+  // Empresas de transporte tercerizadas: se eligen al crear una ruta de despacho en Picking
+  async transportes(kb, re) {
+    const [{ data, error }, { data: des }] = await Promise.all([sb.from("transportes").select("*").order("nombre"), sb.from("despachos").select("transporte_id").neq("estado", "anulado")]);
+    if (error) throw error;
+    const n = (id) => (des || []).filter((d) => d.transporte_id === id).length;
+    kb.innerHTML = `<div class="card"><div class="row wrap"><input class="in sp" id="tn" placeholder="Empresa de transporte"><input class="in" id="tc" placeholder="Contacto" style="width:160px"><input class="in" id="tt" placeholder="Teléfono" inputmode="tel" style="width:140px"><button class="btn" id="ta">Agregar</button></div></div>
+      <div class="list">${data.map((x) => `<div class="item" data-id="${x.id}"><div class="ava" style="color:var(--azul)">${ic("caja", 22)}</div><div class="grow"><div class="t">${esc(x.nombre)}</div><div class="tiny muted">${[x.contacto, x.telefono].filter(Boolean).map(esc).join(" · ") || "Sin contacto"} · ${n(x.id)} ruta(s)</div></div>${x.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}<span class="muted">›</span></div>`).join("") || `<div class="empty card flat">Aún no hay transportes. Agrega las empresas que llevan la mercancía.</div>`}</div>`;
+    $("#ta", kb).onclick = async () => {
+      const v = $("#tn", kb).value.trim(); if (!v) return toast("Escribe el nombre del transporte");
+      const r = await sb.from("transportes").insert({ nombre: v, contacto: $("#tc", kb).value.trim() || null, telefono: $("#tt", kb).value.trim() || null });
+      if (r.error) return toast(r.error.code === "23505" ? "Ya existe" : r.error.message); toast("Agregado ✓"); re();
+    };
+    $$("[data-id]", kb).forEach((el) => (el.onclick = () => {
+      const x = data.find((d) => d.id == el.dataset.id);
+      modal(`<h2>Editar transporte</h2><label class="f">Empresa</label><input class="in" name="n" value="${esc(x.nombre)}">
+        <label class="f">Contacto</label><input class="in" name="c" value="${esc(x.contacto || "")}">
+        <label class="f">Teléfono</label><input class="in" name="t" inputmode="tel" value="${esc(x.telefono || "")}">
+        <label class="f">Estado</label><select class="in" name="a"><option value="1">Activo</option><option value="0" ${x.activo ? "" : "selected"}>Inactivo</option></select>
+        <button class="btn block" style="margin-top:16px" data-ok>Guardar</button>`, (m, close) => {
+        $("[data-ok]", m).onclick = async () => {
+          const r = await sb.from("transportes").update({ nombre: $("[name=n]", m).value.trim(), contacto: $("[name=c]", m).value.trim() || null, telefono: $("[name=t]", m).value.trim() || null, activo: $("[name=a]", m).value === "1" }).eq("id", x.id);
+          if (r.error) return toast(r.error.message); close(); re();
+        };
+      });
+    }));
   },
 
   // Catálogo de solo nombre (tipos de cliente, familias)

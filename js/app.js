@@ -4,14 +4,14 @@ const App = {
     const r = DB.perfil.rol;
     const m = [];
     if (r === "operaciones") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a preparar pedidos
-    if (r === "administracion") m.push(["facturacion", "factura", "Facturación"], ["pedidos", "pedidos", "Pedidos"]);
+    if (r === "administracion") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Administración factura dentro de Picking
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r === "operaciones" || r === "administracion") m.push(["objetivos", "ok", "Objetivos"]);
     else if (r !== "vendedor" && r !== "administracion") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["planogramas", "planograma", "Planogramas", true]);
-    if (r === "admin") m.push(["picking", "caja", "Picking", true], ["facturacion", "factura", "Facturación", true]);
+    if (r === "admin") m.push(["picking", "caja", "Picking", true]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
     m.push(["mensajes", "msg", "Mensajes"], ["yo", "yo", "Yo"]);
@@ -26,7 +26,8 @@ const App = {
     const [base, sub] = ruta.split("/");
     if (base === "mensajes") ruta = "mensajes";
     if (base === "soporte") ruta = "soporte";
-    if (["planogramas", "picking", "facturacion"].includes(base)) ruta = base;
+    if (base === "facturacion") { location.hash = "#picking" + (sub ? "/" + sub : ""); return; }
+    if (["planogramas", "picking"].includes(base)) ruta = base;
     if (!ruta || (ruta !== "visita" && ruta !== "soporte" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
     const app = $("#app");
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span><span class="lbl">${t}</span></a>`.replace("<a ", `<a title="${t}" `);
@@ -55,7 +56,6 @@ const App = {
       else if (ruta === "soporte") await SOP.render(root, sub);
       else if (ruta === "planogramas") await PL.render(root, sub);
       else if (ruta === "picking") await PK.render(root, sub);
-      else if (ruta === "facturacion") await PK.facturacion(root, sub);
       else if (ruta === "yo") await this.yo(root);
       if ((ruta === "hoy" || ruta === "resumen") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
