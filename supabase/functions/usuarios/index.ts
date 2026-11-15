@@ -1,4 +1,4 @@
-// Clarus · Gestión de usuarios (solo administradores de la empresa)
+// Clarus · Gestión de usuarios (administradores, o roles con el permiso "usuarios")
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
@@ -10,7 +10,7 @@ const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
 const ROLES = ["admin", "supervisor", "operaciones", "vendedor"];
-export const DOMINIO = "clarus.app"; // usuario -> usuario@clarus.app
+const DOMINIO = "clarus.app";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -21,9 +21,17 @@ Deno.serve(async (req) => {
     if (!u?.user) return json({ error: "Sesión no válida" }, 401);
 
     const { data: yo } = await admin.from("perfiles").select("empresa_id, rol, activo").eq("id", u.user.id).single();
-    if (!yo || !yo.activo || yo.rol !== "admin") return json({ error: "Solo un administrador puede gestionar usuarios" }, 403);
+    if (!yo || !yo.activo) return json({ error: "Usuario no autorizado" }, 403);
+    const esAdmin = yo.rol === "admin";
+    if (!esAdmin) {
+      const { data: p } = await admin.from("permisos_rol").select("permitido")
+        .eq("empresa_id", yo.empresa_id).eq("rol", yo.rol).eq("permiso", "usuarios").maybeSingle();
+      if (!p?.permitido) return json({ error: "No tienes permiso para gestionar usuarios" }, 403);
+    }
 
     const b = await req.json();
+    // Solo un administrador puede crear administradores o tocar a un administrador
+    if (!esAdmin && b.rol === "admin") return json({ error: "Solo un administrador puede asignar el rol de administrador" }, 403);
 
     if (b.accion === "crear") {
       const usuario = String(b.usuario || "").trim().toLowerCase();
@@ -46,8 +54,17 @@ Deno.serve(async (req) => {
     }
 
     // Las demás acciones son sobre un usuario de la misma empresa
-    const { data: obj } = await admin.from("perfiles").select("id, empresa_id").eq("id", b.id).single();
+    const { data: obj } = await admin.from("perfiles").select("id, empresa_id, rol").eq("id", b.id).single();
     if (!obj || obj.empresa_id !== yo.empresa_id) return json({ error: "Usuario no encontrado" }, 404);
+    if (!esAdmin && obj.rol === "admin") return json({ error: "Solo un administrador puede modificar a otro administrador" }, 403);
+
+    if (b.accion === "editar") {
+      if (!b.nombre) return json({ error: "Falta el nombre" }, 400);
+      if (!ROLES.includes(b.rol)) return json({ error: "Rol inválido" }, 400);
+      if (b.id === u.user.id && b.rol !== yo.rol) return json({ error: "No puedes cambiar tu propio rol" }, 400);
+      const { error } = await admin.from("perfiles").update({ nombre: String(b.nombre).trim(), telefono: b.telefono || null, rol: b.rol }).eq("id", b.id);
+      return error ? json({ error: error.message }, 400) : json({ ok: true });
+    }
 
     if (b.accion === "password") {
       if (!b.password || String(b.password).length < 6) return json({ error: "La contraseña debe tener al menos 6 caracteres" }, 400);
@@ -61,6 +78,6 @@ Deno.serve(async (req) => {
     }
     return json({ error: "Acción desconocida" }, 400);
   } catch (e) {
-    return json({ error: String(e?.message || e) }, 500);
+    return json({ error: String((e as Error)?.message || e) }, 500);
   }
 });

@@ -210,38 +210,5 @@ const G = {
   },
 
   // ---------------- USUARIOS (admin) ----------------
-  async usuarios(root) {
-    const roles = { admin: "Administrador", supervisor: "Supervisor", operaciones: "Operaciones", vendedor: "Vendedor" };
-    root.innerHTML = `<div class="top"><h1>Usuarios</h1><button class="btn sm" data-nuevo>+ Nuevo</button></div><div class="list" id="lu"></div>`;
-    const { data } = await sb.from("perfiles").select("*").order("nombre");
-    $("#lu").innerHTML = (data || []).map((u) => `<div class="item" data-id="${u.id}"><div class="ava">${esc(iniciales(u.nombre))}</div>
-      <div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${roles[u.rol]}${u.telefono ? " · " + esc(u.telefono) : ""}</div></div>
-      ${u.activo ? `<span class="pill p-menta">Activo</span>` : `<span class="pill p-gris">Inactivo</span>`}</div>`).join("");
-    $("[data-nuevo]", root).onclick = () => modal(`<h2>Nuevo usuario</h2>
-      <label class="f">Nombre completo</label><input class="in" name="nombre">
-      <label class="f">Usuario (para entrar)</label><input class="in" name="usuario" autocapitalize="none" placeholder="ej. nilskya">
-      <label class="f">Contraseña inicial</label><input class="in" name="password" placeholder="mínimo 6 caracteres">
-      <label class="f">Rol</label><select class="in" name="rol">${Object.entries(roles).map(([k, t]) => `<option value="${k}" ${k === "vendedor" ? "selected" : ""}>${t}</option>`).join("")}</select>
-      <label class="f">Teléfono</label><input class="in" name="telefono" inputmode="tel">
-      <button class="btn block" style="margin-top:16px" data-ok>Crear usuario</button>`, (m, close) => {
-      $("[data-ok]", m).onclick = async () => {
-        const f = (n) => $(`[name=${n}]`, m).value.trim();
-        try {
-          const r = await DB.funcion("usuarios", { accion: "crear", nombre: f("nombre"), usuario: f("usuario"), password: f("password"), rol: f("rol"), telefono: f("telefono") });
-          close(); toast(`Usuario creado: ${r.usuario}`, 3500); this.usuarios(root);
-        } catch (e) { toast(e.message, 4000); }
-      };
-    });
-    $$("[data-id]", root).forEach((el) => (el.onclick = () => {
-      const u = data.find((x) => x.id === el.dataset.id);
-      modal(`<h2>${esc(u.nombre)}</h2><div class="muted small">${roles[u.rol]}</div>
-        <label class="f">Nueva contraseña</label><input class="in" name="pw" placeholder="mínimo 6 caracteres">
-        <button class="btn sec block" style="margin-top:10px" data-pw>Cambiar contraseña</button>
-        ${u.id !== DB.user.id ? `<button class="btn ${u.activo ? "peligro" : "ok"} block" style="margin-top:10px" data-act>${u.activo ? "Desactivar usuario" : "Activar usuario"}</button>` : ""}`, (m, close) => {
-        $("[data-pw]", m).onclick = async () => { try { await DB.funcion("usuarios", { accion: "password", id: u.id, password: $("[name=pw]", m).value }); close(); toast("Contraseña cambiada ✓"); } catch (e) { toast(e.message, 4000); } };
-        const a = $("[data-act]", m);
-        if (a) a.onclick = async () => { try { await DB.funcion("usuarios", { accion: "activo", id: u.id, activo: !u.activo }); close(); this.usuarios(root); } catch (e) { toast(e.message, 4000); } };
-      });
-    }));
-  },
+
 };

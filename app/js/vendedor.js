@@ -79,6 +79,28 @@ const V = {
     }
   },
 
+  // Tienda sin ubicación: quien tenga permiso la guarda desde la visita, parado en la tienda
+  avisoGps(box, c) {
+    if (!box || !c || c.lat != null || !(DB.puede("ubicacion") || DB.puede("tiendas"))) return;
+    box.innerHTML = `<div class="card" style="background:var(--durazno);border-color:#F6D9B0;display:flex;gap:12px;align-items:center">
+      <span style="color:var(--durazno-t)">${ic("ruta", 24)}</span><div class="grow"><b>Esta tienda no tiene ubicación</b>
+      <div class="small" style="color:var(--durazno-t)">Si estás dentro de la tienda, guárdala para validar las próximas visitas.</div></div>
+      <button class="btn sm" data-gps>Guardar</button></div>`;
+    $("[data-gps]", box).onclick = async (e) => {
+      const b = e.currentTarget;
+      if (!navigator.onLine) return toast("Necesitas señal para guardar la ubicación");
+      if (!(await confirmar(`Se guardará tu ubicación actual como la ubicación de ${c.nombre}. Hazlo solo si estás dentro de la tienda.`, "Guardar ubicación"))) return;
+      b.disabled = true; toast("Obteniendo ubicación…", 9000);
+      try {
+        const p = await ubicacion();
+        const { error } = await sb.rpc("fijar_ubicacion_tienda", { p_cliente: c.id, p_lat: p.lat, p_lng: p.lng, p_precision: p.precision });
+        if (error) throw error;
+        c.lat = p.lat; c.lng = p.lng; DB.catalogos(true).catch(() => {});
+        box.innerHTML = ""; toast(`Ubicación guardada ✓ (precisión ${p.precision} m)`, 3500);
+      } catch (err) { b.disabled = false; toast(err.message, 4500); }
+    };
+  },
+
   async iniciar(c) {
     if (Visita.get()) { toast("Primero cierra la visita en curso"); location.hash = "#visita"; return; }
     if (!(await confirmar(`Vas a hacer check-in en ${c.nombre}. Se registrará tu hora y ubicación.`, "Hacer check-in"))) return;
@@ -111,8 +133,9 @@ const V = {
     root.innerHTML = `
       <div class="top"><div><div class="small muted">Check-in ${fmtHora(v.at)} · ${esc(v.cadena || "")}</div><h1>${esc(v.tienda)}</h1></div><span id="syncpill"></span></div>
       <div class="steps">${PASOS.map(([k, t]) => `<div class="step ${k === paso ? "on" : hecho[k] ? "ok" : ""}" data-p="${k}">${hecho[k] && k !== paso ? "✓ " : ""}${t}</div>`).join("")}</div>
-      <div id="paso"></div>`;
+      <div id="gpsTienda"></div><div id="paso"></div>`;
     $$(".step", root).forEach((s) => (s.onclick = () => V.visita(root, s.dataset.p)));
+    V.avisoGps($("#gpsTienda", root), cat.clientes.find((c) => c.id === v.cliente_id));
     const box = $("#paso", root);
     const sig = (p) => () => V.visita(root, p);
     App.syncPill();
