@@ -5,9 +5,9 @@ const App = {
     const m = [];
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
-    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
-    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos"]);
-    if (r === "admin") m.push(["usuarios", "ajustes", "Usuarios"]);
+    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
+    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
+    if (r === "admin") m.push(["usuarios", "ajustes", "Usuarios", true]);
     m.push(["yo", "yo", "Yo"]);
     return m;
   },
@@ -19,9 +19,11 @@ const App = {
     if (Visita.get() && !ruta) ruta = "visita";
     if (!ruta || (ruta !== "visita" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
     const app = $("#app");
-    const navHtml = menu.map(([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`).join("");
+    const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`;
+    const navHtml = menu.map(link).join("");
+    const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x)).join("");
     app.innerHTML = `<div class="shell"><nav class="side"><div class="brand"><div class="brand-dot">C</div>Clarus</div>${navHtml}</nav>
-      <main class="main" id="main"></main></div><nav class="nav">${navHtml}</nav>`;
+      <main class="main" id="main"></main></div><nav class="nav">${movil}</nav>`;
     const root = $("#main");
     try {
       if (ruta === "hoy") await V.hoy(root);
@@ -30,6 +32,7 @@ const App = {
       else if (ruta === "pedidos") await G.pedidos(root);
       else if (ruta === "equipo") await G.equipo(root);
       else if (ruta === "objetivos") await G.objetivos(root);
+      else if (ruta === "programacion") await G.programacion(root);
       else if (ruta === "usuarios") await G.usuarios(root);
       else if (ruta === "yo") await this.yo(root);
     } catch (e) {
@@ -58,6 +61,7 @@ const App = {
         <button class="btn ghost block" style="margin-top:8px" data-cat>Actualizar tiendas y productos</button></div>
       <div class="card"><label class="f" style="margin-top:0">Cambiar mi contraseña</label><input class="in" type="password" id="npw" placeholder="mínimo 6 caracteres">
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
+      ${this.rutas().filter((x) => x[3]).length ? `<div class="card solo-movil list">${this.rutas().filter((x) => x[3]).map(([k, i, t]) => `<a class="item" href="#${k}"><span style="color:var(--azul)">${ic(i)}</span><span class="grow">${t}</span>›</a>`).join("")}</div>` : ""}
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
       <p class="tiny muted" style="text-align:center;margin-top:16px">Clarus ${CLARUS.version}</p>`;
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };

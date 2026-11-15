@@ -14,10 +14,13 @@ const FOTOS_REQ = [["bodega", "Bodega"], ["exhibicion_deli", "Exhibición deli"]
 
 const V = {
   // ---------------- HOY ----------------
-  async hoy(root) {
+  async hoy(root, sel) {
     const cat = await DB.catalogos();
     const v = Visita.get();
-    const dia = diaSemana();
+    const dias = proximosDias(7);
+    sel = sel || dias[0].iso;
+    const dSel = dias.find((d) => d.iso === sel) || dias[0], esHoy = dSel.iso === dias[0].iso;
+    const dia = dSel.dia;
     const hechas = LS.get("hechas:" + hoyISO(), {});
     const rutaIds = cat.ruta.filter((r) => (r.dias_semana || []).includes(dia)).map((r) => r.cliente_id);
     const ruta = cat.clientes.filter((c) => rutaIds.includes(c.id));
@@ -31,12 +34,13 @@ const V = {
           <a class="btn" href="#visita">Continuar</a></div></div>` : ""}
       <div id="porEscanear"></div>
       <div class="kpis">
-        <div class="kpi"><div class="v">${ruta.length}</div><div class="l">Tiendas en ruta hoy</div></div>
-        <div class="kpi"><div class="v">${ruta.filter((c) => hechas[c.id]).length}</div><div class="l">Visitadas</div></div>
+        <div class="kpi"><div class="v">${cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length}</div><div class="l">Tiendas en ruta hoy</div></div>
+        <div class="kpi"><div class="v">${Object.keys(hechas).length}</div><div class="l">Visitadas hoy</div></div>
       </div>
       ${V.tarjetaObjetivo(cat)}
-      <h3 style="margin:18px 0 10px">Ruta de hoy</h3>
-      <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>Hoy no tienes tiendas asignadas.<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
+      <h3 style="margin:18px 0 10px">Mi ruta</h3>
+      <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-dia="${d.iso}">${d.etiqueta} <span class="tiny">· ${cat.ruta.filter((r) => (r.dias_semana || []).includes(d.dia)).length}</span></div>`).join("")}</div>
+      <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>${esHoy ? "Hoy no tienes tiendas asignadas." : "No tienes tiendas programadas para este día."}<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
       <div class="row" style="margin:20px 0 10px"><h3 class="sp">Otra tienda</h3></div>
       <input class="in" id="buscar" placeholder="Buscar tienda o cadena…">
       <div class="list" id="otras" style="margin-top:10px"></div>`;
@@ -44,9 +48,10 @@ const V = {
       const h = hechas[c.id];
       return `<div class="item" data-c="${c.id}"><div class="ava">${esc(iniciales(c.cadena || c.nombre))}</div>
         <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}</div>
-        ${h ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : `<span class="pill p-azul">Iniciar</span>`}</div>`;
+        ${h && esHoy ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : esHoy ? `<span class="pill p-azul">Iniciar</span>` : `<span class="pill p-gris">${esc(dSel.etiqueta)}</span>`}</div>`;
     };
     $("#ruta").insertAdjacentHTML("beforeend", ruta.map(fila).join(""));
+    $$("[data-dia]", root).forEach((el) => (el.onclick = () => { root.innerHTML = ""; const nr = root.cloneNode(false); root.replaceWith(nr); V.hoy(nr, el.dataset.dia); }));
     const pintarOtras = (q) => {
       q = sinAcentos(q.trim());
       const lista = q ? cat.clientes.filter((c) => q.split(/\s+/).every((w) => sinAcentos(c.nombre + " " + (c.cadena || "") + " " + (c.codigo || "") + " " + (c.zona || "")).includes(w))).slice(0, 25) : [];

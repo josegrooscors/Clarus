@@ -112,6 +112,53 @@ const G = {
       }).join("") || `<div class="empty card flat"><div class="ic">${ic("reloj", 34)}</div>Todavía no hay visitas hoy.</div>`}`;
   },
 
+  // ---------------- PROGRAMACIÓN (visitas programadas) ----------------
+  async programacion(root, sel, vend) {
+    const dias = proximosDias(7);
+    sel = sel || dias[1].iso; // por defecto: mañana
+    const dSel = dias.find((d) => d.iso === sel) || dias[1];
+    root.innerHTML = `<div class="top"><div><div class="muted small">Visitas programadas</div><h1>Programación</h1></div></div><div id="pg" class="muted">Cargando…</div>`;
+    const [{ data: asig, error }, { data: obj }, { data: vis }] = await Promise.all([
+      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena, zona), perfiles(nombre)"),
+      sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd").eq("mes", mesActual()),
+      dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
+    ]);
+    if (error) { $("#pg").textContent = error.message; return; }
+    const vendedoras = [...new Map(asig.map((a) => [a.vendedor_id, a.perfiles?.nombre || "—"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+    const O = {}; (obj || []).forEach((o) => { const x = (O[o.cliente_id] = O[o.cliente_id] || { o: 0, v: 0 }); x.o += Number(o.objetivo_usd || 0); x.v += Number(o.venta_usd || 0); });
+    // Semana: tiendas por vendedora y día
+    const semana = vendedoras.map(([id, n]) => ({ id, n, d: [1, 2, 3, 4, 5, 6].map((w) => asig.filter((a) => a.vendedor_id === id && (a.dias_semana || []).includes(w)).length),
+      sin: asig.filter((a) => a.vendedor_id === id && !(a.dias_semana || []).length).length }));
+    const delDia = asig.filter((a) => (a.dias_semana || []).includes(dSel.dia) && (!vend || a.vendedor_id === vend));
+    const porV = {}; delDia.forEach((a) => (porV[a.vendedor_id] = porV[a.vendedor_id] || []).push(a));
+    const estado = (a) => {
+      if (dSel.iso > hoyISO()) return `<span class="pill p-gris">Programada</span>`;
+      const x = (vis || []).find((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
+      if (x) return x.checkout_at ? `<span class="pill p-menta">✓ ${fmtHora(x.checkin_at)}–${fmtHora(x.checkout_at)}</span>` : `<span class="pill p-azul">En tienda desde ${fmtHora(x.checkin_at)}</span>`;
+      return dSel.iso < hoyISO() ? `<span class="pill p-rosa">No visitada</span>` : `<span class="pill p-durazno">Pendiente</span>`;
+    };
+    const tit = dSel.etiqueta === "Hoy" || dSel.etiqueta === "Mañana" ? `${dSel.etiqueta} · ${DIAS[dSel.dia].toLowerCase()} ${new Date(dSel.iso + "T12:00:00").getDate()}` : DIAS[dSel.dia] + " " + new Date(dSel.iso + "T12:00:00").getDate();
+    $("#pg").outerHTML = `
+      <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-d="${d.iso}">${d.etiqueta}</div>`).join("")}</div>
+      <select class="in" id="fv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map(([id, n]) => `<option value="${id}" ${id === vend ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+      <div class="kpis">
+        <div class="kpi"><div class="v">${delDia.length}</div><div class="l">Visitas programadas · ${esc(tit)}</div></div>
+        <div class="kpi"><div class="v">${Object.keys(porV).length}</div><div class="l">Vendedoras con ruta</div></div>
+        ${dSel.iso <= hoyISO() ? `<div class="kpi"><div class="v">${delDia.filter((a) => (vis || []).some((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id)).length}</div><div class="l">Visitadas</div></div>` : ""}
+      </div>
+      ${Object.entries(porV).sort((a, b) => (a[1][0].perfiles?.nombre || "").localeCompare(b[1][0].perfiles?.nombre || "")).map(([vid, xs]) => `
+        <div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${xs.length} tienda(s) · ${esc(tit)}</div></div></div>
+        <div class="list">${xs.sort((a, b) => a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
+          return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ""}</div></div>
+            ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
+      <h3 style="margin:22px 0 10px">Semana por vendedora</h3>
+      <div class="card scroll-x"><table class="t"><tr><th>Vendedora</th>${[1, 2, 3, 4, 5, 6].map((w) => `<th style="text-align:center">${DIAS_C[w]}</th>`).join("")}<th style="text-align:center">Total</th><th>Sin día</th></tr>
+        ${semana.map((r) => `<tr><td>${esc(r.n)}</td>${r.d.map((c, i) => `<td style="text-align:center;${i + 1 === dSel.dia ? "background:var(--azul-cl);font-weight:600" : ""}">${c || "–"}</td>`).join("")}<td style="text-align:center"><b>${r.d.reduce((a, b) => a + b, 0)}</b></td><td>${r.sin ? `<span class="pill p-durazno">${r.sin}</span>` : "–"}</td></tr>`).join("")}</table></div>
+      <p class="tiny muted">"Sin día" son tiendas asignadas a la vendedora que no tienen día de visita definido.</p>`;
+    $$("[data-d]", root).forEach((el) => (el.onclick = () => G.programacion(root, el.dataset.d, vend)));
+    $("#fv").onchange = (e) => G.programacion(root, dSel.iso, e.target.value || null);
+  },
+
   // ---------------- OBJETIVOS ----------------
   async objetivos(root, sel) {
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long", year: "numeric" })}</div><h1>Objetivos de venta</h1></div></div><div id="ob" class="muted">Cargando…</div>`;
