@@ -224,3 +224,15 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 @media (min-width:900px){.chat-in{bottom:0}}
 .fab-sop svg{display:block}
 .burb.auto{background:var(--azul-cl);border-color:var(--azul-med)}
+.asis{border-collapse:separate;border-spacing:3px;font-size:12px}
+.asis th{font-weight:600;text-align:center;min-width:22px;color:var(--tinta)}
+.asis th.hoyc{color:var(--azul)}
+.asis td{text-align:center;padding:0}
+.asis .asi-n{text-align:left;white-space:nowrap;padding-right:10px;font-weight:500;position:sticky;left:0;background:#fff;z-index:1}
+.asis .asi-t{padding-left:8px;min-width:40px}
+.asi{display:inline-block;width:18px;height:18px;border-radius:5px;vertical-align:middle}
+.asi.ok{background:var(--azul)}
+.asi.falta{background:#E5484D}
+.asi.libre{background:#EEF1F5}
+.asi.hoy{border:2px solid var(--azul);background:#fff;box-sizing:border-box}
+.asi.fut{border:1px dashed #D3D9E2;background:#fff;box-sizing:border-box}

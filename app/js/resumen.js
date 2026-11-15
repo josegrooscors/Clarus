@@ -23,7 +23,7 @@ const R = {
       <div id="rs" class="muted">Cargando…</div>`;
     $$("[data-per]", root).forEach((el) => (el.onclick = () => R.render(root, el.dataset.per, vend)));
 
-    const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR] = await Promise.all([
+    const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena)"),
       sb.from("perfiles").select("id, nombre, rol, activo").in("rol", ["vendedor", "supervisor"]).eq("activo", true),
       sb.from("v_visitas").select("id, vendedor_id, vendedor, cliente_id, tienda, fecha, checkin_at, checkout_at, minutos_en_tienda, estado, checkin_dentro, checkout_dentro").gte("fecha", desde).lte("fecha", hasta).limit(5000),
@@ -34,8 +34,9 @@ const R = {
       sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").limit(5000),
       sb.from("productos").select("id, nombre, kg_por_pedido").eq("activo", true).order("nombre"),
       sb.from("clientes").select("id, modalidad").neq("modalidad", "pedido_tienda"),
+      sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", hoy).limit(10000),
     ]);
-    const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR].find((r) => r.error);
+    const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR].find((r) => r.error);
     // Clientes que no piden en tienda (El Machetazo: el cliente envía el pedido; Rey: resurtido automático) no cuentan para efectividad ni alertas sin pedido
     const sinPedTienda = new Set(cliR.data.map((c) => c.id)), pideEnTienda = (x) => !sinPedTienda.has(x.cliente_id);
     if (err) { $("#rs").textContent = err.error.message; return; }
@@ -94,6 +95,7 @@ const R = {
     const serie = diasG.map((d) => ({ d, prog: prog.filter((p) => p.fecha === d).length, ok: prog.filter((p) => p.fecha === d && p.hecha).length, vis: vis.filter((v) => v.fecha === d).length,
       kg: ped.filter((p) => new Date(p.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" }) === d).reduce((a, p) => a + Number(p.total_kg || 0), 0) }));
 
+    const asistencia = R.asistencia(vend ? vendedoras.filter((v) => v.id === vend) : vendedoras, asigTodas, visMesR.data, mes0, hoy);
     const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:4px">${sub}</div>` : ""}</div>`;
     const etPer = this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
     $("#rs").outerHTML = `
@@ -101,6 +103,16 @@ const R = {
 
       ${agotSinPed.length ? `<a class="card" href="#alertas-res" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--rosa);border-color:#F3C4C0">
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">${agotSinPed.length} producto(s) agotado(s) sin pedido</b><div class="small">En ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s) de ${etPer}. Ver detalle abajo.</div></div></a>` : ""}
+
+      <h3 class="sec-t">Pedidos y objetivo</h3>
+      <div class="kpis">
+        ${kpi(fmtNum(kgPer, 0) + " kg", "Pedidos capturados · " + esc(etPer), "", `${ped.length} pedido(s)`)}
+        ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
+        ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
+      </div>
+      ${objKg ? `<div class="card"><div class="row"><div class="grow"><div class="small muted">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}</div>
+          <h2>${fmtNum(avance, 0)} kg <span class="muted" style="font-weight:500;font-size:15px">de ${fmtNum(objKg, 0)} kg</span></h2></div><span class="pill ${colorPct(pcObj)}" style="font-size:15px">${pcObj ?? 0}%</span></div>${barra(pcObj)}
+        <div class="row small" style="margin-top:10px;flex-wrap:wrap;gap:16px"><span>Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}: <b>${fmtNum(factKg, 0)} kg</b></span><span>Pedidos capturados después: <b>${fmtNum(pedPost, 0)} kg</b></span><span>Falta: <b>${fmtNum(Math.max(0, objKg - avance), 0)} kg</b></span></div></div>` : ""}
 
       <h3 class="sec-t">Efectividad de visitas · ${esc(etPer)}</h3>
       <div class="kpis">
@@ -114,16 +126,6 @@ const R = {
         ${kpi(abiertas, "Visitas sin cerrar (días anteriores)", abiertas ? "alerta" : "")}
       </div>
 
-      <h3 class="sec-t">Pedidos y objetivo</h3>
-      <div class="kpis">
-        ${kpi(fmtNum(kgPer, 0) + " kg", "Pedidos capturados · " + esc(etPer), "", `${ped.length} pedido(s)`)}
-        ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
-        ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
-      </div>
-      ${objKg ? `<div class="card"><div class="row"><div class="grow"><div class="small muted">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}</div>
-          <h2>${fmtNum(avance, 0)} kg <span class="muted" style="font-weight:500;font-size:15px">de ${fmtNum(objKg, 0)} kg</span></h2></div><span class="pill ${colorPct(pcObj)}" style="font-size:15px">${pcObj ?? 0}%</span></div>${barra(pcObj)}
-        <div class="row small" style="margin-top:10px;flex-wrap:wrap;gap:16px"><span>Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}: <b>${fmtNum(factKg, 0)} kg</b></span><span>Pedidos capturados después: <b>${fmtNum(pedPost, 0)} kg</b></span><span>Falta: <b>${fmtNum(Math.max(0, objKg - avance), 0)} kg</b></span></div></div>` : ""}
-
       ${periodo === "hoy" ? "" : `<div class="grid2">
         <div class="card"><h3>Agenda por día</h3><div class="tiny muted" style="margin-bottom:8px">Programadas vs realizadas</div>${R.barras(serie, [["prog", "#C9D6F2"], ["ok", "var(--azul)"]], (s) => `${s.ok}/${s.prog}`)}</div>
         <div class="card"><h3>Pedidos por día (kg)</h3><div class="tiny muted" style="margin-bottom:8px">&nbsp;</div>${R.barras(serie, [["kg", "var(--azul)"]], (s) => fmtNum(s.kg, 0))}</div>
@@ -135,6 +137,8 @@ const R = {
           <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div></div></div>`).join("")}</div>`
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
+
+      ${asistencia}
 
       <h3 class="sec-t">Por vendedora</h3>
       <div class="card scroll-x"><table class="t"><tr><th>Vendedora</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
@@ -152,6 +156,34 @@ const R = {
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
     $("#rv").onchange = (e) => R.render(root, periodo, e.target.value);
+  },
+
+  // Calendario de asistencia del mes: azul = asistió (tuvo visitas), rojo = falta (tenía ruta y no visitó), gris = sin ruta ese día
+  asistencia(vendedoras, asig, visitas, mes0, hoy) {
+    const d0 = new Date(mes0 + "T12:00:00"), nDias = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
+    const dias = Array.from({ length: nDias }, (_, i) => { const iso = mes0.slice(0, 8) + String(i + 1).padStart(2, "0"); return { iso, n: i + 1, w: R.dia(iso) }; });
+    const inicio = visitas.map((v) => v.fecha).sort()[0] || hoy; // antes de la primera visita en Clarus no hay datos (usaban Handy)
+    const cuenta = {}; visitas.forEach((v) => { const k = v.vendedor_id + "|" + v.fecha; cuenta[k] = (cuenta[k] || 0) + 1; });
+    const filas = vendedoras.map((u) => {
+      const diasRuta = new Set(asig.filter((a) => a.vendedor_id === u.id).flatMap((a) => a.dias_semana || []));
+      let asis = 0, faltas = 0;
+      const celdas = dias.map((d) => {
+        const n = cuenta[u.id + "|" + d.iso] || 0, fecha = new Date(d.iso + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
+        let c = "fut", t = fecha;
+        if (d.iso > hoy) c = "fut";
+        else if (d.iso < inicio) { c = "libre"; t += " · antes de empezar a usar Clarus"; }
+        else if (n) { c = "ok"; asis++; t += ` · asistió (${n} visita${n > 1 ? "s" : ""})`; }
+        else if (d.iso === hoy) { c = "hoy"; t += " · hoy, aún sin visitas"; }
+        else if (diasRuta.has(d.w)) { c = "falta"; faltas++; t += " · FALTA: tenía ruta y no registró visitas"; }
+        else { c = "libre"; t += " · sin ruta"; }
+        return `<td><span class="asi ${c}" title="${esc(t)}"></span></td>`;
+      }).join("");
+      return `<tr><td class="asi-n">${esc(u.nombre)}</td>${celdas}<td class="asi-t"><b style="color:var(--azul)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
+    }).join("");
+    const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
+    return `<h3 class="sec-t">Asistencia · ${esc(mes)}</h3>
+      <div class="card"><div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
+      <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta ese día</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },
 
   lista(rows, max = 12) {
