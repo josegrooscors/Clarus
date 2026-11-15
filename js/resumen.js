@@ -87,6 +87,7 @@ const R = {
     const avance = factKg + pedPost, pcObj = pct(avance, objKg);
     // ---- Alertas ----
     const agotSinPed = alertas.filter((a) => a.agotado && !a.con_pedido), bajoSinPed = alertas.filter((a) => a.bajo && !a.con_pedido);
+    R._alertas = [...agotSinPed, ...bajoSinPed];
     const porVisita = {}; [...agotSinPed, ...bajoSinPed].forEach((a) => (porVisita[a.visita_id] = porVisita[a.visita_id] || { ...a, prods: [] }).prods.push(a));
 
     // ---- Por vendedora ----
@@ -110,10 +111,11 @@ const R = {
     $("#rs").outerHTML = `
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
-      ${agotSinPed.length ? `<a class="card" href="#alertas-res" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--rosa);border-color:#F3C4C0">
+      ${agotSinPed.length ? `<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--rosa);border-color:#F3C4C0">
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
-        <div class="small">${new Set(agotSinPed.map((a) => a.cliente_id)).size} tienda(s) en total · ${agotSinPed.length} conteo(s) en ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s). Ver detalle abajo.</div></div></a>` : ""}
+        <div class="small">${new Set(agotSinPed.map((a) => a.cliente_id)).size} tienda(s) en total · ${agotSinPed.length} conteo(s) en ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s). <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
+        <button class="btn sm" onclick="R.avisar('todas')">📣 Avisar a las vendedoras</button></div>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       <div class="kpis">
@@ -144,7 +146,7 @@ const R = {
       <h3 class="sec-t" id="alertas-res">Alertas de inventario</h3>
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
         <div class="row" style="padding:8px 0;border-top:1px solid var(--borde);align-items:flex-start"><div class="grow"><b>${esc(a.tienda)}</b><div class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)}</div></div>
-          <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div></div></div>`), "alertas")
+          <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div><button class="btn ghost sm" style="margin-top:6px" onclick="R.avisar(${a.visita_id})">📣 Avisar</button></div></div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
@@ -196,6 +198,65 @@ const R = {
     return `<h3 class="sec-t">Asistencia · ${esc(mes)}</h3>
       <div class="card"><div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
       <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta o feriado</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
+  },
+
+  // Enviar a la vendedora un comunicado con «Entendido» por agotados/bajos sin pedido
+  async avisar(sel) {
+    const base = (R._alertas || []).filter((a) => (sel === "todas" ? a.agotado : a.visita_id === sel));
+    if (!base.length) return toast("No hay alertas para avisar");
+    const prods = [...new Set(base.map((a) => a.producto))];
+    const guard = LS.get("aviso.prods", null);
+    let elegidos = new Set(prods.filter((p) => !guard || guard.includes(p) || !LS.get("aviso.vistos", []).includes(p)));
+    if (sel !== "todas") elegidos = new Set(prods);
+    const corto = (p) => p.replace(/^Queso /, "");
+    const fecha = (a) => new Date(a.checkin_at).toLocaleDateString("es-PA", { weekday: "short", day: "numeric", month: "short" });
+    const armar = () => {
+      const porV = {};
+      base.filter((a) => elegidos.has(a.producto)).forEach((a) => {
+        const v = (porV[a.vendedor_id] = porV[a.vendedor_id] || { nombre: a.vendedor, t: {} });
+        const k = a.cliente_id + "|" + a.fecha;
+        (v.t[k] = v.t[k] || { tienda: a.tienda, fecha: fecha(a), prods: [] }).prods.push(corto(a.producto) + (a.agotado ? " AGOTADO" : " bajo"));
+      });
+      return Object.entries(porV).map(([uid, v]) => {
+        const ts = Object.values(v.t), pn = (v.nombre || "").split(" ")[0];
+        const titulo = ts.length === 1 ? `Pedido pendiente: ${ts[0].tienda}` : `Pedidos pendientes: ${ts.length} tiendas con agotados`;
+        const cuerpo = `Hola ${pn}, en estas visitas registraste producto agotado o bajo y no se hizo pedido:\n\n${ts.map((t) => `• ${t.tienda} (${t.fecha}): ${t.prods.join(", ")}`).join("\n")}\n\nPor favor gestiona hoy el pedido con la tienda o confírmanos si la tienda ya lo envió. Toca «Entendido» para confirmar que lo recibiste. Estamos pendientes.`;
+        return { uid, nombre: v.nombre, titulo, cuerpo, n: ts.length };
+      });
+    };
+    modal(`<h2>📣 Avisar a las vendedoras</h2>
+      <p class="small muted" style="margin-top:4px">Le llega a su buzón de Clarus y al teléfono, con «Entendido». Si no confirma, se le recuerda cada hora (7 am a 7 pm).</p>
+      ${prods.length > 1 ? `<label class="f">Productos a incluir</label><div class="row" style="flex-wrap:wrap;gap:6px">${prods.map((p) => `<button class="btn sm ${elegidos.has(p) ? "" : "sec"}" data-prod="${esc(p)}">${esc(corto(p))}</button>`).join("")}</div>
+        <div class="tiny muted" style="margin-top:4px">Quita el producto que no tienes en inventario para pedir (p. ej. Muenster agotado en la empresa).</div>` : ""}
+      <label class="f">Nota adicional (opcional)</label><textarea class="in" id="avn" rows="2" placeholder="Ej.: Hay inventario de Mozzarella en bodega para despacho mañana."></textarea>
+      <div id="avp" style="margin-top:12px"></div>
+      <button class="btn block" style="margin-top:14px" data-env>Enviar</button>`,
+    (m, close) => {
+      const pintar = () => {
+        const msgs = armar();
+        $("#avp", m).innerHTML = msgs.length ? `<div class="small"><b>${msgs.length} vendedora(s)</b> recibirán un mensaje:</div>
+          ${R.paginar(msgs.map((x) => `<details style="padding:6px 0;border-top:1px solid var(--borde)"><summary><b>${esc(x.nombre)}</b> · ${x.n} tienda(s)</summary><div class="small" style="white-space:pre-wrap;margin-top:6px"><b>${esc(x.titulo)}</b>\n${esc(x.cuerpo)}</div></details>`))}`
+          : `<div class="small muted">Con los productos elegidos no hay nada que avisar.</div>`;
+        $("[data-env]", m).disabled = !msgs.length;
+      };
+      $$("[data-prod]", m).forEach((b) => (b.onclick = () => { const p = b.dataset.prod; elegidos.has(p) ? elegidos.delete(p) : elegidos.add(p); b.classList.toggle("sec", !elegidos.has(p)); pintar(); }));
+      pintar();
+      $("[data-env]", m).onclick = async (e) => {
+        const msgs = armar(), nota = $("#avn", m).value.trim();
+        if (sel === "todas") { LS.set("aviso.prods", [...elegidos]); LS.set("aviso.vistos", prods); }
+        e.target.disabled = true; e.target.textContent = "Enviando…";
+        try {
+          for (const x of msgs) {
+            const { data: c, error } = await sb.from("comunicados").insert({ titulo: x.titulo, cuerpo: x.cuerpo + (nota ? "\n\n" + nota : ""), requiere_ok: true, recordar_min: 60 }).select("id").single();
+            if (error) throw error;
+            const r2 = await sb.from("comunicado_destinos").insert({ comunicado_id: c.id, user_id: x.uid });
+            if (r2.error) throw r2.error;
+          }
+          DB.funcion("avisos", {}).catch(() => {});
+          close(); toast(`Aviso enviado a ${msgs.length} vendedora(s) ✓`);
+        } catch (err) { e.target.disabled = false; e.target.textContent = "Enviar"; toast(err.message || String(err)); }
+      };
+    });
   },
 
   lista(rows) {

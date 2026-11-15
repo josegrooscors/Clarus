@@ -28,8 +28,8 @@ const App = {
     const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x[0] === "mensajes" ? [x[0], x[1], "Avisos"] : x)).join("");
     const lema = `Te hago ver lo que tú <b>no puedes ver.</b>`;
     app.innerHTML = `<header class="barra-marca"><div class="brand">${logo(24)}clarus</div><span class="lema-c">${lema}</span></header>
-      <div class="shell"><nav class="side"><div class="brand">${logo(30)}<span class="lbl">clarus</span></div><p class="lema-side">${lema}</p>${navHtml}
-        <button class="side-tog" id="sideTog" title="Ocultar / mostrar menú">${ic("chev", 18)}<span class="lbl">Ocultar menú</span></button></nav>
+      <div class="shell"><nav class="side"><div class="brand">${logo(30)}<span class="lbl">clarus</span><button class="side-tog" id="sideTog" title="Ocultar / mostrar menú" aria-label="Ocultar menú">${ic("chev", 16)}</button></div><p class="lema-side">${lema}</p>${menu.filter((x) => x[0] !== "mensajes").map(link).join("")}
+        <a href="#mensajes" class="side-msg ${ruta === "mensajes" ? "on" : ""}" title="Mensajes"><span class="ic">${ic("msg", 26)}</span></a></nav>
       <main class="main" id="main"></main></div><nav class="nav">${movil}</nav>`;
     document.body.classList.toggle("side-min", !!LS.get("sideMin", false));
     $("#sideTog").onclick = () => { const v = !document.body.classList.contains("side-min"); document.body.classList.toggle("side-min", v); LS.set("sideMin", v); };
