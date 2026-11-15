@@ -111,7 +111,9 @@ const R = {
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
       ${agotSinPed.length ? `<a class="card" href="#alertas-res" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--rosa);border-color:#F3C4C0">
-        <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">${agotSinPed.length} producto(s) agotado(s) sin pedido</b><div class="small">En ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s) de ${etPer}. Ver detalle abajo.</div></div></a>` : ""}
+        <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
+        <div class="small">${new Set(agotSinPed.map((a) => a.cliente_id)).size} tienda(s) en total · ${agotSinPed.length} conteo(s) en ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s). Ver detalle abajo.</div></div></a>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       <div class="kpis">
@@ -140,9 +142,9 @@ const R = {
         <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Pedidos por día</h3>${R.leyenda([["#5B7FE8", "Kilos pedidos"]])}</div>${R.barras(serie, [["kg", "#5B7FE8"]], (s) => fmtNum(s.kg, 0))}</div>`}
 
       <h3 class="sec-t" id="alertas-res">Alertas de inventario</h3>
-      <div class="card">${Object.values(porVisita).length ? `<div class="list">${Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
+      <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
         <div class="row" style="padding:8px 0;border-top:1px solid var(--borde);align-items:flex-start"><div class="grow"><b>${esc(a.tienda)}</b><div class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)}</div></div>
-          <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div></div></div>`).join("")}</div>`
+          <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div></div></div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
@@ -196,10 +198,24 @@ const R = {
       <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta o feriado</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },
 
-  lista(rows, max = 12) {
+  lista(rows) {
     if (!rows.length) return `<div class="small muted" style="padding:8px 0">Ninguno ✓</div>`;
-    return `<div class="list" style="gap:0">${rows.slice(0, max).map(([a, b]) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(a || "—")}</div><div class="tiny muted">${esc(b)}</div></div>`).join("")}</div>${rows.length > max ? `<div class="tiny muted" style="margin-top:6px">y ${rows.length - max} más</div>` : ""}`;
+    return R.paginar(rows.map(([a, b]) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(a || "—")}</div><div class="tiny muted">${esc(b)}</div></div>`));
   },
+
+  // Lista que muestra de 10 en 10 con botón "Ver 10 más"
+  paginar(items, id = "p" + Math.random().toString(36).slice(2, 8), n = 10) {
+    return `<div class="list pag" data-pag="${id}" style="gap:0">${items.map((h, i) => `<div class="pag-i" ${i >= n ? "hidden" : ""}>${h}</div>`).join("")}</div>
+      ${items.length > n ? `<button class="btn ghost sm block" style="margin-top:10px" onclick="R.mas(this, ${n})">Ver ${Math.min(n, items.length - n)} más · quedan ${items.length - n}</button>` : ""}
+      <div class="tiny muted" style="margin-top:6px">${items.length} en total</div>`;
+  },
+  mas(btn, n) {
+    const ocultos = [...btn.previousElementSibling.querySelectorAll(".pag-i[hidden]")];
+    ocultos.slice(0, n).forEach((el) => (el.hidden = false));
+    const quedan = ocultos.length - n;
+    if (quedan > 0) btn.textContent = `Ver ${Math.min(n, quedan)} más · quedan ${quedan}`; else btn.remove();
+  },
+
 
   leyenda(items) { return `<div class="row tiny muted" style="gap:14px;flex-wrap:wrap">${items.map(([c, t]) => `<span class="row" style="gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:${c};display:inline-block"></span>${t}</span>`).join("")}</div>`; },
 
