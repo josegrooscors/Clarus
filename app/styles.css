@@ -238,3 +238,19 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .asi.fut{border:1px dashed #D3D9E2;background:#fff;box-sizing:border-box}
 
 .pag-i[hidden]{display:none}
+
+/* Menú lateral ocultable */
+.side-tog{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 12px;border:0;background:none;color:var(--gris-cl);font:inherit;font-size:13px;cursor:pointer;border-radius:10px}
+.side-tog:hover{background:var(--azul-cl);color:var(--azul-osc)}
+.side-tog svg{transition:transform .2s}
+@media (min-width:900px){
+  .side{transition:width .2s}
+  body.side-min .side{width:68px;padding:20px 10px}
+  body.side-min .side .lbl, body.side-min .lema-side{display:none}
+  body.side-min .side a{justify-content:center;padding:10px 0}
+  body.side-min .side .brand{margin:0 0 18px;display:flex;justify-content:center}
+  body.side-min .side-tog{justify-content:center;padding:10px 0}
+  body.side-min .side-tog svg{transform:rotate(180deg)}
+  body.side-min .main{max-width:1500px}
+  body.side-min .side a .badge-ic{left:auto;right:6px}
+}

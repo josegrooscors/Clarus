@@ -137,9 +137,9 @@ const R = {
         ${kpi(abiertas, "Visitas sin cerrar (días anteriores)", abiertas ? "alerta" : "")}
       </div>
 
-      ${periodo === "hoy" ? "" : `
-        <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Agenda por día</h3>${R.leyenda([["#C9D6F2", "Visitas programadas"], ["#5B7FE8", "Visitas realizadas"]])}</div>${R.barras(serie, [["prog", "#C9D6F2"], ["ok", "#5B7FE8"]], (s) => `${s.ok}/${s.prog}`)}</div>
-        <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Pedidos por día</h3>${R.leyenda([["#5B7FE8", "Kilos pedidos"]])}</div>${R.barras(serie, [["kg", "#5B7FE8"]], (s) => fmtNum(s.kg, 0))}</div>`}
+      ${periodo === "hoy" ? "" : `<div class="grid2">
+        <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Agenda por día</h3>${R.leyenda([["#DCE5FB", "Programadas"], ["#2F5BEA", "Realizadas"]])}</div>${R.barras(serie, [["prog", "#DCE5FB"], ["ok", "#2F5BEA"]], (s) => `${s.ok}/${s.prog}`)}</div>
+        <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Pedidos por día</h3>${R.leyenda([["#2F5BEA", "Kilos"]])}</div>${R.barras(serie, [["kg", "#2F5BEA"]], (s) => fmtNum(s.kg, 0))}</div></div>`}
 
       <h3 class="sec-t" id="alertas-res">Alertas de inventario</h3>
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
@@ -222,18 +222,18 @@ const R = {
   // Gráfica de barras (SVG): la primera serie atrás (clara), la segunda encima (oscura)
   barras(serie, claves, etiqueta) {
     if (!serie.length) return "";
-    const W = Math.max(1000, serie.length * 44), H = 320, pb = 30, pt = 24, max = Math.max(1, ...serie.flatMap((s) => claves.map(([k]) => Number(s[k]) || 0)));
-    const gap = W / serie.length, bw = gap * 0.64;
-    const lineas = [0.25, 0.5, 0.75, 1].map((f) => { const y = H - pb - (H - pb - pt) * f; return `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="#EEF1F5"/>`; }).join("");
+    const W = Math.max(560, serie.length * 26), H = 200, pb = 22, pt = 18, max = Math.max(1, ...serie.flatMap((s) => claves.map(([k]) => Number(s[k]) || 0)));
+    const gap = W / serie.length, bw = Math.min(gap * 0.5, 22);
+    const lineas = [0.25, 0.5, 0.75, 1].map((f) => { const y = H - pb - (H - pb - pt) * f; return `<line x1="0" x2="${W}" y1="${y}" y2="${y}" stroke="#F1F3F7"/>`; }).join("");
     const bars = serie.map((s, i) => {
       const x0 = i * gap + (gap - bw) / 2;
       const r = claves.map(([k, c]) => { const v = Number(s[k]) || 0, h = ((H - pb - pt) * v) / max;
-        return `<rect x="${x0}" y="${H - pb - h}" width="${bw}" height="${Math.max(h, v ? 2 : 0)}" rx="4" fill="${c}"><title>${esc(etiqueta(s))}</title></rect>`; }).join("");
+        return `<rect x="${x0}" y="${H - pb - h}" width="${bw}" height="${Math.max(h, v ? 2 : 0)}" rx="3" fill="${c}"><title>${esc(etiqueta(s))}</title></rect>`; }).join("");
       const d = new Date(s.d + "T12:00:00");
-      return r + `<text x="${x0 + bw / 2}" y="${H - 10}" font-size="12" text-anchor="middle" fill="#8C95A3">${serie.length > 10 ? d.getDate() : d.toLocaleDateString("es-PA", { weekday: "short" }).slice(0, 3)}</text>`
-        + (claves.some(([k]) => Number(s[k])) ? `<text x="${x0 + bw / 2}" y="${H - pb - ((H - pb - pt) * Math.max(...claves.map(([k]) => Number(s[k]) || 0))) / max - 6}" font-size="11.5" font-weight="600" text-anchor="middle" fill="#3B4556">${etiqueta(s)}</text>` : "");
+      return r + `<text x="${x0 + bw / 2}" y="${H - 10}" font-size="10" text-anchor="middle" fill="#9AA3B2">${serie.length > 10 ? d.getDate() : d.toLocaleDateString("es-PA", { weekday: "short" }).slice(0, 3)}</text>`
+        + (claves.some(([k]) => Number(s[k])) ? `<text x="${x0 + bw / 2}" y="${H - pb - ((H - pb - pt) * Math.max(...claves.map(([k]) => Number(s[k]) || 0))) / max - 6}" font-size="9.5" font-weight="600" text-anchor="middle" fill="#5B6577">${etiqueta(s)}</text>` : "");
     }).join("");
-    return `<div class="scroll-x" style="margin-top:12px"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:640px">${lineas}${bars}</svg></div>`;
+    return `<div class="scroll-x" style="margin-top:10px"><svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:420px;max-height:240px">${lineas}${bars}</svg></div>`;
   },
 
 };
