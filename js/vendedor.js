@@ -261,10 +261,10 @@ const V = {
         $("[data-camb]", box).onclick = () => { v.pedido = null; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
         $("[data-ok]", box).onclick = siguiente; return;
       }
-      box.innerHTML = `<div class="card"><div class="row"><h2 class="sp">Pedido propuesto</h2>${pillPedido("propuesto")}</div>
+      box.innerHTML = `<div class="card"><div class="row"><h2 class="sp">Pedido enviado</h2>${pillPedido("propuesto")}</div>
         <div class="list" style="margin-top:12px">${v.pedido.items.map((i) => `<div class="row"><span class="sp">${esc(i.nombre)}</span><b>${fmtNum(i.propuesto)} ${esc(plural(i.propuesto, i.unidad))}</b></div>`).join("")}</div>
         ${v.pedido.nota ? `<p class="small muted">Nota: ${esc(v.pedido.nota)}</p>` : ""}
-        <p class="small muted">Lo revisará tu supervisor. Mientras no lo apruebe, puedes editarlo o anularlo.</p>
+        <p class="small muted">Ya le llegó a operaciones. Puedes editarlo o anularlo mientras no lo impriman.</p>
         <div class="row"><button class="btn ghost sm sp" data-edit>Editar pedido</button><button class="btn peligro sm sp" data-anul>Anular</button></div></div>
       <div class="card" style="border-color:var(--azul-med)"><div class="row"><span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><h3>Orden de compra de la tienda</h3>
         <div class="small muted">${v.pedido.orden ? `Escaneada ✓ · ${v.pedido.orden.paginas} página(s) · ${fmtHora(v.pedido.orden.at)}` : "Escanea la hoja física que te entrega la tienda. En la oficina la descargan e imprimen."}</div></div></div>
@@ -307,8 +307,8 @@ const V = {
           ${f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
           <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div></div>`).join("")}</div>
-      <label class="f">Nota para el supervisor</label><input class="in" id="nota" placeholder="Opcional" value="${esc(previo?.nota || "")}">
-      <div class="row" style="margin-top:16px">${previo ? `<button class="btn sec sp" data-cancel>Cancelar</button>` : `<button class="btn sec sp" data-no>No hace falta pedido</button>`}<button class="btn sp" data-ok>${previo ? "Guardar cambios" : "Proponer pedido"}</button></div>`;
+      <label class="f">Nota para operaciones</label><input class="in" id="nota" placeholder="Opcional" value="${esc(previo?.nota || "")}">
+      <div class="row" style="margin-top:16px">${previo ? `<button class="btn sec sp" data-cancel>Cancelar</button>` : `<button class="btn sec sp" data-no>No hace falta pedido</button>`}<button class="btn sp" data-ok>${previo ? "Guardar cambios" : "Enviar pedido"}</button></div>`;
     box.addEventListener("click", (e) => {
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
       const inp = $("input", b.parentElement); inp.value = Math.max(0, (parseInt(inp.value) || 0) + (b.dataset.s !== undefined ? 1 : -1)) || "";
@@ -328,7 +328,7 @@ const V = {
       const plid = uid();
       await DB.encolar({ t: "pedido", lid: v.lid, plid, data: { cliente_id: v.cliente_id, nota }, items });
       v.pedido = { plid, items, nota }; Visita.set(v);
-      toast("Pedido enviado para aprobación ✓"); siguiente();
+      toast("Pedido enviado a operaciones ✓"); this.pPedido(box, v, cat, siguiente);
     };
   },
 
@@ -390,7 +390,7 @@ const V = {
     if (!navigator.onLine) { $("#lp").innerHTML = `<div class="empty card flat"><div class="ic">${ic("senal", 34)}</div>Sin señal. Los pedidos se verán cuando vuelva la conexión.</div>`; return; }
     const { data, error } = await sb.from("v_pedidos").select("*").eq("vendedor_id", DB.user.id).order("creado_at", { ascending: false }).limit(60);
     if (error) { $("#lp").innerHTML = `<div class="muted">${esc(error.message)}</div>`; return; }
-    const orden = { aprobado: 0, propuesto: 1, rechazado: 2, orden_escaneada: 3, impreso: 4, anulado: 5 };
+    const orden = { propuesto: 0, aprobado: 1, orden_escaneada: 2, rechazado: 3, impreso: 4, anulado: 5 };
     data.sort((a, b) => orden[a.estado] - orden[b.estado] || new Date(b.creado_at) - new Date(a.creado_at));
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${ic("pedidos", 20)}</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
         <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
@@ -402,11 +402,11 @@ const V = {
     const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido)").eq("pedido_id", p.id);
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${fmtFechaHora(p.creado_at)}</div>
-      <table class="t"><tr><th>Producto</th><th>Propuesto</th><th>Aprobado</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : fmtNum(i.propuesto)}</td><td><b>${i.aprobado != null ? fmtNum(i.aprobado) : "–"}</b></td></tr>`).join("")}</table>
-      ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo aprueban: puedes corregir las cantidades o anularlo.</p>
+      <table class="t"><tr><th>Producto</th><th>Cantidad</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : fmtNum(i.propuesto)}</td></tr>`).join("")}</table>
+      ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo imprimen: puedes corregir las cantidades o anularlo.</p>
         <div class="row"><button class="btn peligro sm sp" data-anul>Anular pedido</button><button class="btn sm sp" data-guardar>Guardar cambios</button></div>` : ""}
-      ${p.nota_revision ? `<p class="small"><b>Nota del supervisor:</b> ${esc(p.nota_revision)}</p>` : ""}
+      ${p.nota_revision ? `<p class="small"><b>Nota:</b> ${esc(p.nota_revision)}</p>` : ""}
       ${["propuesto", "aprobado"].includes(p.estado) ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med);margin-top:14px"><b>Orden de compra de la tienda</b>
           <div class="small">${p.documento ? "Ya está escaneada ✓. Si cambió, puedes volver a escanearla." : "Cuando la tienda te entregue la orden física, escanéala aquí. En la oficina la descargan e imprimen."}</div></div>
         <button class="btn block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${p.documento ? "Volver a escanear" : "Escanear orden de compra"}</button>` : ""}

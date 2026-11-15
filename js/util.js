@@ -64,10 +64,10 @@ function distanciaM(a, b) {
 }
 
 const ESTADOS_PEDIDO = {
-  propuesto: ["Por aprobar", "p-durazno"],
+  propuesto: ["Enviado", "p-azul"],
   aprobado: ["Aprobado", "p-azul"],
   rechazado: ["Rechazado", "p-rosa"],
-  orden_escaneada: ["Aprobado · orden escaneada", "p-lila"],
+  orden_escaneada: ["Orden escaneada", "p-lila"],
   impreso: ["Impreso", "p-menta"],
   anulado: ["Anulado", "p-gris"],
 };
