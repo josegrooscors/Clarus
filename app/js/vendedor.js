@@ -23,7 +23,8 @@ const V = {
     const dia = dSel.dia;
     const hechas = LS.get("hechas:" + hoyISO(), {});
     const rutaIds = cat.ruta.filter((r) => (r.dias_semana || []).includes(dia)).map((r) => r.cliente_id);
-    const ruta = cat.clientes.filter((c) => rutaIds.includes(c.id));
+    const ordenDe = (id) => cat.ruta.find((r) => r.cliente_id === id)?.orden ?? 999;
+    const ruta = cat.clientes.filter((c) => rutaIds.includes(c.id)).sort((a, b) => ordenDe(a.id) - ordenDe(b.id) || a.nombre.localeCompare(b.nombre));
     const nombre = (DB.perfil.nombre || "").split(" ")[0];
     const hora = new Date().getHours();
     const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
@@ -44,18 +45,18 @@ const V = {
       <div class="row" style="margin:20px 0 10px"><h3 class="sp">Otra tienda</h3></div>
       <input class="in" id="buscar" placeholder="Buscar tienda o cadena…">
       <div class="list" id="otras" style="margin-top:10px"></div>`;
-    const fila = (c) => {
-      const h = hechas[c.id];
-      return `<div class="item" data-c="${c.id}"><div class="ava">${esc(iniciales(c.cadena || c.nombre))}</div>
+    const fila = (c, i) => {
+      const h = hechas[c.id], enRuta = rutaIds.includes(c.id) && typeof i === "number";
+      return `<div class="item" data-c="${c.id}"><div class="ava">${enRuta ? i + 1 : esc(iniciales(c.cadena || c.nombre))}</div>
         <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}</div>
         ${h && esHoy ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : esHoy ? `<span class="pill p-azul">Iniciar</span>` : `<span class="pill p-gris">${esc(dSel.etiqueta)}</span>`}</div>`;
     };
-    $("#ruta").insertAdjacentHTML("beforeend", ruta.map(fila).join(""));
+    $("#ruta").insertAdjacentHTML("beforeend", ruta.map((c, i) => fila(c, i)).join(""));
     $$("[data-dia]", root).forEach((el) => (el.onclick = () => { root.innerHTML = ""; const nr = root.cloneNode(false); root.replaceWith(nr); V.hoy(nr, el.dataset.dia); }));
     const pintarOtras = (q) => {
       q = sinAcentos(q.trim());
       const lista = q ? cat.clientes.filter((c) => q.split(/\s+/).every((w) => sinAcentos(c.nombre + " " + (c.cadena || "") + " " + (c.codigo || "") + " " + (c.zona || "")).includes(w))).slice(0, 25) : [];
-      $("#otras").innerHTML = lista.map(fila).join("") || (q ? `<div class="muted small">Sin resultados</div>` : "");
+      $("#otras").innerHTML = lista.map((c) => fila(c)).join("") || (q ? `<div class="muted small">Sin resultados</div>` : "");
     };
     $("#buscar").oninput = (e) => pintarOtras(e.target.value);
     root.addEventListener("click", (e) => {

@@ -255,7 +255,7 @@ const M = {
     root.innerHTML = `<div class="top"><div><div class="muted small">Tiendas, rutas y zonas</div><h1>Mapa</h1></div></div><div id="mp" class="muted">Cargando mapa…</div>`;
     const [_, cl, at, pf, zs] = await Promise.all([this.cargar(),
       sb.from("clientes").select("id, nombre, cadena, lat, lng, zona_id, activo, tipo_id").eq("activo", true),
-      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana"),
+      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden"),
       sb.from("perfiles").select("id, nombre, rol").order("nombre"),
       sb.from("zonas").select("*").eq("activo", true)]);
     const vendedoras = (pf.data || []).filter((p) => (at.data || []).some((a) => a.vendedor_id === p.id));
@@ -265,14 +265,16 @@ const M = {
     if (vend) asig = asig.filter((a) => a.vendedor_id === vend);
     if (dNum) asig = asig.filter((a) => (a.dias_semana || []).includes(dNum));
     const ids = new Set(asig.map((a) => a.cliente_id));
-    const tiendas = (cl.data || []).filter((c) => (vend || dNum ? ids.has(c.id) : true)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const ord = (id) => asig.find((a) => a.cliente_id === id)?.orden ?? 999;
+    const enRuta = !!(vend && dNum);
+    const tiendas = (cl.data || []).filter((c) => (vend || dNum ? ids.has(c.id) : true)).sort((a, b) => (enRuta ? ord(a.id) - ord(b.id) : 0) || a.nombre.localeCompare(b.nombre));
     const conGps = tiendas.filter((t) => t.lat != null);
     $("#mp").outerHTML = `<div class="row wrap" style="margin-bottom:12px;gap:8px">
         <select class="in" id="mv" style="width:auto"><option value="">Todas las vendedoras</option>${vendedoras.map((v, i) => `<option value="${v.id}" ${v.id === vend ? "selected" : ""}>${esc(v.nombre)}</option>`).join("")}</select>
         <div class="steps" style="margin:0">${[["hoy", "Hoy"], ["todos", "Todos los días"], ...[1, 2, 3, 4, 5, 6].map((d) => [String(d), DIAS[d]])].map(([k, t]) => `<div class="step ${String(k) === String(dia) ? "on" : ""}" data-dia="${k}">${t}</div>`).join("")}</div></div>
       <div class="mapa-grid"><div class="card mapa-lista"><div class="small muted" style="margin-bottom:8px">${tiendas.length} tienda(s) · ${conGps.length} con ubicación${tiendas.length - conGps.length ? ` · <b style="color:var(--durazno-t)">${tiendas.length - conGps.length} sin GPS</b>` : ""}</div>
         <div class="list" style="gap:0">${tiendas.map((t) => { const a = (at.data || []).filter((x) => x.cliente_id === t.id);
-          return `<div class="mrow" data-t="${t.id}"><span class="dot" style="background:${a[0] ? col(a[0].vendedor_id) : "#999"}"></span><div class="grow"><div style="font-weight:500">${esc(t.nombre)}</div>
+          return `<div class="mrow" data-t="${t.id}">${enRuta ? `<span class="num" style="background:${col(vend)}">${tiendas.indexOf(t) + 1}</span>` : `<span class="dot" style="background:${a[0] ? col(a[0].vendedor_id) : "#999"}"></span>`}<div class="grow"><div style="font-weight:500">${esc(t.nombre)}</div>
             <div class="tiny muted">${a.map((x) => esc((vendedoras.find((v) => v.id === x.vendedor_id)?.nombre || "").split(" ")[0]) + " " + (x.dias_semana || []).map((d) => DIAS_C[d]).join("")).join(" · ") || "Sin vendedora"}</div></div>${t.lat == null ? `<span class="pill p-durazno">Sin GPS</span>` : ""}</div>`; }).join("") || `<div class="muted small">No hay tiendas con ese filtro.</div>`}</div></div>
         <div class="card mapa-mapa" style="padding:0;overflow:hidden"><div id="mapa" style="height:100%;min-height:420px"></div></div></div>
       ${zs.data?.length ? `<div class="row wrap small" style="margin-top:8px;gap:12px">${zs.data.map((z) => `<span><span class="dot" style="background:${esc(z.color)}"></span> ${esc(z.nombre)}</span>`).join("")}</div>` : ""}`;
@@ -286,6 +288,11 @@ const M = {
         .bindPopup(`<b>${esc(t.nombre)}</b><br>${esc(t.cadena || "")}<br>${a.map((x) => esc(vendedoras.find((v) => v.id === x.vendedor_id)?.nombre || "") + " · " + (x.dias_semana || []).map((d) => DIAS_C[d]).join("")).join("<br>")}`);
       capas[t.id] = mk; b.push([t.lat, t.lng]);
     });
+    if (enRuta) {
+      const linea = tiendas.filter((t) => t.lat != null).map((t) => [t.lat, t.lng]);
+      if (linea.length > 1) L.polyline(linea, { color: col(vend), weight: 3, opacity: 0.8, dashArray: "6 6" }).addTo(map);
+      tiendas.filter((t) => t.lat != null).forEach((t) => L.marker([t.lat, t.lng], { icon: L.divIcon({ className: "", html: `<span class="num" style="background:${col(vend)}">${tiendas.indexOf(t) + 1}</span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map).on("click", () => capas[t.id]?.openPopup()));
+    }
     if (b.length) map.fitBounds(b, { padding: [30, 30], maxZoom: 15 });
     setTimeout(() => map.invalidateSize(), 200);
     $$("[data-t]", root).forEach((el) => (el.onclick = () => { const mk = capas[el.dataset.t]; if (mk) { map.setView(mk.getLatLng(), 16); mk.openPopup(); } else toast("Esa tienda todavía no tiene ubicación"); }));

@@ -1,0 +1,3 @@
+-- Aplicada el 15-nov-2026: asignacion_tiendas.orden + GPS de 137 tiendas y orden de visita de 19 rutas
+-- tomados del KML "Lacia S.A. Supermercados" (Google My Maps de José). Marcas: El Fuerte = Tamek, El Machetazo = Goly,
+-- Super Carnes = Virzi, Super 99 = Ricamar.
