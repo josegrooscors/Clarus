@@ -93,3 +93,6 @@ const ICONOS = {
 };
 const ic = (n, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[n] || ""}</svg>`;
 const sinAcentos = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+const plural = (n, u) => (Number(n) === 1 ? u : /[aeiou]$/i.test(u) ? u + "s" : u + "es");
+const fmtDist = (m) => (m == null ? "–" : m < 1000 ? Math.round(m) + " m" : (m / 1000).toLocaleString("es-PA", { maximumFractionDigits: 1 }) + " km");
