@@ -1,0 +1,3 @@
+-- 017 (15-nov-2026): trigger a_cerrar_visita_previa en visitas: al insertar una visita, cierra la visita abierta anterior de la vendedora (evita que la cola offline se tranque con una_visita_abierta).
+-- 018 (15-nov-2026): tabla transportes (empresa_id, nombre único, contacto, telefono, activo; ver = empresa, editar = es_gestor) y despachos.transporte_id.
+-- v_pedidos (016) incluye despacho_id, facturado_at, factura_num.
