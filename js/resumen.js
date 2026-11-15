@@ -115,7 +115,7 @@ const R = {
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
         <div class="small">${new Set(agotSinPed.map((a) => a.cliente_id)).size} tienda(s) en total · ${agotSinPed.length} conteo(s) en ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s). <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
-        <button class="btn sm" onclick="R.avisar('todas')">📣 Avisar a las vendedoras</button></div>` : ""}
+        <button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button></div>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       <div class="kpis">
@@ -145,8 +145,9 @@ const R = {
 
       <h3 class="sec-t" id="alertas-res">Alertas de inventario</h3>
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
-        <div class="row" style="padding:8px 0;border-top:1px solid var(--borde);align-items:flex-start"><div class="grow"><b>${esc(a.tienda)}</b><div class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)}</div></div>
-          <div style="text-align:right">${a.prods.map((p) => `<div><span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span></div>`).join("")}<div class="tiny" style="color:var(--rosa-t);margin-top:4px">Sin pedido</div><button class="btn ghost sm" style="margin-top:6px" onclick="R.avisar(${a.visita_id})">📣 Avisar</button></div></div>`), "alertas")
+        <div class="al-fila"><div class="al-t"><b>${esc(a.tienda)}</b><span class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)}</span></div>
+          <div class="al-p">${a.prods.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span>`).join("")}<span class="tiny" style="color:var(--rosa-t)">Sin pedido</span></div>
+          <button class="btn ghost sm al-b" onclick="R.avisar(${a.visita_id})">${ic("megafono", 15)} Avisar</button></div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
@@ -224,7 +225,7 @@ const R = {
         return { uid, nombre: v.nombre, titulo, cuerpo, n: ts.length };
       });
     };
-    modal(`<h2>📣 Avisar a las vendedoras</h2>
+    modal(`<h2 class="row" style="gap:8px"><span style="color:var(--azul)">${ic("megafono", 24)}</span>Avisar a las vendedoras</h2>
       <p class="small muted" style="margin-top:4px">Le llega a su buzón de Clarus y al teléfono, con «Entendido». Si no confirma, se le recuerda cada hora (7 am a 7 pm).</p>
       ${prods.length > 1 ? `<label class="f">Productos a incluir</label><div class="row" style="flex-wrap:wrap;gap:6px">${prods.map((p) => `<button class="btn sm ${elegidos.has(p) ? "" : "sec"}" data-prod="${esc(p)}">${esc(corto(p))}</button>`).join("")}</div>
         <div class="tiny muted" style="margin-top:4px">Quita el producto que no tienes en inventario para pedir (p. ej. Muenster agotado en la empresa).</div>` : ""}

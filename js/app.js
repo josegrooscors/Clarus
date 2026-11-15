@@ -3,10 +3,12 @@ const App = {
   rutas() {
     const r = DB.perfil.rol;
     const m = [];
+    if (r === "operaciones") m.push(["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a imprimir pedidos
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
-    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
+    if (r === "operaciones") m.push(["objetivos", "ok", "Objetivos"]);
+    else if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
     m.push(["mensajes", "msg", "Mensajes"], ["yo", "yo", "Yo"]);
@@ -53,8 +55,16 @@ const App = {
       console.error(e);
       root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
     }
+    // Logo de la empresa cliente arriba a la derecha (se vuelve a poner si la pantalla se redibuja)
+    App.logoCliente(root);
+    if (!root._obsLogo) { root._obsLogo = new MutationObserver(() => App.logoCliente(root)); root._obsLogo.observe(root, { childList: true }); }
     MSG.revisar();
     SOP.revisar();
+  },
+
+  logoCliente(root) {
+    const top = $(".top", root);
+    if (top && DB.empresa?.logo_url && !$(".logo-cliente", top)) top.insertAdjacentHTML("beforeend", `<img class="logo-cliente" src="${esc(DB.empresa.logo_url)}" alt="${esc(DB.empresa.nombre || "")}" title="${esc(DB.empresa.nombre || "")}">`);
   },
 
   async syncPill() {

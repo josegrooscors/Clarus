@@ -258,3 +258,14 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
   body.side-min .side a .badge-ic{left:auto;right:6px}
   body.side-min .side-msg{width:46px;height:46px}
 }
+
+/* Alertas de inventario en una línea */
+.al-fila{display:grid;grid-template-columns:minmax(220px,1.3fr) 2fr auto;gap:12px;align-items:center;padding:7px 0;border-top:1px solid var(--borde)}
+.al-t{display:flex;flex-direction:column;min-width:0}
+.al-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.al-p{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.al-b{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:var(--azul)}
+@media (max-width:700px){.al-fila{grid-template-columns:1fr auto}.al-p{grid-column:1/-1;order:3}}
+/* Logo de la empresa cliente */
+.logo-cliente{display:none}
+@media (min-width:900px){.logo-cliente{display:block;height:54px;width:auto;margin-left:auto;align-self:center;flex:none}}
