@@ -58,10 +58,10 @@ const V = {
       this.iniciar(c);
     });
     App.syncPill();
-    if (navigator.onLine) sb.from("pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).eq("estado", "aprobado").then(({ count }) => {
+    if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
       const el = $("#porEscanear"); if (!el || !count) return;
       el.innerHTML = `<a class="card" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--azul-cl);border-color:var(--azul-med)">
-        <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${count} pedido(s) aprobado(s)</b><div class="small muted">Escanea la orden de compra cuando te la entreguen</div></div><span class="btn sm">Escanear</span></a>`;
+        <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${count} pedido(s) sin orden escaneada</b><div class="small muted">Escanea la orden de compra cuando la tienda te la entregue</div></div><span class="btn sm">Escanear</span></a>`;
     });
     // Actualiza tiendas y productos en segundo plano; si hay cambios, vuelve a pintar
     if (navigator.onLine && !V._refrescando) {
@@ -266,7 +266,14 @@ const V = {
         ${v.pedido.nota ? `<p class="small muted">Nota: ${esc(v.pedido.nota)}</p>` : ""}
         <p class="small muted">Lo revisará tu supervisor. Mientras no lo apruebe, puedes editarlo o anularlo.</p>
         <div class="row"><button class="btn ghost sm sp" data-edit>Editar pedido</button><button class="btn peligro sm sp" data-anul>Anular</button></div></div>
-        <button class="btn block" data-ok>Seguir</button>`;
+      <div class="card" style="border-color:var(--azul-med)"><div class="row"><span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><h3>Orden de compra de la tienda</h3>
+        <div class="small muted">${v.pedido.orden ? `Escaneada ✓ · ${v.pedido.orden.paginas} página(s) · ${fmtHora(v.pedido.orden.at)}` : "Escanea la hoja física que te entrega la tienda. En la oficina la descargan e imprimen."}</div></div></div>
+        <button class="btn ${v.pedido.orden ? "ghost" : ""} block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${v.pedido.orden ? "Volver a escanear" : "Escanear orden de compra"}</button></div>
+        <button class="btn sec block" data-ok>Seguir</button>`;
+      $("[data-scan]", box).onclick = async () => {
+        const r = await V.escanearOrden({ plid: v.pedido.plid });
+        if (r) { v.pedido.orden = r; Visita.set(v); this.pPedido(box, v, cat, siguiente); }
+      };
       $("[data-ok]", box).onclick = siguiente;
       $("[data-edit]", box).onclick = () => { v.editandoPedido = true; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
       $("[data-anul]", box).onclick = async () => {
@@ -355,6 +362,27 @@ const V = {
     };
   },
 
+  // Escanear la orden de compra física (funciona sin señal: se envía cuando hay conexión)
+  async escanearOrden(ref) {
+    const numero = await new Promise((res) => modal(`<h2>Escanear orden de compra</h2>
+      <p class="small muted">Pon la hoja sobre una superficie oscura y con buena luz. Si tiene varias páginas, las agregas una por una.</p>
+      <label class="f">Número de la orden (opcional)</label><input class="in" id="norden" inputmode="text" placeholder="Ej. OC-12345">
+      <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>Cancelar</button><button class="btn sp" data-si>${ic("camara", 18)} Abrir cámara</button></div>`, (m, close) => {
+        $("[data-no]", m).onclick = () => { close(); res(null); };
+        $("[data-si]", m).onclick = () => { const n = $("#norden", m).value.trim(); close(); res(n); };
+      }));
+    if (numero === null) return null;
+    try {
+      const r = await Escaner.escanear({ titulo: "Orden de compra" });
+      if (!r) return null;
+      let pos = null; try { pos = await ubicacion(6000); } catch {}
+      const key = uid(), at = new Date().toISOString(); await IDB.putBlob(key, r.blob);
+      await DB.encolar({ t: "orden", ...ref, blob: key, data: { paginas: r.paginas, numero_orden: numero, at, lat: pos?.lat, lng: pos?.lng } });
+      toast(`Orden escaneada (${r.paginas} pág.) ✓ Se enviará a la oficina`, 3500);
+      return { paginas: r.paginas, at, numero };
+    } catch (e) { toast(e.message, 4000); return null; }
+  },
+
   // ---------------- PEDIDOS (vendedor) ----------------
   async pedidos(root) {
     root.innerHTML = `<div class="top"><h1>Mis pedidos</h1><span id="syncpill"></span></div><div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
@@ -366,7 +394,7 @@ const V = {
     data.sort((a, b) => orden[a.estado] - orden[b.estado] || new Date(b.creado_at) - new Date(a.creado_at));
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${ic("pedidos", 20)}</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
         <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
-        ${p.estado === "aprobado" ? `<span class="btn sm">${ic("doc", 16)} Escanear</span>` : pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
+        ${["propuesto", "aprobado"].includes(p.estado) && !p.documento ? `<span class="btn sm">${ic("camara", 16)} Escanear</span>` : pillPedido(p.estado) + (p.documento && p.estado === "propuesto" ? ` <span class="pill p-lila">Orden ✓</span>` : "")}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detallePedido(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root))));
   },
 
@@ -379,9 +407,9 @@ const V = {
       ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo aprueban: puedes corregir las cantidades o anularlo.</p>
         <div class="row"><button class="btn peligro sm sp" data-anul>Anular pedido</button><button class="btn sm sp" data-guardar>Guardar cambios</button></div>` : ""}
       ${p.nota_revision ? `<p class="small"><b>Nota del supervisor:</b> ${esc(p.nota_revision)}</p>` : ""}
-      ${p.estado === "aprobado" ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med);margin-top:14px"><b>Siguiente paso</b><div class="small">Cuando te entreguen la orden física, escanéala aquí.</div></div>
-        <label class="f">Número de la orden (si lo tiene)</label><input class="in" id="norden" placeholder="Opcional">
-        <button class="btn block" style="margin-top:12px" data-scan>${ic("doc", 18)} Escanear orden</button>` : ""}
+      ${["propuesto", "aprobado"].includes(p.estado) ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med);margin-top:14px"><b>Orden de compra de la tienda</b>
+          <div class="small">${p.documento ? "Ya está escaneada ✓. Si cambió, puedes volver a escanearla." : "Cuando la tienda te entregue la orden física, escanéala aquí. En la oficina la descargan e imprimen."}</div></div>
+        <button class="btn block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${p.documento ? "Volver a escanear" : "Escanear orden de compra"}</button>` : ""}
       ${p.documento ? `<button class="btn sec block" style="margin-top:12px" data-ver>Ver orden escaneada</button>` : ""}`, (m, close) => {
       const g = $("[data-guardar]", m);
       if (g) g.onclick = async () => {
@@ -402,19 +430,7 @@ const V = {
       const ver = $("[data-ver]", m);
       if (ver) ver.onclick = async () => window.open(await DB.urlFirmada("documentos", p.documento), "_blank");
       const sc = $("[data-scan]", m);
-      if (sc) sc.onclick = async () => {
-        const numero = $("#norden", m).value.trim();
-        close();
-        try {
-          const r = await Escaner.escanear({ titulo: "Orden de compra" });
-          if (!r) return;
-          let pos = null; try { pos = await ubicacion(6000); } catch {}
-          const key = uid(); await IDB.putBlob(key, r.blob);
-          await DB.encolar({ t: "orden", pedido_id: p.id, blob: key, data: { paginas: r.paginas, numero_orden: numero, at: new Date().toISOString(), lat: pos?.lat, lng: pos?.lng } });
-          toast(`Orden escaneada (${r.paginas} pág.) ✓ Se enviará a operaciones`, 3500);
-          await DB.sincronizar(); recargar();
-        } catch (e) { toast(e.message, 4000); }
-      };
+      if (sc) sc.onclick = async () => { close(); if (await V.escanearOrden({ pedido_id: p.id })) { await DB.sincronizar(); recargar(); } };
     });
   },
 };

@@ -3,27 +3,37 @@ const G = {
   // ---------------- PEDIDOS (supervisor / operaciones / admin) ----------------
   async pedidos(root, filtro) {
     const rol = DB.perfil.rol;
-    const tabs = [["propuesto", "Por aprobar"], ["aprobado", "Esperando orden"], ["orden_escaneada", "Por imprimir"], ["impreso", "Impresos"], ["rechazado", "Rechazados"]];
-    filtro = filtro || (rol === "operaciones" ? "orden_escaneada" : "propuesto");
+    const tabs = [["propuesto", "Por aprobar"], ["imprimir", "Por imprimir"], ["aprobado", "Aprobados sin orden"], ["impreso", "Impresos"], ["rechazado", "Rechazados"]];
+    filtro = filtro || (rol === "operaciones" ? "imprimir" : "propuesto");
     root.innerHTML = `<div class="top"><h1>Pedidos</h1></div>
       <div class="steps">${tabs.map(([k, t]) => `<div class="step ${k === filtro ? "on" : ""}" data-f="${k}">${t} <span data-n="${k}"></span></div>`).join("")}</div>
       <div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
     $$("[data-f]", root).forEach((el) => (el.onclick = () => this.pedidos(root, el.dataset.f)));
-    const { data: cnt } = await sb.from("pedidos").select("estado");
-    const n = {}; (cnt || []).forEach((r) => (n[r.estado] = (n[r.estado] || 0) + 1));
-    tabs.forEach(([k]) => { const s = $(`[data-n="${k}"]`, root); if (n[k] && ["propuesto", "orden_escaneada"].includes(k)) s.innerHTML = `<span class="badge">${n[k]}</span>`; else if (n[k]) s.textContent = "· " + n[k]; });
-    const { data, error } = await sb.from("v_pedidos").select("*").eq("estado", filtro).order("creado_at", { ascending: filtro === "propuesto" || filtro === "orden_escaneada" }).limit(100);
+    const POR_IMPRIMIR = ["propuesto", "aprobado", "orden_escaneada"];
+    const { data: cnt } = await sb.from("v_pedidos").select("estado, documento");
+    const n = {};
+    (cnt || []).forEach((r) => {
+      if (r.documento && POR_IMPRIMIR.includes(r.estado)) n.imprimir = (n.imprimir || 0) + 1;
+      if (r.estado === "aprobado" && !r.documento) n.aprobado = (n.aprobado || 0) + 1;
+      else if (r.estado !== "aprobado") n[r.estado] = (n[r.estado] || 0) + 1;
+    });
+    tabs.forEach(([k]) => { const s = $(`[data-n="${k}"]`, root); if (n[k] && ["propuesto", "imprimir"].includes(k)) s.innerHTML = `<span class="badge">${n[k]}</span>`; else if (n[k]) s.textContent = "· " + n[k]; });
+    let q = sb.from("v_pedidos").select("*");
+    if (filtro === "imprimir") q = q.in("estado", POR_IMPRIMIR).not("documento", "is", null);
+    else if (filtro === "aprobado") q = q.eq("estado", "aprobado").is("documento", null);
+    else q = q.eq("estado", filtro);
+    const { data, error } = await q.order("creado_at", { ascending: filtro === "propuesto" || filtro === "imprimir" }).limit(100);
     if (error) { $("#lp").innerHTML = esc(error.message); return; }
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${esc(iniciales(p.vendedor))}</div>
       <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
-      ${pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
+      ${pillPedido(p.estado)}${p.documento && filtro !== "imprimir" && p.estado !== "impreso" ? ` <span class="pill p-lila">Orden ✓</span>` : ""}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detalle(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root, filtro))));
   },
 
   async detalle(p, recargar) {
     const rol = DB.perfil.rol;
     const puedeAprobar = ["admin", "supervisor"].includes(rol) && p.estado === "propuesto";
-    const puedeImprimir = ["admin", "operaciones", "supervisor"].includes(rol) && p.estado === "orden_escaneada";
+    const puedeImprimir = ["admin", "operaciones", "supervisor"].includes(rol) && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
     const [{ data: items }, { data: ev }] = await Promise.all([
       sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo)").eq("pedido_id", p.id).order("id"),
       sb.from("pedido_eventos").select("*, perfiles(nombre)").eq("pedido_id", p.id).order("at"),
@@ -36,7 +46,8 @@ const G = {
         <td>${puedeAprobar ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : `<b>${i.aprobado != null ? fmtNum(i.aprobado) : "–"}</b>`}</td></tr>`).join("")}</table></div>
       ${puedeAprobar ? `<label class="f">Nota (opcional; obligatoria si rechazas)</label><input class="in" id="nrev">
         <div class="row" style="margin-top:14px"><button class="btn peligro sp" data-rech>Rechazar</button><button class="btn ok sp" data-apr>Aprobar</button></div>` : ""}
-      ${p.documento ? `<button class="btn ${puedeImprimir ? "" : "sec"} block" style="margin-top:14px" data-pdf>${ic("doc", 18)} Abrir orden escaneada (PDF)</button>` : ""}
+      ${p.documento ? `<div class="row" style="margin-top:14px"><button class="btn ${puedeImprimir ? "" : "sec"} sp" data-pdf>${ic("doc", 18)} Abrir / imprimir</button><button class="btn sec sp" data-desc>Descargar PDF</button></div>` : ""}
+      ${puedeImprimir && p.estado === "propuesto" ? `<p class="small" style="color:var(--durazno-t)">Ojo: este pedido todavía no está aprobado.</p>` : ""}
       ${puedeImprimir ? `<button class="btn ok block" style="margin-top:10px" data-imp>Marcar como impreso</button>` : ""}
       <h3 style="margin:18px 0 6px">Historial</h3>
       ${(ev || []).map((e) => `<div class="row small" style="padding:4px 0"><span class="sp">${(ESTADOS_PEDIDO[e.estado] || [e.estado])[0]}${e.perfiles ? " · " + esc(e.perfiles.nombre) : ""}</span><span class="muted">${fmtFechaHora(e.at)}</span></div>`).join("")}`,
@@ -57,6 +68,11 @@ const G = {
         $("[data-apr]", m) && ($("[data-apr]", m).onclick = () => act("aprobado"));
         $("[data-rech]", m) && ($("[data-rech]", m).onclick = () => act("rechazado"));
         $("[data-pdf]", m) && ($("[data-pdf]", m).onclick = async () => window.open(await DB.urlFirmada("documentos", p.documento), "_blank"));
+        $("[data-desc]", m) && ($("[data-desc]", m).onclick = async () => {
+          const { data, error } = await sb.storage.from("documentos").createSignedUrl(p.documento, 600, { download: `Orden-${p.numero_orden || p.id}-${(p.tienda || "").replace(/[^\w]+/g, "_")}.pdf` });
+          if (error) return toast(error.message);
+          location.href = data.signedUrl;
+        });
         $("[data-imp]", m) && ($("[data-imp]", m).onclick = async () => {
           const { error } = await sb.from("pedidos").update({ estado: "impreso" }).eq("id", p.id);
           if (error) { toast(error.message, 4000); return; }

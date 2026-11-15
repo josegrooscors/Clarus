@@ -193,10 +193,14 @@ const DB = {
         return;
       }
       case "orden": {
-        const path = await this.subir("documentos", op.blob, "pedido-" + op.pedido_id, "pdf", "application/pdf");
-        ok(await sb.from("pedido_documentos").insert({ id_local: op.blob, pedido_id: op.pedido_id, storage_path: path, paginas: d.paginas, tomado_at: d.at, lat: d.lat, lng: d.lng }));
-        const { data: p } = await sb.from("pedidos").select("estado").eq("id", op.pedido_id).single();
-        if (p && p.estado === "aprobado") ok(await sb.from("pedidos").update({ estado: "orden_escaneada", numero_orden: d.numero_orden || null }).eq("id", op.pedido_id));
+        let pid = op.pedido_id;
+        if (!pid) { const { data: q } = await sb.from("pedidos").select("id").eq("id_local", op.plid).maybeSingle(); if (!q) throw new Error("Pedido aún no sincronizado"); pid = q.id; }
+        const path = await this.subir("documentos", op.blob, "pedido-" + pid, "pdf", "application/pdf");
+        ok(await sb.from("pedido_documentos").insert({ id_local: op.blob, pedido_id: pid, storage_path: path, paginas: d.paginas, tomado_at: d.at, lat: d.lat, lng: d.lng }));
+        const { data: p } = await sb.from("pedidos").select("estado").eq("id", pid).single();
+        const cambios = { numero_orden: d.numero_orden || null, escaneado_at: d.at };
+        if (p && p.estado === "aprobado") cambios.estado = "orden_escaneada";
+        if (p && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado)) ok(await sb.from("pedidos").update(cambios).eq("id", pid));
         await IDB.delBlob(op.blob);
         return;
       }
