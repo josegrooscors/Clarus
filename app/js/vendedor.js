@@ -34,6 +34,7 @@ const V = {
         <div class="kpi"><div class="v">${ruta.length}</div><div class="l">Tiendas en ruta hoy</div></div>
         <div class="kpi"><div class="v">${ruta.filter((c) => hechas[c.id]).length}</div><div class="l">Visitadas</div></div>
       </div>
+      ${V.tarjetaObjetivo(cat)}
       <h3 style="margin:18px 0 10px">Ruta de hoy</h3>
       <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>Hoy no tienes tiendas asignadas.<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
       <div class="row" style="margin:20px 0 10px"><h3 class="sp">Otra tienda</h3></div>
@@ -42,7 +43,7 @@ const V = {
     const fila = (c) => {
       const h = hechas[c.id];
       return `<div class="item" data-c="${c.id}"><div class="ava">${esc(iniciales(c.cadena || c.nombre))}</div>
-        <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div></div>
+        <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}</div>
         ${h ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : `<span class="pill p-azul">Iniciar</span>`}</div>`;
     };
     $("#ruta").insertAdjacentHTML("beforeend", ruta.map(fila).join(""));
@@ -304,6 +305,7 @@ const V = {
       ${previo ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med)"><b>Editando el pedido</b><div class="small">Cambia las cantidades y guarda.</div></div>` : ""}
       <p class="muted small" style="margin-top:0">${bajos ? `${bajos} producto(s) con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
       <div class="list">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp"><div class="nm">${esc(f.p.nombre)}</div>
+          ${V.objProducto(cat, v.cliente_id, f.p)}
           <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div>
           ${f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
@@ -373,6 +375,39 @@ const V = {
       toast(`Visita cerrada · ${minutos(v.at, at)} min en tienda ✓`, 3500);
       location.hash = "#hoy";
     };
+  },
+
+  // ---------- Objetivos de venta ----------
+  objDe(cat, clienteId) { return (cat.obj || []).filter((o) => o.cliente_id === clienteId); },
+  avanceTienda(cat, clienteId) {
+    const os = this.objDe(cat, clienteId).filter((o) => Number(o.objetivo_kg) > 0);
+    if (!os.length) return "";
+    return `<div class="tiny" style="margin-top:4px;display:flex;gap:10px;flex-wrap:wrap">${os.map((o) => {
+      const p = cat.productos.find((x) => x.id === o.producto_id), pc = pct(o.venta_kg, o.objetivo_kg);
+      const nom = (p?.nombre || "").replace(/^Queso /, "");
+      return `<span class="pill ${colorPct(pc)}" style="font-weight:500">${esc(nom)} ${fmtNum(cajas(o.venta_kg, p), 1)}/${fmtNum(cajas(o.objetivo_kg, p), 0)} cj</span>`;
+    }).join("")}</div>`;
+  },
+  objProducto(cat, clienteId, p) {
+    const o = this.objDe(cat, clienteId).find((x) => x.producto_id === p.id);
+    if (!o || !Number(o.objetivo_kg)) return "";
+    const falta = Math.max(0, cajas(o.objetivo_kg - o.venta_kg, p)), pc = pct(o.venta_kg, o.objetivo_kg);
+    return `<div class="tiny" style="margin:2px 0"><span class="pill ${colorPct(pc)}" style="font-weight:500">Objetivo del mes ${fmtNum(cajas(o.objetivo_kg, p), 0)} cj · facturado ${fmtNum(cajas(o.venta_kg, p), 1)} · ${falta > 0 ? "faltan " + fmtNum(falta, 1) : "cumplido ✓"}</span></div>`;
+  },
+  tarjetaObjetivo(cat) {
+    const mias = new Set(cat.ruta.map((r) => r.cliente_id));
+    const os = (cat.obj || []).filter((o) => mias.has(o.cliente_id));
+    if (!os.length) return "";
+    const obj = os.reduce((a, o) => a + Number(o.objetivo_usd || 0), 0), ven = os.reduce((a, o) => a + Number(o.venta_usd || 0), 0), pc = pct(ven, obj);
+    const corte = os.map((o) => o.corte).filter(Boolean).sort().pop();
+    const porProd = cat.productos.map((p) => {
+      const x = os.filter((o) => o.producto_id === p.id); if (!x.length) return "";
+      const ok = x.reduce((a, o) => a + Number(o.objetivo_kg), 0), vk = x.reduce((a, o) => a + Number(o.venta_kg), 0);
+      return `<div class="row small" style="margin-top:6px"><span class="sp">${esc(p.nombre.replace(/^Queso /, ""))}</span><b>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} cajas</b><span class="pill ${colorPct(pct(vk, ok))}">${pct(vk, ok) ?? 0}%</span></div>`;
+    }).join("");
+    const mes = new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long" });
+    return `<div class="card"><div class="row"><div class="grow"><div class="small muted">Mi objetivo de ${mes}</div><h2>${fmtUsd(ven)} <span class="muted" style="font-weight:500;font-size:15px">de ${fmtUsd(obj)}</span></h2></div><span class="pill ${colorPct(pc)}" style="font-size:14px">${pc ?? 0}%</span></div>
+      ${barra(pc)}${porProd}${corte ? `<div class="tiny muted" style="margin-top:8px">Facturado al ${fmtFecha(corte + "T12:00:00")}</div>` : ""}</div>`;
   },
 
   // Escanear la orden de compra física (funciona sin señal: se envía cuando hay conexión)

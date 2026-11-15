@@ -98,5 +98,13 @@ const plural = (n, u) => (Number(n) === 1 ? u : /[aeiou]$/i.test(u) ? u + "s" : 
 const fmtDist = (m) => (m == null ? "–" : m < 1000 ? Math.round(m) + " m" : (m / 1000).toLocaleString("es-PA", { maximumFractionDigits: 1 }) + " km");
 
 // Kilos de una línea de pedido: cantidad × unidades por caja × kg por unidad
-const kgLinea = (q, p) => (Number(q) || 0) * (Number(p?.unidades_por_pedido) || 1) * (Number(p?.peso_kg_unidad) || 0);
+const kgLinea = (q, p) => (Number(q) || 0) * (p?.kg_por_pedido != null ? Number(p.kg_por_pedido) : (Number(p?.unidades_por_pedido) || 1) * (Number(p?.peso_kg_unidad) || 0));
 const fmtKg = (k) => fmtNum(k, 2) + " kg";
+
+const mesActual = () => hoyISO().slice(0, 7) + "-01";
+const fmtUsd = (n) => "$" + Number(n || 0).toLocaleString("es-PA", { maximumFractionDigits: 0 });
+const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
+const colorPct = (p) => (p == null ? "p-gris" : p >= 100 ? "p-menta" : p >= 60 ? "p-azul" : p >= 30 ? "p-durazno" : "p-rosa");
+const barra = (p) => `<div style="height:6px;border-radius:3px;background:#EEF1F5;overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.min(100, p || 0)}%;background:${(p || 0) >= 100 ? "#3FA373" : "var(--azul)"}"></div></div>`;
+// Cajas a partir de kg (para mostrar objetivos)
+const cajas = (kg, p) => (p?.kg_por_pedido ? kg / Number(p.kg_por_pedido) : kg);

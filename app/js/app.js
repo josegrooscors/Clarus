@@ -5,7 +5,7 @@ const App = {
     const m = [];
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
-    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["pedidos", "pedidos", "Pedidos"]);
+    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos"]);
     if (r === "admin") m.push(["usuarios", "ajustes", "Usuarios"]);
     m.push(["yo", "yo", "Yo"]);
@@ -29,6 +29,7 @@ const App = {
       else if (ruta === "mis-pedidos") await V.pedidos(root);
       else if (ruta === "pedidos") await G.pedidos(root);
       else if (ruta === "equipo") await G.equipo(root);
+      else if (ruta === "objetivos") await G.objetivos(root);
       else if (ruta === "usuarios") await G.usuarios(root);
       else if (ruta === "yo") await this.yo(root);
     } catch (e) {
