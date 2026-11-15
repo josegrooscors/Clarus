@@ -1,0 +1,2 @@
+-- Aplicada el 15-nov-2026: rol 'administracion' (es_gestor), planogramas + planograma_tiendas + planograma_revisiones,
+-- despachos + pedidos.despacho_id/despacho_orden/facturado_at/facturado_por/factura_num + pedido_pesos; v_pedidos con despacho_id, facturado_at, factura_num.

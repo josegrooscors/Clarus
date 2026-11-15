@@ -67,7 +67,7 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob, pm] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm, pls, plt] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
@@ -75,11 +75,13 @@ const DB = {
       sb.from("asignacion_productos").select("*"),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mesActual()),
       sb.from("permisos_rol").select("permiso").eq("rol", this.perfil.rol).eq("permitido", true),
+      sb.from("planogramas").select("*").eq("activo", true),
+      sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
     if (!pm.error) { this.permisos = pm.data.map((x) => x.permiso); LS.set("permisos", this.permisos); }
-    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data };
+    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data };
     LS.set("cat", out);
     return out;
   },
@@ -143,6 +145,11 @@ const DB = {
       case "visita_out": {
         const id = await this.idVisita(op.lid);
         ok(await sb.from("visitas").update({ checkout_at: d.at, checkout_lat: d.lat, checkout_lng: d.lng, checkout_precision_m: d.precision, comentario: d.comentario || null }).eq("id", id));
+        return;
+      }
+      case "planos": {
+        const id = await this.idVisita(op.lid);
+        ok(await sb.from("planograma_revisiones").upsert(op.rows.map((x) => ({ visita_id: id, planograma_id: x.planograma_id, cumple: x.cumple })), { onConflict: "visita_id,planograma_id" }));
         return;
       }
       case "gestiones": {
