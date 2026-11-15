@@ -108,3 +108,15 @@ const colorPct = (p) => (p == null ? "p-gris" : p >= 100 ? "p-menta" : p >= 60 ?
 const barra = (p) => `<div style="height:6px;border-radius:3px;background:#EEF1F5;overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.min(100, p || 0)}%;background:${(p || 0) >= 100 ? "#3FA373" : "var(--azul)"}"></div></div>`;
 // Cajas a partir de kg (para mostrar objetivos)
 const cajas = (kg, p) => (p?.kg_por_pedido ? kg / Number(p.kg_por_pedido) : kg);
+
+const DIAS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const DIAS_C = ["", "L", "M", "X", "J", "V", "S", "D"];
+// Próximos n días (desde hoy) en hora de Panamá: [{iso, dia (1=lunes), etiqueta}]
+function proximosDias(n = 7) {
+  const base = new Date(hoyISO() + "T12:00:00");
+  return [...Array(n)].map((_, i) => {
+    const d = new Date(base.getTime() + i * 864e5), iso = d.toISOString().slice(0, 10), w = d.getDay() || 7;
+    const et = i === 0 ? "Hoy" : i === 1 ? "Mañana" : d.toLocaleDateString("es-PA", { weekday: "short", day: "numeric" });
+    return { iso, dia: w, etiqueta: et };
+  });
+}
