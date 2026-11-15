@@ -1,0 +1,4 @@
+-- 15-nov-2026: carga del histórico de octubre 2026 desde el Handy Dashboard y el Tablero Comercial (datos en private.hist_oct).
+-- visitas (id_local 'handy-oct-v*'), inventarios (en la visita más larga de esa tienda y día), pedidos = facturas de octubre
+-- (id_local 'handy-oct-p*', estado impreso, ligados a la última visita de la tienda en los 3 días previos), objetivos 2026-10.
+-- Para borrar: delete from pedidos where id_local like 'handy-oct-%'; delete from visitas where id_local like 'handy-oct-%'; delete from objetivos where mes='2026-10-01';

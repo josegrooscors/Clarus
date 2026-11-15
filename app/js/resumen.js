@@ -1,12 +1,17 @@
 // Resumen (dashboard): efectividad de visitas, pedidos vs objetivo, alertas de agotados sin pedido
 const R = {
-  periodos: [["hoy", "Hoy"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"]],
+  get periodos() {
+    const d = new Date(hoyISO() + "T12:00:00"); d.setDate(0);
+    const mesAnt = d.toLocaleDateString("es-PA", { month: "long" });
+    return [["hoy", "Hoy"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"], ["mes_anterior", mesAnt.charAt(0).toUpperCase() + mesAnt.slice(1)]];
+  },
 
   rango(p) {
     const hoy = hoyISO(), d = new Date(hoy + "T12:00:00"), iso = (x) => x.toISOString().slice(0, 10);
     const lunes = new Date(d.getTime() - (((d.getDay() + 6) % 7) * 864e5));
     if (p === "hoy") return [hoy, hoy];
     if (p === "semana") return [iso(lunes), hoy];
+    if (p === "mes_anterior") { const f = new Date(hoy.slice(0, 8) + "01T12:00:00"); f.setDate(0); const fin = iso(f); return [fin.slice(0, 8) + "01", fin]; }
     if (p === "semana_pasada") return [iso(new Date(lunes.getTime() - 7 * 864e5)), iso(new Date(lunes.getTime() - 864e5))];
     return [hoy.slice(0, 8) + "01", hoy];
   },
@@ -17,7 +22,7 @@ const R = {
 
   async render(root, periodo = LS.get("res.p", "hoy"), vend = LS.get("res.v", "")) {
     LS.set("res.p", periodo); LS.set("res.v", vend);
-    const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hoy.slice(0, 8) + "01";
+    const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hasta.slice(0, 8) + "01", finMes = hasta < hoy ? hasta : hoy; // mes del período elegido
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Resumen</h1></div></div>
       <div class="steps">${this.periodos.map(([k, t]) => `<div class="step ${k === periodo ? "on" : ""}" data-per="${k}">${t}</div>`).join("")}</div>
       <div id="rs" class="muted">Cargando…</div>`;
@@ -31,10 +36,10 @@ const R = {
       sb.from("pedido_items").select("producto_id, propuesto, pedidos!inner(creado_at, estado, vendedor_id), productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").neq("pedidos.estado", "anulado").gte("pedidos.creado_at", t0).lte("pedidos.creado_at", t1).limit(5000),
       sb.from("v_inventario_visita").select("*").gte("fecha", desde).lte("fecha", hasta).or("agotado.eq.true,bajo.eq.true").limit(2000),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mes0),
-      sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").limit(5000),
+      sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").lte("creado_at", t1).limit(5000),
       sb.from("productos").select("id, nombre, kg_por_pedido").eq("activo", true).order("nombre"),
       sb.from("clientes").select("id, modalidad").neq("modalidad", "pedido_tienda"),
-      sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", hoy).limit(10000),
+      sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
     ]);
     const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR].find((r) => r.error);
     // Clientes que no piden en tienda (El Machetazo: el cliente envía el pedido; Rey: resurtido automático) no cuentan para efectividad ni alertas sin pedido
@@ -163,6 +168,7 @@ const R = {
     const d0 = new Date(mes0 + "T12:00:00"), nDias = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
     const dias = Array.from({ length: nDias }, (_, i) => { const iso = mes0.slice(0, 8) + String(i + 1).padStart(2, "0"); return { iso, n: i + 1, w: R.dia(iso) }; });
     const inicio = visitas.map((v) => v.fecha).sort()[0] || hoy; // antes de la primera visita en Clarus no hay datos (usaban Handy)
+    const activos = new Set(visitas.map((v) => v.fecha));
     const cuenta = {}; visitas.forEach((v) => { const k = v.vendedor_id + "|" + v.fecha; cuenta[k] = (cuenta[k] || 0) + 1; });
     const filas = vendedoras.map((u) => {
       const diasRuta = new Set(asig.filter((a) => a.vendedor_id === u.id).flatMap((a) => a.dias_semana || []));
@@ -172,6 +178,7 @@ const R = {
         let c = "fut", t = fecha;
         if (d.iso > hoy) c = "fut";
         else if (d.iso < inicio) { c = "libre"; t += " · antes de empezar a usar Clarus"; }
+        else if (d.iso < hoy && !activos.has(d.iso)) { c = "libre"; t += " · nadie registró visitas (feriado o día libre)"; }
         else if (n) { c = "ok"; asis++; t += ` · asistió (${n} visita${n > 1 ? "s" : ""})`; }
         else if (d.iso === hoy) { c = "hoy"; t += " · hoy, aún sin visitas"; }
         else if (diasRuta.has(d.w)) { c = "falta"; faltas++; t += " · FALTA: tenía ruta y no registró visitas"; }
@@ -183,7 +190,7 @@ const R = {
     const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
     return `<h3 class="sec-t">Asistencia · ${esc(mes)}</h3>
       <div class="card"><div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
-      <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta ese día</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
+      <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta o feriado</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },
 
   lista(rows, max = 12) {
