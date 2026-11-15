@@ -112,6 +112,49 @@ const G = {
       }).join("") || `<div class="empty card flat"><div class="ic">${ic("reloj", 34)}</div>Todavía no hay visitas hoy.</div>`}`;
   },
 
+  // ---------------- OBJETIVOS ----------------
+  async objetivos(root, sel) {
+    root.innerHTML = `<div class="top"><div><div class="muted small">${new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long", year: "numeric" })}</div><h1>Objetivos de venta</h1></div></div><div id="ob" class="muted">Cargando…</div>`;
+    const [{ data, error }, { data: prods }] = await Promise.all([
+      sb.from("v_objetivos").select("*").eq("mes", mesActual()).limit(5000),
+      sb.from("productos").select("*").order("nombre"),
+    ]);
+    if (error) { $("#ob").textContent = error.message; return; }
+    if (!data.length) { $("#ob").outerHTML = `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>Todavía no hay objetivos cargados para este mes.</div>`; return; }
+    const P = Object.fromEntries(prods.map((p) => [p.id, p]));
+    const grupo = (o) => o.vendedora || "Sin vendedora · " + (o.zona || "—");
+    const sum = (xs, k) => xs.reduce((a, o) => a + Number(o[k] || 0), 0);
+    const corte = data.map((o) => o.corte).filter(Boolean).sort().pop();
+    const G = {}; data.forEach((o) => (G[grupo(o)] = G[grupo(o)] || []).push(o));
+    const tot = { obj: sum(data, "objetivo_usd"), ven: sum(data, "venta_usd") };
+    const prodCols = prods.filter((p) => data.some((o) => o.producto_id === p.id));
+    const celdaProd = (xs, p) => { const x = xs.filter((o) => o.producto_id === p.id), ok = sum(x, "objetivo_kg"), vk = sum(x, "venta_kg"), pc = pct(vk, ok);
+      return `<td>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} <span class="pill ${colorPct(pc)}">${pc ?? 0}%</span></td>`; };
+    if (sel && G[sel]) {
+      const xs = G[sel], tiendas = [...new Set(xs.map((o) => o.cliente_id))];
+      const filas = tiendas.map((id) => { const t = xs.filter((o) => o.cliente_id === id); return { t, n: t[0].tienda, obj: sum(t, "objetivo_usd"), ven: sum(t, "venta_usd") }; })
+        .sort((a, b) => (pct(a.ven, a.obj) ?? 0) - (pct(b.ven, b.obj) ?? 0));
+      $("#ob").outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
+        <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · facturado al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}" style="font-size:14px">${pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")) ?? 0}%</span></div>
+        <div style="margin-top:6px"><b>${fmtUsd(sum(xs, "venta_usd"))}</b> <span class="muted">de ${fmtUsd(sum(xs, "objetivo_usd"))}</span></div>${barra(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}</div>
+        <div class="card scroll-x"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th></tr>
+        ${filas.map((f) => `<tr><td>${esc(f.n)}</td>${prodCols.map((p) => celdaProd(f.t, p)).join("")}<td>${fmtUsd(f.ven)} / ${fmtUsd(f.obj)}</td></tr>`).join("")}</table></div>`;
+      $("[data-volver]", root).onclick = () => G.objetivos(root);
+      return;
+    }
+    const lista = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, "objetivo_usd"), ven: sum(xs, "venta_usd") })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
+    $("#ob").outerHTML = `<div class="kpis">
+        <div class="kpi"><div class="v">${fmtUsd(tot.ven)}</div><div class="l">Facturado al ${fmtFecha(corte + "T12:00:00")}</div></div>
+        <div class="kpi"><div class="v">${fmtUsd(tot.obj)}</div><div class="l">Objetivo del mes</div></div>
+        <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>
+        <div class="kpi"><div class="v">${new Set(data.map((o) => o.cliente_id)).size}</div><div class="l">Tiendas con objetivo</div></div></div>
+      <div class="card scroll-x"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th><th>Avance</th></tr>
+      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${new Set(r.xs.map((o) => o.cliente_id)).size} tiendas</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}
+        <td>${fmtUsd(r.ven)} / ${fmtUsd(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
+      <p class="tiny muted">Toca una vendedora para ver sus tiendas, de menor a mayor avance.</p>`;
+    $$("[data-g]", root).forEach((tr) => (tr.onclick = () => this.objetivos(root, tr.dataset.g)));
+  },
+
   gps(v) {
     const d = Math.max(v.checkin_dist_m || 0, v.checkout_dist_m || 0);
     if (v.checkin_dentro === false || v.checkout_dentro === false) return `<span class="pill p-rosa">Fuera · ${fmtDist(d)}</span>`;
