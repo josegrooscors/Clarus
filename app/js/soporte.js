@@ -16,7 +16,7 @@ const SOP = {
   // Botón flotante con contador
   boton() {
     if (!DB.user || $(".fab-sop")) return;
-    document.body.insertAdjacentHTML("beforeend", `<a class="fab-sop" href="#soporte" title="Soporte" aria-label="Soporte">${ic("soporte", 26)}<span class="fab-n" hidden></span></a>`);
+    document.body.insertAdjacentHTML("beforeend", `<a class="fab-sop" href="#soporte" title="Soporte" aria-label="Soporte">${logo(30)}<span class="fab-n" hidden></span></a>`);
   },
   async revisar() {
     this.boton();
@@ -67,6 +67,14 @@ const SOP = {
     };
     await pintar();
     this.timer = setInterval(() => location.hash === "#soporte" && document.visibilityState === "visible" ? pintar() : null, 30000);
+  },
+
+  // Bienvenida automática (no cuenta como respuesta): saluda por nombre y dice cuándo se responde
+  bienvenida(t, nombre) {
+    const pn = (nombre || "").split(" ")[0];
+    const d = new Date(new Date(t.creado_at).toLocaleString("en-US", { timeZone: "America/Panama" })), h = d.getHours(), dom = d.getDay() === 0;
+    const enHorario = !dom && h >= 7 && h < 19;
+    return `¡Hola${pn ? ", " + pn : ""}! 👋 Gracias por escribir a Soporte Clarus.\n\nRecibimos tu consulta y ${enHorario ? "te respondemos lo antes posible por aquí mismo." : "te respondemos en el próximo horario de atención (lunes a sábado, 7 am a 7 pm)."} Te va a sonar el teléfono cuando tengas la respuesta.\n\nSi estás en una visita y no puedes avanzar, cuéntanos en qué tienda estás y en qué paso te quedaste. Una captura de pantalla nos ayuda mucho.`;
   },
 
   // ---------- Nueva consulta ----------
@@ -134,12 +142,14 @@ const SOP = {
         <div class="small muted">${ag && !soyDueno ? esc(t.usuario) + " · " : ""}${esc(this.CATS.find((c) => c[0] === t.categoria)?.[1] || "")} · abierta ${fmtFecha(t.creado_at)} ${fmtHora(t.creado_at)}</div></div>
         <span class="pill ${t.estado === "resuelto" ? "p-menta" : t.estado === "respondido" ? "p-azul" : "p-durazno"}">${t.estado === "resuelto" ? "Resuelto" : t.estado === "respondido" ? "Respondido" : "Esperando respuesta"}</span></div>
       ${ag && !soyDueno && t.diagnostico ? `<details class="small muted" style="margin-bottom:8px"><summary>Datos del teléfono</summary>${esc(t.diagnostico)}</details>` : ""}
-      <div class="chat" id="ch">${ms.map((m) => {
+      <div class="chat" id="ch">${ms.map((m, i) => {
         const mio = m.autor_id === DB.user.id;
         return `<div class="burb ${mio ? "mia" : ""}">${!mio ? `<div class="tiny" style="font-weight:600;margin-bottom:2px">${esc(m.autor_id === t.user_id ? m.perfiles?.nombre || "" : "Soporte · " + (m.perfiles?.nombre || ""))}</div>` : ""}
           ${m.texto ? `<div class="msg-cuerpo" style="font-size:14.5px">${esc(m.texto)}</div>` : ""}
           ${urls[m.id] ? `<a href="${urls[m.id]}" target="_blank" rel="noopener"><img src="${urls[m.id]}" alt="captura" class="burb-img"></a>` : ""}
-          <div class="tiny burb-h">${fmtFecha(m.creado_at)} ${fmtHora(m.creado_at)}</div></div>`;
+          <div class="tiny burb-h">${fmtFecha(m.creado_at)} ${fmtHora(m.creado_at)}</div></div>${i === 0 ? `
+          <div class="burb auto"><div class="row tiny" style="gap:6px;font-weight:600;margin-bottom:4px">${logo(16)} Soporte Clarus${!soyDueno ? " · mensaje automático" : ""}</div>
+          <div class="msg-cuerpo" style="font-size:14.5px">${esc(this.bienvenida(t, t.usuario))}</div></div>` : ""}`;
       }).join("")}</div>
       ${t.estado === "resuelto" && !ag ? `<p class="small muted" style="text-align:center">Marcada como resuelta. Si sigue el problema, escribe y se reabre.</p>` : ""}
       <div class="chat-in"><label class="btn ghost sm" title="Adjuntar captura" style="padding:0 10px">📎<input type="file" accept="image/*" id="cf" hidden></label>
