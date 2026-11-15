@@ -262,7 +262,8 @@ const V = {
         $("[data-ok]", box).onclick = siguiente; return;
       }
       box.innerHTML = `<div class="card"><div class="row"><h2 class="sp">Pedido enviado</h2>${pillPedido("propuesto")}</div>
-        <div class="list" style="margin-top:12px">${v.pedido.items.map((i) => `<div class="row"><span class="sp">${esc(i.nombre)}</span><b>${fmtNum(i.propuesto)} ${esc(plural(i.propuesto, i.unidad))}</b></div>`).join("")}</div>
+        <div class="list" style="margin-top:12px">${v.pedido.items.map((i) => { const pr = cat.productos.find((x) => x.id === i.producto_id); return `<div class="row"><span class="sp">${esc(i.nombre)}</span><span style="text-align:right"><b>${fmtNum(i.propuesto)} ${esc(plural(i.propuesto, i.unidad))}</b><div class="tiny muted">${fmtKg(kgLinea(i.propuesto, pr))}</div></span></div>`; }).join("")}
+          <div class="row" style="border-top:1px solid var(--borde);padding-top:8px"><span class="sp muted">Total</span><b>${fmtKg(v.pedido.items.reduce((a, i) => a + kgLinea(i.propuesto, cat.productos.find((x) => x.id === i.producto_id)), 0))}</b></div></div>
         ${v.pedido.nota ? `<p class="small muted">Nota: ${esc(v.pedido.nota)}</p>` : ""}
         <p class="small muted">Ya le llegó a operaciones. Puedes editarlo o anularlo mientras no lo impriman.</p>
         <div class="row"><button class="btn ghost sm sp" data-edit>Editar pedido</button><button class="btn peligro sm sp" data-anul>Anular</button></div></div>
@@ -306,13 +307,25 @@ const V = {
           <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div>
           ${f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
-          <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div></div>`).join("")}</div>
+          <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div>
+          <div class="kg" data-kg></div></div>`).join("")}</div>
+      <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total del pedido</span><b id="totkgp"></b></div></div>
       <label class="f">Nota para operaciones</label><input class="in" id="nota" placeholder="Opcional" value="${esc(previo?.nota || "")}">
       <div class="row" style="margin-top:16px">${previo ? `<button class="btn sec sp" data-cancel>Cancelar</button>` : `<button class="btn sec sp" data-no>No hace falta pedido</button>`}<button class="btn sp" data-ok>${previo ? "Guardar cambios" : "Enviar pedido"}</button></div>`;
+    const calcKg = () => {
+      let tot = 0;
+      filas.forEach((f) => {
+        const q = parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0, k = kgLinea(q, f.p); tot += k;
+        $(`[data-p="${f.p.id}"] [data-kg]`, box).innerHTML = q ? `${fmtNum(q)} ${esc(plural(q, f.p.unidad_pedido))} = <b>${fmtKg(k)}</b>` : "";
+      });
+      $("#totkgp").textContent = fmtKg(tot);
+    };
     box.addEventListener("click", (e) => {
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
-      const inp = $("input", b.parentElement); inp.value = Math.max(0, (parseInt(inp.value) || 0) + (b.dataset.s !== undefined ? 1 : -1)) || "";
+      const inp = $("input", b.parentElement); inp.value = Math.max(0, (parseInt(inp.value) || 0) + (b.dataset.s !== undefined ? 1 : -1)) || ""; calcKg();
     });
+    box.addEventListener("input", calcKg);
+    calcKg();
     const no = $("[data-no]", box); if (no) no.onclick = () => { v.pedido = { ninguno: true, items: [] }; Visita.set(v); siguiente(); };
     const cn = $("[data-cancel]", box); if (cn) cn.onclick = () => { v.editandoPedido = false; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
     $("[data-ok]", box).onclick = async () => {
@@ -393,17 +406,18 @@ const V = {
     const orden = { propuesto: 0, aprobado: 1, orden_escaneada: 2, rechazado: 3, impreso: 4, anulado: 5 };
     data.sort((a, b) => orden[a.estado] - orden[b.estado] || new Date(b.creado_at) - new Date(a.creado_at));
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${ic("pedidos", 20)}</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
-        <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
+        <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas · ${fmtKg(p.total_kg)}</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
         ${["propuesto", "aprobado"].includes(p.estado) && !p.documento ? `<span class="btn sm">${ic("camara", 16)} Escanear</span>` : pillPedido(p.estado) + (p.documento && p.estado === "propuesto" ? ` <span class="pill p-lila">Orden ✓</span>` : "")}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detallePedido(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root))));
   },
 
   async detallePedido(p, recargar) {
-    const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido)").eq("pedido_id", p.id);
+    const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id");
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${fmtFechaHora(p.creado_at)}</div>
-      <table class="t"><tr><th>Producto</th><th>Cantidad</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : fmtNum(i.propuesto)}</td></tr>`).join("")}</table>
+      <table class="t"><tr><th>Producto</th><th>Cajas</th><th style="text-align:right">Kilos</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : fmtNum(i.propuesto)}</td><td style="text-align:right" data-kgi="${i.id}">${fmtKg(kgLinea(i.propuesto, i.productos))}</td></tr>`).join("")}
+      <tr><td colspan="2"><b>Total</b></td><td style="text-align:right"><b data-kgt>${fmtKg((items || []).reduce((a, i) => a + kgLinea(i.propuesto, i.productos), 0))}</b></td></tr></table>
       ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo imprimen: puedes corregir las cantidades o anularlo.</p>
         <div class="row"><button class="btn peligro sm sp" data-anul>Anular pedido</button><button class="btn sm sp" data-guardar>Guardar cambios</button></div>` : ""}
       ${p.nota_revision ? `<p class="small"><b>Nota:</b> ${esc(p.nota_revision)}</p>` : ""}
@@ -411,6 +425,11 @@ const V = {
           <div class="small">${p.documento ? "Ya está escaneada ✓. Si cambió, puedes volver a escanearla." : "Cuando la tienda te entregue la orden física, escanéala aquí. En la oficina la descargan e imprimen."}</div></div>
         <button class="btn block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${p.documento ? "Volver a escanear" : "Escanear orden de compra"}</button>` : ""}
       ${p.documento ? `<button class="btn sec block" style="margin-top:12px" data-ver>Ver orden escaneada</button>` : ""}`, (m, close) => {
+      m.addEventListener("input", () => {
+        let t = 0;
+        (items || []).forEach((i) => { const inp = $(`[data-i="${i.id}"]`, m); const k = kgLinea(inp ? inp.value : i.propuesto, i.productos); t += k; $(`[data-kgi="${i.id}"]`, m).textContent = fmtKg(k); });
+        $("[data-kgt]", m).textContent = fmtKg(t);
+      });
       const g = $("[data-guardar]", m);
       if (g) g.onclick = async () => {
         for (const inp of $$("[data-i]", m)) {

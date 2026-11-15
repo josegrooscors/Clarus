@@ -96,3 +96,7 @@ const sinAcentos = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "
 
 const plural = (n, u) => (Number(n) === 1 ? u : /[aeiou]$/i.test(u) ? u + "s" : u + "es");
 const fmtDist = (m) => (m == null ? "–" : m < 1000 ? Math.round(m) + " m" : (m / 1000).toLocaleString("es-PA", { maximumFractionDigits: 1 }) + " km");
+
+// Kilos de una línea de pedido: cantidad × unidades por caja × kg por unidad
+const kgLinea = (q, p) => (Number(q) || 0) * (Number(p?.unidades_por_pedido) || 1) * (Number(p?.peso_kg_unidad) || 0);
+const fmtKg = (k) => fmtNum(k, 2) + " kg";

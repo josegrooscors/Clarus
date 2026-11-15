@@ -24,7 +24,7 @@ const G = {
     const { data, error } = await q.order("creado_at", { ascending: filtro === "imprimir" }).limit(100);
     if (error) { $("#lp").innerHTML = esc(error.message); return; }
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${esc(iniciales(p.vendedor))}</div>
-      <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
+      <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas · ${fmtKg(p.total_kg)}${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
       ${pillPedido(p.estado)}${p.documento && filtro !== "imprimir" && p.estado !== "impreso" ? ` <span class="pill p-lila">Orden ✓</span>` : ""}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detalle(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root, filtro))));
   },
@@ -34,15 +34,16 @@ const G = {
     const puedeAprobar = false; // el flujo no lleva aprobación
     const puedeImprimir = ["admin", "operaciones", "supervisor"].includes(rol) && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
     const [{ data: items }, { data: ev }] = await Promise.all([
-      sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo)").eq("pedido_id", p.id).order("id"),
+      sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id"),
       sb.from("pedido_eventos").select("*, perfiles(nombre)").eq("pedido_id", p.id).order("at"),
     ]);
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)}</div>
       ${!p.documento && ["propuesto", "aprobado"].includes(p.estado) ? `<p class="small" style="color:var(--durazno-t)">La vendedora todavía no ha escaneado la orden de compra.</p>` : ""}
       ${p.nota_vendedor ? `<p class="small"><b>Nota del vendedor:</b> ${esc(p.nota_vendedor)}</p>` : ""}
-      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Cantidad</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td><b>${fmtNum(i.propuesto)}</b></td></tr>`).join("")}</table></div>
+      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Cajas</th><th style="text-align:right">Kilos</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td><b>${fmtNum(i.propuesto)}</b></td><td style="text-align:right">${fmtKg(kgLinea(i.propuesto, i.productos))}</td></tr>`).join("")}
+      <tr><td colspan="4"><b>Total</b></td><td style="text-align:right"><b>${fmtKg((items || []).reduce((a, i) => a + kgLinea(i.propuesto, i.productos), 0))}</b></td></tr></table></div>
       ${puedeAprobar ? `<label class="f">Nota (opcional; obligatoria si rechazas)</label><input class="in" id="nrev">
         <div class="row" style="margin-top:14px"><button class="btn peligro sp" data-rech>Rechazar</button><button class="btn ok sp" data-apr>Aprobar</button></div>` : ""}
       ${p.documento ? `<div class="row" style="margin-top:14px"><button class="btn ${puedeImprimir ? "" : "sec"} sp" data-pdf>${ic("doc", 18)} Abrir / imprimir</button><button class="btn sec sp" data-desc>Descargar PDF</button></div>` : ""}
