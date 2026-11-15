@@ -76,6 +76,9 @@ const pillPedido = (e) => { const [t, c] = ESTADOS_PEDIDO[e] || [e, "p-gris"]; r
 // Íconos de línea (estilo minimalista)
 const MODALIDADES = [["pedido_tienda", "Pedido en tienda (lo levanta la vendedora)"], ["pedido_cliente", "El cliente envía su pedido (solo visita y servicio)"], ["resurtido_auto", "Resurtido automático (sin vendedora)"]];
 const ICONOS = {
+  planograma: '<rect x="3.5" y="3" width="17" height="18" rx="2"/><path d="M3.5 9h17M3.5 15h17M9 3v18M15 3v18"/>',
+  caja: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
+  factura: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
   megafono: '<path d="M3 10.5v3a1.5 1.5 0 0 0 1.5 1.5H7l6 4V5L7 9H4.5A1.5 1.5 0 0 0 3 10.5z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
   chev: '<path d="M15 6l-6 6 6 6"/>',
   soporte: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/>',

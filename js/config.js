@@ -1,5 +1,5 @@
 // Configuración: tiendas, productos, usuarios y permisos por rol (según el permiso de cada rol)
-const ROLES_TXT = { admin: "Administrador", supervisor: "Supervisor", operaciones: "Operaciones", vendedor: "Vendedor" };
+const ROLES_TXT = { admin: "Administrador", supervisor: "Supervisor", operaciones: "Operaciones", administracion: "Administración (facturación)", vendedor: "Vendedor" };
 const PERMISOS_TXT = {
   tiendas: ["Tiendas", "Crear y editar tiendas, su dirección y ubicación"],
   ubicacion: ["Ubicación en visita", "Guardar el GPS de una tienda que aún no tiene ubicación, desde la visita"],
@@ -264,7 +264,7 @@ const C = {
   async permisos(box) {
     const { data, error } = await sb.from("permisos_rol").select("*");
     if (error) throw error;
-    const roles = ["supervisor", "operaciones", "vendedor"];
+    const roles = ["supervisor", "operaciones", "administracion", "vendedor"];
     const tiene = (r, p) => !!(data || []).find((x) => x.rol === r && x.permiso === p)?.permitido;
     box.innerHTML = `<p class="small muted" style="margin-top:0">Elige qué puede hacer cada rol. El administrador siempre puede todo. Los cambios aplican la próxima vez que cada persona abra la app.</p>
       <div class="card flat scroll-x" style="padding:0"><table class="t perm"><tr><th>Permiso</th>${roles.map((r) => `<th>${ROLES_TXT[r]}</th>`).join("")}</tr>
