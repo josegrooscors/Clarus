@@ -7,8 +7,9 @@
   --tinta:#1B2433; --gris:#5E6878; --gris-cl:#8C95A3; --borde:#E6EAF0; --fondo:#F7F9FC; --blanco:#fff;
   --r:14px; --sombra:0 1px 2px rgba(20,30,50,.05),0 4px 16px rgba(20,30,50,.05);
   --font:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif;
-  color-scheme: light;
+  color-scheme: only light;
 }
+html{color-scheme:only light}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--fondo);color:var(--tinta);font-family:var(--font);font-size:15px;line-height:1.45}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -26,7 +27,7 @@ h1{font-size:22px} h2{font-size:18px} h3{font-size:15px}
 .brand-dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#7FA6E6,var(--azul));display:grid;place-items:center;color:#fff;font-size:15px}
 .nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--borde);display:flex;justify-content:space-around;padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:20}
 .nav a{flex:1;text-align:center;text-decoration:none;color:var(--gris-cl);font-size:11px;font-weight:500;padding:4px 0;border-radius:10px}
-.nav a .ic{display:block;font-size:20px;line-height:1.2}
+.nav a .ic{display:flex;justify-content:center;height:24px;margin-bottom:2px}
 .nav a.on{color:var(--azul)}
 .badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--rosa-t);color:#fff;font-size:11px;line-height:18px;text-align:center;margin-left:4px}
 
@@ -124,7 +125,7 @@ textarea.in{min-height:80px;resize:vertical}
 @media (min-width:700px){.modal{align-items:center}.modal .sheet{border-radius:20px}}
 
 .empty{text-align:center;padding:36px 16px;color:var(--gris)}
-.empty .ic{font-size:36px;margin-bottom:8px}
+.empty .ic{display:flex;justify-content:center;margin-bottom:10px;color:var(--azul)}
 .sync{font-size:12px;padding:4px 10px;border-radius:99px}
 .login{max-width:380px;margin:12vh auto 0;padding:0 20px}
 .login .brand{font-size:28px;justify-content:center;margin-bottom:6px}
@@ -133,3 +134,7 @@ table.t{width:100%;border-collapse:collapse;font-size:14px}
 table.t th{text-align:left;font-weight:500;color:var(--gris);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--borde)}
 table.t td{padding:10px;border-bottom:1px solid var(--borde)}
 .scroll-x{overflow-x:auto}
+
+.side a .ic{display:flex}
+.btn svg{flex:none}
+.ava svg{display:block}

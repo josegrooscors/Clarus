@@ -32,7 +32,7 @@ const V = {
         <div class="kpi"><div class="v">${ruta.filter((c) => hechas[c.id]).length}</div><div class="l">Visitadas</div></div>
       </div>
       <h3 style="margin:18px 0 10px">Ruta de hoy</h3>
-      <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">🗺️</div>Hoy no tienes tiendas asignadas.<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
+      <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>Hoy no tienes tiendas asignadas.<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
       <div class="row" style="margin:20px 0 10px"><h3 class="sp">Otra tienda</h3></div>
       <input class="in" id="buscar" placeholder="Buscar tienda o cadena…">
       <div class="list" id="otras" style="margin-top:10px"></div>`;
@@ -44,8 +44,8 @@ const V = {
     };
     $("#ruta").insertAdjacentHTML("beforeend", ruta.map(fila).join(""));
     const pintarOtras = (q) => {
-      q = q.trim().toLowerCase();
-      const lista = q ? cat.clientes.filter((c) => (c.nombre + " " + (c.cadena || "") + " " + (c.codigo || "")).toLowerCase().includes(q)).slice(0, 25) : [];
+      q = sinAcentos(q.trim());
+      const lista = q ? cat.clientes.filter((c) => q.split(/\s+/).every((w) => sinAcentos(c.nombre + " " + (c.cadena || "") + " " + (c.codigo || "") + " " + (c.zona || "")).includes(w))).slice(0, 25) : [];
       $("#otras").innerHTML = lista.map(fila).join("") || (q ? `<div class="muted small">Sin resultados</div>` : "");
     };
     $("#buscar").oninput = (e) => pintarOtras(e.target.value);
@@ -55,6 +55,14 @@ const V = {
       this.iniciar(c);
     });
     App.syncPill();
+    // Actualiza tiendas y productos en segundo plano; si hay cambios, vuelve a pintar
+    if (navigator.onLine && !V._refrescando) {
+      V._refrescando = true;
+      DB.catalogos(true).then((n) => {
+        V._refrescando = false;
+        if (JSON.stringify([n.clientes, n.ruta, n.productos, n.ap]) !== JSON.stringify([cat.clientes, cat.ruta, cat.productos, cat.ap]) && location.hash.replace("#", "") in { "": 1, hoy: 1 }) App.render();
+      }).catch(() => (V._refrescando = false));
+    }
   },
 
   async iniciar(c) {
@@ -120,13 +128,13 @@ const V = {
   pFotos(box, v, siguiente) {
     const tipos = [["antes", "Antes"], ["despues", "Después"], ["exhibicion", "Exhibición"], ["bodega", "Bodega"]];
     box.innerHTML = `<p class="muted small" style="margin-top:0">Las fotos se toman en el momento con la cámara. No se pueden subir desde la galería.</p>
-      <div class="row wrap" style="gap:8px">${tipos.map(([k, t]) => `<button class="btn sec sm" data-f="${k}">📷 ${t}</button>`).join("")}</div>
+      <div class="row wrap" style="gap:8px">${tipos.map(([k, t]) => `<button class="btn sec sm" data-f="${k}">${ic("camara", 18)} ${t}</button>`).join("")}</div>
       <div class="thumbs" style="margin-top:14px">${v.fotos.map((f) => `<div><img src="${f.thumb}"><div class="tiny muted">${esc(f.tipoTxt)} · ${fmtHora(f.at)}</div></div>`).join("")}</div>
-      ${v.fotos.length ? "" : `<div class="empty"><div class="ic">📷</div>Aún no hay fotos</div>`}
+      ${v.fotos.length ? "" : `<div class="empty"><div class="ic">${ic("camara", 34)}</div>Aún no hay fotos</div>`}
       <button class="btn block" style="margin-top:16px" data-ok>Seguir</button>`;
     $$("[data-f]", box).forEach((b) => (b.onclick = async () => {
       try {
-        const r = await Camara.evidencia({ titulo: b.textContent.replace("📷 ", ""), marca: v.tienda });
+        const r = await Camara.evidencia({ titulo: b.textContent.trim(), marca: v.tienda });
         if (!r) return;
         const key = uid(); await IDB.putBlob(key, r.blob);
         const tipoTxt = tipos.find((t) => t[0] === b.dataset.f)[1];
@@ -146,7 +154,7 @@ const V = {
 
   pInventario(box, v, cat, siguiente) {
     const prods = this.productosTienda(v, cat);
-    if (!prods.length) { box.innerHTML = `<div class="empty card flat"><div class="ic">📦</div>No hay productos cargados todavía.</div><button class="btn block" data-ok>Seguir</button>`; $("[data-ok]", box).onclick = siguiente; return; }
+    if (!prods.length) { box.innerHTML = `<div class="empty card flat"><div class="ic">${ic("caja", 34)}</div>No hay productos cargados todavía.</div><button class="btn block" data-ok>Seguir</button>`; $("[data-ok]", box).onclick = siguiente; return; }
     const val = (p, u) => v.inv[p + ":" + u] ?? "";
     box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta las unidades. La app las convierte a kilos.</p>
       <div class="list">${prods.map((p) => `
@@ -188,7 +196,7 @@ const V = {
   pPromos(box, v, cat, siguiente) {
     const tipos = { oferta_precio: "Oferta de precio", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" };
     box.innerHTML = `<p class="muted small" style="margin-top:0">Registra las promociones u ofertas que viste, con su foto.</p>
-      <div class="list">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tipos[p.tipo])}</div><div class="small muted">${esc(p.producto || "")}${p.precio_oferta ? " · $" + p.precio_oferta : ""}</div></div></div>`).join("") || `<div class="empty"><div class="ic">🏷️</div>Sin promociones registradas</div>`}</div>
+      <div class="list">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tipos[p.tipo])}</div><div class="small muted">${esc(p.producto || "")}${p.precio_oferta ? " · $" + p.precio_oferta : ""}</div></div></div>`).join("") || `<div class="empty"><div class="ic">${ic("etiqueta", 34)}</div>Sin promociones registradas</div>`}</div>
       <div class="row" style="margin-top:16px"><button class="btn sec sp" data-add>+ Agregar promoción</button><button class="btn sp" data-ok>${v.promos.length ? "Seguir" : "No hay promociones"}</button></div>`;
     $("[data-ok]", box).onclick = () => { v.guardado.promos = true; Visita.set(v); siguiente(); };
     $("[data-add]", box).onclick = () => {
@@ -199,7 +207,7 @@ const V = {
         <div class="row"><div class="sp"><label class="f">Precio normal</label><input class="in" name="pr" inputmode="decimal" placeholder="$"></div><div class="sp"><label class="f">Precio oferta</label><input class="in" name="po" inputmode="decimal" placeholder="$"></div></div>
         <label class="f">Vigente hasta</label><input class="in" type="date" name="vig">
         <label class="f">Nota</label><input class="in" name="nota" placeholder="Opcional">
-        <button class="btn block" style="margin-top:16px" data-foto>📷 Tomar foto y guardar</button>`, (m, close) => {
+        <button class="btn block" style="margin-top:16px" data-foto>${ic("camara", 18)} Tomar foto y guardar</button>`, (m, close) => {
         $("[data-foto]", m).onclick = async () => {
           try {
             const r = await Camara.evidencia({ titulo: "Foto de la promoción", marca: v.tienda });
@@ -292,14 +300,14 @@ const V = {
   async pedidos(root) {
     root.innerHTML = `<div class="top"><h1>Mis pedidos</h1><span id="syncpill"></span></div><div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
     App.syncPill();
-    if (!navigator.onLine) { $("#lp").innerHTML = `<div class="empty card flat"><div class="ic">📶</div>Sin señal. Los pedidos se verán cuando vuelva la conexión.</div>`; return; }
+    if (!navigator.onLine) { $("#lp").innerHTML = `<div class="empty card flat"><div class="ic">${ic("senal", 34)}</div>Sin señal. Los pedidos se verán cuando vuelva la conexión.</div>`; return; }
     const { data, error } = await sb.from("v_pedidos").select("*").eq("vendedor_id", DB.user.id).order("creado_at", { ascending: false }).limit(60);
     if (error) { $("#lp").innerHTML = `<div class="muted">${esc(error.message)}</div>`; return; }
     const orden = { aprobado: 0, propuesto: 1, rechazado: 2, orden_escaneada: 3, impreso: 4, anulado: 5 };
     data.sort((a, b) => orden[a.estado] - orden[b.estado] || new Date(b.creado_at) - new Date(a.creado_at));
-    $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">📝</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
+    $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${ic("pedidos", 20)}</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
         <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
-        ${pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">📝</div>Todavía no tienes pedidos.</div>`;
+        ${pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detallePedido(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root))));
   },
 
@@ -312,7 +320,7 @@ const V = {
       ${p.nota_revision ? `<p class="small"><b>Nota del supervisor:</b> ${esc(p.nota_revision)}</p>` : ""}
       ${p.estado === "aprobado" ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med);margin-top:14px"><b>Siguiente paso</b><div class="small">Cuando te entreguen la orden física, escanéala aquí.</div></div>
         <label class="f">Número de la orden (si lo tiene)</label><input class="in" id="norden" placeholder="Opcional">
-        <button class="btn block" style="margin-top:12px" data-scan>📄 Escanear orden</button>` : ""}
+        <button class="btn block" style="margin-top:12px" data-scan>${ic("doc", 18)} Escanear orden</button>` : ""}
       ${p.documento ? `<button class="btn sec block" style="margin-top:12px" data-ver>Ver orden escaneada</button>` : ""}`, (m, close) => {
       const ver = $("[data-ver]", m);
       if (ver) ver.onclick = async () => window.open(await DB.urlFirmada("documentos", p.documento), "_blank");

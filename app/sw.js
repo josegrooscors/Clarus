@@ -1,5 +1,5 @@
 // Clarus · funciona sin señal: guarda la app en el teléfono
-const CACHE = "clarus-v0.1.0";
+const CACHE = "clarus-v0.1.1";
 const ARCHIVOS = ["./", "index.html", "styles.css", "config.js", "manifest.json", "vendor/supabase.js", "vendor/jspdf.js",
   "js/util.js", "js/db.js", "js/camara.js", "js/escaner.js", "js/vendedor.js", "js/gestion.js", "js/app.js", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARCHIVOS))); self.skipWaiting(); });

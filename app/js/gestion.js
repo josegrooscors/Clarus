@@ -16,7 +16,7 @@ const G = {
     if (error) { $("#lp").innerHTML = esc(error.message); return; }
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${esc(iniciales(p.vendedor))}</div>
       <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
-      ${pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">✨</div>No hay pedidos en esta lista.</div>`;
+      ${pillPedido(p.estado)}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detalle(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root, filtro))));
   },
 
@@ -36,7 +36,7 @@ const G = {
         <td>${puedeAprobar ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : `<b>${i.aprobado != null ? fmtNum(i.aprobado) : "–"}</b>`}</td></tr>`).join("")}</table></div>
       ${puedeAprobar ? `<label class="f">Nota (opcional; obligatoria si rechazas)</label><input class="in" id="nrev">
         <div class="row" style="margin-top:14px"><button class="btn peligro sp" data-rech>Rechazar</button><button class="btn ok sp" data-apr>Aprobar</button></div>` : ""}
-      ${p.documento ? `<button class="btn ${puedeImprimir ? "" : "sec"} block" style="margin-top:14px" data-pdf>📄 Abrir orden escaneada (PDF)</button>` : ""}
+      ${p.documento ? `<button class="btn ${puedeImprimir ? "" : "sec"} block" style="margin-top:14px" data-pdf>${ic("doc", 18)} Abrir orden escaneada (PDF)</button>` : ""}
       ${puedeImprimir ? `<button class="btn ok block" style="margin-top:10px" data-imp>Marcar como impreso</button>` : ""}
       <h3 style="margin:18px 0 6px">Historial</h3>
       ${(ev || []).map((e) => `<div class="row small" style="padding:4px 0"><span class="sp">${(ESTADOS_PEDIDO[e.estado] || [e.estado])[0]}${e.perfiles ? " · " + esc(e.perfiles.nombre) : ""}</span><span class="muted">${fmtFechaHora(e.at)}</span></div>`).join("")}`,
@@ -92,7 +92,7 @@ const G = {
             <td>${v.minutos_en_tienda != null ? fmtNum(v.minutos_en_tienda, 0) : "–"}</td>
             <td>${v.checkin_dentro === false || v.checkout_dentro === false ? `<span class="pill p-rosa">Fuera</span>` : v.checkin_dentro ? `<span class="pill p-menta">OK</span>` : `<span class="pill p-gris">s/coord.</span>`}</td>
             <td>${v.num_fotos}</td><td>${v.con_inventario ? "✓" : "–"}</td></tr>`).join("")}</table></div></div>`;
-      }).join("") || `<div class="empty card flat"><div class="ic">🕐</div>Todavía no hay visitas hoy.</div>`}`;
+      }).join("") || `<div class="empty card flat"><div class="ic">${ic("reloj", 34)}</div>Todavía no hay visitas hoy.</div>`}`;
   },
 
   // ---------------- USUARIOS (admin) ----------------
