@@ -1,0 +1,3 @@
+-- Aplicada el 15-nov-2026: índices para el Resumen; políticas de inventarios y pedido_items vía EXISTS sobre visitas/pedidos;
+-- en todas las políticas, mi_empresa()/es_gestor()/es_admin()/mi_rol()/auth.uid() envueltas en (select …) para evaluarse una vez.
+-- v_inventario_visita del mes bajó de 8.7 s (timeout) a ~0.4 s.
