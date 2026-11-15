@@ -119,7 +119,7 @@ const G = {
     const dSel = dias.find((d) => d.iso === sel) || dias[1];
     root.innerHTML = `<div class="top"><div><div class="muted small">Visitas programadas</div><h1>Programación</h1></div></div><div id="pg" class="muted">Cargando…</div>`;
     const [{ data: asig, error }, { data: obj }, { data: vis }] = await Promise.all([
-      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena, zona), perfiles(nombre)"),
+      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden, clientes(nombre, cadena, zona), perfiles(nombre)"),
       sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd").eq("mes", mesActual()),
       dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
     ]);
@@ -148,7 +148,7 @@ const G = {
       </div>
       ${Object.entries(porV).sort((a, b) => (a[1][0].perfiles?.nombre || "").localeCompare(b[1][0].perfiles?.nombre || "")).map(([vid, xs]) => `
         <div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${xs.length} tienda(s) · ${esc(tit)}</div></div></div>
-        <div class="list">${xs.sort((a, b) => a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
+        <div class="list">${xs.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
           return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ""}</div></div>
             ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
       <h3 style="margin:22px 0 10px">Semana por vendedora</h3>
