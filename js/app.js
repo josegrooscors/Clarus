@@ -3,12 +3,12 @@ const App = {
   rutas() {
     const r = DB.perfil.rol;
     const m = [];
-    if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "🗺️", "Ruta"]);
-    if (r === "vendedor") m.push(["mis-pedidos", "📝", "Pedidos"]);
-    if (r !== "vendedor") m.push(["equipo", "👥", "Equipo"], ["pedidos", "📝", "Pedidos"]);
-    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "🧾", "Mis pedidos"]);
-    if (r === "admin") m.push(["usuarios", "⚙️", "Usuarios"]);
-    m.push(["yo", "👤", "Yo"]);
+    if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
+    if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
+    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["pedidos", "pedidos", "Pedidos"]);
+    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos"]);
+    if (r === "admin") m.push(["usuarios", "ajustes", "Usuarios"]);
+    m.push(["yo", "yo", "Yo"]);
     return m;
   },
 
@@ -19,7 +19,7 @@ const App = {
     if (Visita.get() && !ruta) ruta = "visita";
     if (!ruta || (ruta !== "visita" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
     const app = $("#app");
-    const navHtml = menu.map(([k, ic, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic}</span>${t}</a>`).join("");
+    const navHtml = menu.map(([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`).join("");
     app.innerHTML = `<div class="shell"><nav class="side"><div class="brand"><div class="brand-dot">C</div>Clarus</div>${navHtml}</nav>
       <main class="main" id="main"></main></div><nav class="nav">${navHtml}</nav>`;
     const root = $("#main");
@@ -33,7 +33,7 @@ const App = {
       else if (ruta === "yo") await this.yo(root);
     } catch (e) {
       console.error(e);
-      root.innerHTML = `<div class="empty card flat"><div class="ic">⚠️</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
+      root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
     }
   },
 
