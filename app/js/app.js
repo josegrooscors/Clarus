@@ -22,7 +22,7 @@ const App = {
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`;
     const navHtml = menu.map(link).join("");
     const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x)).join("");
-    app.innerHTML = `<div class="shell"><nav class="side"><div class="brand"><div class="brand-dot">C</div>Clarus</div>${navHtml}</nav>
+    app.innerHTML = `<div class="shell"><nav class="side"><div class="brand">${logo(30)}clarus</div>${navHtml}</nav>
       <main class="main" id="main"></main></div><nav class="nav">${movil}</nav>`;
     const root = $("#main");
     try {
@@ -76,8 +76,8 @@ const App = {
 
   login(msg) {
     $("#app").innerHTML = `<div class="login">
-      <div class="brand"><div class="brand-dot">C</div>Clarus</div>
-      <p class="muted" style="text-align:center;margin:0 0 28px">Te hago ver lo que tú no puedes ver</p>
+      <div class="brand">${logo(46)}clarus</div>
+      <p class="lema">Te hago ver lo que tú <b>no puedes ver.</b></p>
       <div class="card"><label class="f" style="margin-top:0">Usuario</label><input class="in" id="lu" autocapitalize="none" autocomplete="username">
         <label class="f">Contraseña</label><input class="in" id="lp" type="password" autocomplete="current-password">
         <button class="btn block" style="margin-top:18px" id="lb">Entrar</button>

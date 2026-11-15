@@ -411,7 +411,7 @@ const V = {
       return `<div class="row small" style="margin-top:6px"><span class="sp">${esc(p.nombre.replace(/^Queso /, ""))}</span><b>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} cajas</b><span class="pill ${colorPct(pct(vk, ok))}">${pct(vk, ok) ?? 0}%</span></div>`;
     }).join("");
     const mes = new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long" });
-    return `<div class="card"><div class="row"><div class="grow"><div class="small muted">Mi objetivo de ${mes}</div><h2>${fmtUsd(ven)} <span class="muted" style="font-weight:500;font-size:15px">de ${fmtUsd(obj)}</span></h2></div><span class="pill ${colorPct(pc)}" style="font-size:14px">${pc ?? 0}%</span></div>
+    return `<div class="card hero"><div class="row"><div class="grow"><div class="lbl muted">Mi objetivo de ${mes}</div><h2>${fmtUsd(ven)} <span class="muted" style="font-weight:500;font-size:15px">de ${fmtUsd(obj)}</span></h2></div><span class="pill ${colorPct(pc)}" style="font-size:14px">${pc ?? 0}%</span></div>
       ${barra(pc)}${porProd}${corte ? `<div class="tiny muted" style="margin-top:8px">Facturado al ${fmtFecha(corte + "T12:00:00")}</div>` : ""}</div>`;
   },
 
