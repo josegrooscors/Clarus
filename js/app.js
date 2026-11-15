@@ -45,7 +45,7 @@ const App = {
       else if (ruta === "mensajes") await MSG.render(root, sub);
       else if (ruta === "soporte") await SOP.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
-      if (ruta === "hoy" && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
+      if ((ruta === "hoy" || ruta === "resumen") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
       console.error(e);
       root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;

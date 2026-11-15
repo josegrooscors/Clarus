@@ -74,7 +74,7 @@ const MSG = {
   bannerPush() {
     if (!this.pushPosible() || Notification.permission === "granted") return "";
     if (Notification.permission === "denied") return `<div class="card flat small" style="background:var(--durazno);border-color:#F6DDBB">Las notificaciones están bloqueadas. Actívalas en Chrome: ⋮ › Configuración › Notificaciones › Clarus.</div>`;
-    return `<div class="card flat row" style="background:var(--azul-cl);border-color:var(--azul-med)"><span style="color:var(--azul)">${ic("msg", 24)}</span><div class="grow small"><b>Activa las notificaciones</b><br>Para que te suene el teléfono cuando llegue un comunicado.</div><button class="btn sm" data-push>Activar</button></div>`;
+    return `<div class="card flat row" style="background:var(--azul-cl);border-color:var(--azul-med)"><span style="color:var(--azul)">${ic("msg", 24)}</span><div class="grow small"><b>Activa las notificaciones</b><br>Para que te avise cuando llegue un comunicado o un mensaje de soporte.</div><button class="btn sm" data-push>Activar</button></div>`;
   },
   enlazarBanner(root, re) {
     const b = $("[data-push]", root); if (!b) return;
