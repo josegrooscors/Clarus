@@ -222,3 +222,5 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .chat-in{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:flex-end;background:var(--fondo);padding:8px 0}
 .chat-in textarea{resize:none;min-height:44px}
 @media (min-width:900px){.chat-in{bottom:0}}
+.fab-sop svg{display:block}
+.burb.auto{background:var(--azul-cl);border-color:var(--azul-med)}
