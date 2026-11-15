@@ -105,7 +105,9 @@ const mesActual = () => hoyISO().slice(0, 7) + "-01";
 const fmtUsd = (n) => "$" + Number(n || 0).toLocaleString("es-PA", { maximumFractionDigits: 0 });
 const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
 const colorPct = (p) => (p == null ? "p-gris" : p >= 100 ? "p-menta" : p >= 60 ? "p-azul" : p >= 30 ? "p-durazno" : "p-rosa");
-const barra = (p) => `<div style="height:6px;border-radius:3px;background:#EEF1F5;overflow:hidden;margin-top:6px"><div style="height:100%;width:${Math.min(100, p || 0)}%;background:${(p || 0) >= 100 ? "#3FA373" : "var(--azul)"}"></div></div>`;
+const barra = (p) => `<div class="barra"><i class="${(p || 0) >= 100 ? "ok" : ""}" style="width:${Math.min(100, p || 0)}%"></i></div>`;
+// Logo de Clarus: un lente abierto con el punto de enfoque
+const logo = (s = 30) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="#2F5BEA" stroke-width="3.5" stroke-dasharray="62 14" stroke-linecap="round" transform="rotate(35 16 16)"/><circle cx="19" cy="13" r="3.2" fill="#0B1B33"/></svg>`;
 // Cajas a partir de kg (para mostrar objetivos)
 const cajas = (kg, p) => (p?.kg_por_pedido ? kg / Number(p.kg_por_pedido) : kg);
 

@@ -27,7 +27,7 @@ const Escaner = {
       const el = document.createElement("div");
       el.className = "full";
       el.innerHTML = `<div class="head"><button class="txtbtn" data-x>Repetir</button><b>Ajusta las esquinas</b><button class="txtbtn" data-ok>Usar</button></div>
-        <div class="cropwrap"><canvas></canvas><svg><polygon fill="rgba(74,123,208,.18)" stroke="#7FA6E6" stroke-width="2"/></svg></div>
+        <div class="cropwrap"><canvas></canvas><svg><polygon fill="rgba(47,91,234,.18)" stroke="#8FB0FF" stroke-width="2"/></svg></div>
         <div class="bar" style="justify-content:center"><span class="small" style="opacity:.8">Arrastra los círculos a las esquinas de la hoja</span></div>`;
       document.body.appendChild(el);
       const wrap = $(".cropwrap", el), cv = $("canvas", el), poly = $("polygon", el);
