@@ -1,0 +1,102 @@
+// Arranque, inicio de sesión, menú según rol y navegación
+const App = {
+  rutas() {
+    const r = DB.perfil.rol;
+    const m = [];
+    if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "🗺️", "Ruta"]);
+    if (r === "vendedor") m.push(["mis-pedidos", "📝", "Pedidos"]);
+    if (r !== "vendedor") m.push(["equipo", "👥", "Equipo"], ["pedidos", "📝", "Pedidos"]);
+    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "🧾", "Mis pedidos"]);
+    if (r === "admin") m.push(["usuarios", "⚙️", "Usuarios"]);
+    m.push(["yo", "👤", "Yo"]);
+    return m;
+  },
+
+  async render() {
+    if (!DB.user) return this.login();
+    let ruta = (location.hash || "").slice(1);
+    const menu = this.rutas();
+    if (Visita.get() && !ruta) ruta = "visita";
+    if (!ruta || (ruta !== "visita" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
+    const app = $("#app");
+    const navHtml = menu.map(([k, ic, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic}</span>${t}</a>`).join("");
+    app.innerHTML = `<div class="shell"><nav class="side"><div class="brand"><div class="brand-dot">C</div>Clarus</div>${navHtml}</nav>
+      <main class="main" id="main"></main></div><nav class="nav">${navHtml}</nav>`;
+    const root = $("#main");
+    try {
+      if (ruta === "hoy") await V.hoy(root);
+      else if (ruta === "visita") await V.visita(root);
+      else if (ruta === "mis-pedidos") await V.pedidos(root);
+      else if (ruta === "pedidos") await G.pedidos(root);
+      else if (ruta === "equipo") await G.equipo(root);
+      else if (ruta === "usuarios") await G.usuarios(root);
+      else if (ruta === "yo") await this.yo(root);
+    } catch (e) {
+      console.error(e);
+      root.innerHTML = `<div class="empty card flat"><div class="ic">⚠️</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
+    }
+  },
+
+  async syncPill() {
+    const el = $("#syncpill"); if (!el) return;
+    const n = await DB.pendientes();
+    el.innerHTML = !navigator.onLine ? `<span class="sync p-durazno">Sin señal${n ? " · " + n + " por enviar" : ""}</span>`
+      : n ? `<span class="sync p-azul">Enviando ${n}…</span>` : `<span class="sync p-menta">✓ Al día</span>`;
+  },
+
+  async yo(root) {
+    const n = await DB.pendientes();
+    const ops = await IDB.ops();
+    const err = ops.find((o) => o.error);
+    root.innerHTML = `<div class="top"><h1>Mi cuenta</h1></div>
+      <div class="card"><div class="row"><div class="ava">${esc(iniciales(DB.perfil.nombre))}</div><div class="grow"><h2>${esc(DB.perfil.nombre)}</h2>
+        <div class="small muted">${esc(DB.empresa?.nombre || "")} · ${esc(DB.perfil.rol)}</div></div></div></div>
+      <div class="card"><div class="row"><span class="sp">Registros por enviar</span><b>${n}</b></div>
+        ${err ? `<div class="small" style="color:var(--rosa-t);margin-top:6px">Último error: ${esc(err.error)}</div>` : ""}
+        <button class="btn sec block" style="margin-top:12px" data-sync>Sincronizar ahora</button>
+        <button class="btn ghost block" style="margin-top:8px" data-cat>Actualizar tiendas y productos</button></div>
+      <div class="card"><label class="f" style="margin-top:0">Cambiar mi contraseña</label><input class="in" type="password" id="npw" placeholder="mínimo 6 caracteres">
+        <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
+      <button class="btn peligro block" data-salir>Cerrar sesión</button>
+      <p class="tiny muted" style="text-align:center;margin-top:16px">Clarus ${CLARUS.version}</p>`;
+    $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
+    $("[data-cat]", root).onclick = async () => { try { await DB.catalogos(true); toast("Datos actualizados ✓"); } catch (e) { toast(e.message); } };
+    $("[data-pw]", root).onclick = async () => {
+      const pw = $("#npw").value; if (pw.length < 6) return toast("Mínimo 6 caracteres");
+      const { error } = await sb.auth.updateUser({ password: pw });
+      toast(error ? error.message : "Contraseña actualizada ✓");
+    };
+    $("[data-salir]", root).onclick = () => DB.salir();
+  },
+
+  login(msg) {
+    $("#app").innerHTML = `<div class="login">
+      <div class="brand"><div class="brand-dot">C</div>Clarus</div>
+      <p class="muted" style="text-align:center;margin:0 0 28px">Te hago ver lo que tú no puedes ver</p>
+      <div class="card"><label class="f" style="margin-top:0">Usuario</label><input class="in" id="lu" autocapitalize="none" autocomplete="username">
+        <label class="f">Contraseña</label><input class="in" id="lp" type="password" autocomplete="current-password">
+        <button class="btn block" style="margin-top:18px" id="lb">Entrar</button>
+        ${msg ? `<p class="small" style="color:var(--rosa-t)">${esc(msg)}</p>` : ""}</div></div>`;
+    const go = async () => {
+      $("#lb").disabled = true; $("#lb").textContent = "Entrando…";
+      try { await DB.entrar($("#lu").value, $("#lp").value); location.hash = ""; this.render(); }
+      catch (e) { this.login(e.message); }
+    };
+    $("#lb").onclick = go;
+    $("#lp").onkeydown = (e) => e.key === "Enter" && go();
+  },
+};
+
+window.addEventListener("hashchange", () => App.render());
+window.addEventListener("clarus-sync", () => App.syncPill());
+window.addEventListener("online", () => App.syncPill());
+window.addEventListener("offline", () => App.syncPill());
+
+(async () => {
+  try { await DB.iniciar(); } catch (e) { DB.user = null; await sb.auth.signOut().catch(() => {}); return App.login(e.message); }
+  App.render();
+  DB.sincronizar();
+  if (DB.user) DB.catalogos().catch(() => {});
+})();
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
