@@ -244,7 +244,6 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .side-tog:hover{background:var(--azul-cl);color:var(--azul-osc)}
 .side-tog svg{transition:transform .2s}
 @media (min-width:900px){
-  .side{transition:width .2s}
   body.side-min .side{width:68px;padding:20px 10px}
   body.side-min .side .lbl, body.side-min .lema-side{display:none}
   body.side-min .side a{justify-content:center;padding:10px 0}
