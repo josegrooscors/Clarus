@@ -1,0 +1,3 @@
+-- Aplicada el 15-nov-2026: tipos_cliente, zonas (con polígono), familias_producto, unidades_medida, listas_precio, precios,
+-- descuentos_cantidad, promociones_comerciales; clientes.tipo_id/zona_id/lista_id; productos.familia_id/unidad_id.
+-- Escritura: tipos/zonas con permiso 'tiendas'; el resto con 'productos'. Datos iniciales para Viejo Cántaro.

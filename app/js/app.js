@@ -6,7 +6,7 @@ const App = {
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
-    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
+    if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
     m.push(["yo", "yo", "Yo"]);
@@ -36,6 +36,7 @@ const App = {
       else if (ruta === "pedidos") await G.pedidos(root);
       else if (ruta === "equipo") await G.equipo(root);
       else if (ruta === "objetivos") await G.objetivos(root);
+      else if (ruta === "mapa") await M.render(root);
       else if (ruta === "programacion") await G.programacion(root);
       else if (ruta === "config") await C.config(root);
       else if (ruta === "yo") await this.yo(root);

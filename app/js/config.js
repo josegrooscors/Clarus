@@ -19,7 +19,7 @@ function leerCoordenadas(t) {
 
 const C = {
   pestanas() {
-    return [["tiendas", "Tiendas", DB.puede("tiendas") || DB.puede("rutas")], ["productos", "Productos", DB.puede("productos")],
+    return [["tiendas", "Tiendas", DB.puede("tiendas") || DB.puede("rutas")], ["productos", "Productos", DB.puede("productos")], ["catalogos", "Catálogos", DB.puede("tiendas") || DB.puede("productos")],
       ["usuarios", "Usuarios", DB.puede("usuarios")], ["permisos", "Permisos", DB.perfil.rol === "admin"]].filter((x) => x[2]);
   },
   visible() { return this.pestanas().length > 0; },
@@ -35,17 +35,22 @@ const C = {
     const box = $("#cfg", root);
     if (tab === "tiendas") return this.tiendas(box);
     if (tab === "productos") return this.productos(box);
+    if (tab === "catalogos") return K.render(box);
     if (tab === "usuarios") return this.usuarios(box);
     if (tab === "permisos") return this.permisos(box);
   },
 
   // ---------------- TIENDAS ----------------
   async tiendas(box, q = "", filtro = "") {
-    const [cl, at, pf] = await Promise.all([
+    const [cl, at, pf, tc, zc, lp] = await Promise.all([
       sb.from("clientes").select("*").order("nombre"),
       sb.from("asignacion_tiendas").select("*"),
       sb.from("perfiles").select("id, nombre, rol, activo").order("nombre"),
+      sb.from("tipos_cliente").select("id, nombre, activo").order("nombre"),
+      sb.from("zonas").select("id, nombre, activo").order("nombre"),
+      sb.from("listas_precio").select("id, nombre, activo, por_defecto").order("nombre"),
     ]);
+    const cats = { tipos: tc.data || [], zonasCat: zc.data || [], listas: lp.data || [] };
     if (cl.error) throw cl.error;
     const tiendas = cl.data, asig = at.data || [], gente = pf.data || [];
     const zonas = [...new Set(tiendas.map((t) => t.zona).filter(Boolean))].sort();
@@ -77,11 +82,11 @@ const C = {
     pintar();
     $("#tq", box).oninput = pintar; $("#tf", box).onchange = pintar;
     const recargar = () => this.tiendas(box, $("#tq", box)?.value || "", $("#tf", box)?.value || "");
-    const nueva = $("[data-nueva]", box); if (nueva) nueva.onclick = () => this.tienda(null, { zonas, asig, gente }, recargar);
-    $("#tl", box).onclick = (e) => { const it = e.target.closest("[data-t]"); if (it) this.tienda(tiendas.find((t) => t.id == it.dataset.t), { zonas, asig, gente }, recargar); };
+    const nueva = $("[data-nueva]", box); if (nueva) nueva.onclick = () => this.tienda(null, { zonas, asig, gente, ...cats }, recargar);
+    $("#tl", box).onclick = (e) => { const it = e.target.closest("[data-t]"); if (it) this.tienda(tiendas.find((t) => t.id == it.dataset.t), { zonas, asig, gente, ...cats }, recargar); };
   },
 
-  tienda(t, { zonas, asig, gente }, recargar) {
+  tienda(t, { zonas, asig, gente, tipos = [], zonasCat = [], listas = [] }, recargar) {
     const editar = DB.puede("tiendas"), rutas = DB.puede("rutas");
     t = t || { nombre: "", activo: true, radio_m: 100 };
     let filas = asig.filter((a) => t.id && a.cliente_id === t.id).map((a) => ({ vendedor_id: a.vendedor_id, dias: [...a.dias_semana] }));
@@ -92,7 +97,10 @@ const C = {
       <label class="f">Nombre *</label><input class="in" name="nombre" value="${esc(t.nombre)}" ${dis}>
       <div class="grid2c"><div><label class="f">Código</label><input class="in" name="codigo" value="${esc(t.codigo || "")}" ${dis}></div>
         <div><label class="f">Cadena</label><input class="in" name="cadena" value="${esc(t.cadena || "")}" ${dis}></div></div>
-      <label class="f">Zona o grupo</label><input class="in" name="zona" list="zl" value="${esc(t.zona || "")}" ${dis}><datalist id="zl">${zonas.map((z) => `<option value="${esc(z)}">`).join("")}</datalist>
+      <div class="grid2c"><div><label class="f">Tipo de cliente</label><select class="in" name="tipo_id" ${dis}><option value="">—</option>${tipos.filter((x) => x.activo || x.id === t.tipo_id).map((x) => `<option value="${x.id}" ${x.id === t.tipo_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div>
+        <div><label class="f">Zona</label><select class="in" name="zona_id" ${dis}><option value="">—</option>${zonasCat.filter((x) => x.activo || x.id === t.zona_id).map((x) => `<option value="${x.id}" ${x.id === t.zona_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div></div>
+      <div class="grid2c"><div><label class="f">Lista de precio</label><select class="in" name="lista_id" ${dis}><option value="">${esc(listas.find((l) => l.por_defecto)?.nombre ? "Por defecto (" + listas.find((l) => l.por_defecto).nombre + ")" : "—")}</option>${listas.filter((x) => x.activo || x.id === t.lista_id).map((x) => `<option value="${x.id}" ${x.id === t.lista_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div>
+        <div><label class="f">Grupo de ruta</label><input class="in" name="zona" list="zl" value="${esc(t.zona || "")}" ${dis}><datalist id="zl">${zonas.map((z) => `<option value="${esc(z)}">`).join("")}</datalist></div></div>
       <label class="f">Dirección</label><input class="in" name="direccion" value="${esc(t.direccion || "")}" ${dis}>
       <label class="f">Ubicación (coordenadas o link de Google Maps)</label>
       <input class="in" name="gps" placeholder="9.0293, -79.5064" value="${t.lat != null ? t.lat + ", " + t.lng : ""}" ${dis}>
@@ -135,6 +143,7 @@ const C = {
             const gps = f("gps") ? leerCoordenadas(f("gps")) : { lat: null, lng: null };
             if (!gps) return toast("No entiendo la ubicación. Escribe: 9.0293, -79.5064", 4000);
             const datos = { nombre: f("nombre"), codigo: f("codigo") || null, cadena: f("cadena") || null, zona: f("zona") || null,
+              tipo_id: Number(f("tipo_id")) || null, zona_id: Number(f("zona_id")) || null, lista_id: Number(f("lista_id")) || null,
               direccion: f("direccion") || null, lat: gps.lat, lng: gps.lng, radio_m: Math.max(20, Number(f("radio")) || 100), activo: f("activo") === "1" };
             btn.disabled = true;
             const r = id ? await sb.from("clientes").update(datos).eq("id", id).select("id").single() : await sb.from("clientes").insert(datos).select("id").single();
@@ -156,24 +165,28 @@ const C = {
 
   // ---------------- PRODUCTOS ----------------
   async productos(box) {
-    const { data, error } = await sb.from("productos").select("*").order("nombre");
+    const [{ data, error }, fam, uni] = await Promise.all([sb.from("productos").select("*").order("nombre"),
+      sb.from("familias_producto").select("id, nombre, activo").order("nombre"), sb.from("unidades_medida").select("id, codigo, nombre, activo").order("nombre")]);
     if (error) throw error;
+    const cats = { familias: fam.data || [], unidades: uni.data || [] };
     box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="sp muted small">${data.filter((p) => p.activo).length} productos activos</span><button class="btn" data-nuevo>+ Nuevo producto</button></div>
       <div class="list">${data.map((p) => `<div class="item" data-p="${p.id}"><div class="ava">${ic("caja", 20)}</div>
-        <div class="grow"><div class="t">${esc(p.nombre)}</div><div class="small muted">${esc([p.sku && "SKU " + p.sku, p.categoria].filter(Boolean).join(" · "))}</div>
+        <div class="grow"><div class="t">${esc(p.nombre)}</div><div class="small muted">${esc([p.sku && "SKU " + p.sku, cats.familias.find((f) => f.id === p.familia_id)?.nombre, p.categoria, cats.unidades.find((u) => u.id === p.unidad_id)?.nombre].filter(Boolean).join(" · "))}</div>
         <div class="tiny muted">${fmtNum(p.peso_kg_unidad, 2)} kg por ${esc(p.unidad_conteo)} · ${p.kg_por_pedido != null ? fmtNum(p.kg_por_pedido, 2) + " kg por " + esc(p.unidad_pedido) : fmtNum(p.unidades_por_pedido, 0) + " por " + esc(p.unidad_pedido)}${p.precio_kg != null ? " · $" + fmtNum(p.precio_kg, 2) + "/kg" : ""}</div></div>
         ${p.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>`).join("") || `<div class="empty card flat">Aún no hay productos.</div>`}</div>`;
-    const abrir = (p) => this.producto(p, () => this.productos(box));
+    const abrir = (p) => this.producto(p, () => this.productos(box), cats);
     $("[data-nuevo]", box).onclick = () => abrir(null);
     $$("[data-p]", box).forEach((el) => (el.onclick = () => abrir(data.find((p) => p.id == el.dataset.p))));
   },
 
-  producto(p, recargar) {
+  producto(p, recargar, { familias = [], unidades = [] } = {}) {
     p = p || { nombre: "", unidad_conteo: "barra", peso_kg_unidad: 1, unidad_pedido: "caja", unidades_por_pedido: 1, activo: true };
     modal(`<h2>${p.id ? esc(p.nombre) : "Nuevo producto"}</h2>
       <label class="f">Nombre *</label><input class="in" name="nombre" value="${esc(p.nombre)}">
       <div class="grid2c"><div><label class="f">SKU / código</label><input class="in" name="sku" value="${esc(p.sku || "")}"></div>
-        <div><label class="f">Categoría</label><input class="in" name="categoria" value="${esc(p.categoria || "")}"></div></div>
+        <div><label class="f">Familia</label><select class="in" name="familia_id"><option value="">—</option>${familias.filter((x) => x.activo || x.id === p.familia_id).map((x) => `<option value="${x.id}" ${x.id === p.familia_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div></div>
+      <div class="grid2c"><div><label class="f">Categoría / subfamilia</label><input class="in" name="categoria" value="${esc(p.categoria || "")}"></div>
+        <div><label class="f">Unidad de medida de venta</label><select class="in" name="unidad_id"><option value="">—</option>${unidades.filter((x) => x.activo || x.id === p.unidad_id).map((x) => `<option value="${x.id}" ${x.id === p.unidad_id ? "selected" : ""}>${esc(x.nombre)} (${esc(x.codigo)})</option>`).join("")}</select></div></div>
       <div class="grid2c"><div><label class="f">Se cuenta en</label><input class="in" name="unidad_conteo" value="${esc(p.unidad_conteo)}" placeholder="barra"></div>
         <div><label class="f">Kg por unidad</label><input class="in" name="peso" type="number" step="0.001" inputmode="decimal" value="${p.peso_kg_unidad ?? ""}"></div></div>
       <div class="grid2c"><div><label class="f">Se pide en</label><input class="in" name="unidad_pedido" value="${esc(p.unidad_pedido)}" placeholder="caja"></div>
@@ -186,7 +199,7 @@ const C = {
         if (!f("nombre")) return toast("Falta el nombre");
         if (!(num("peso") > 0)) return toast("Indica los kg por unidad");
         const kgc = num("kgcaja");
-        const datos = { nombre: f("nombre"), sku: f("sku") || null, categoria: f("categoria") || null, unidad_conteo: f("unidad_conteo") || "barra",
+        const datos = { nombre: f("nombre"), sku: f("sku") || null, categoria: f("categoria") || null, familia_id: num("familia_id"), unidad_id: num("unidad_id"), unidad_conteo: f("unidad_conteo") || "barra",
           peso_kg_unidad: num("peso"), unidad_pedido: f("unidad_pedido") || "caja", kg_por_pedido: kgc,
           unidades_por_pedido: kgc ? Math.round((kgc / num("peso")) * 100) / 100 : p.unidades_por_pedido || 1, precio_kg: num("precio"), activo: f("activo") === "1" };
         const r = p.id ? await sb.from("productos").update(datos).eq("id", p.id) : await sb.from("productos").insert(datos);
