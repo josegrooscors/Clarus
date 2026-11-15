@@ -1,0 +1,3 @@
+-- Aplicada el 15-nov-2026 (ver migración 013_soporte en Supabase): soporte_tickets, soporte_mensajes,
+-- private.ticket_visible, trigger private.soporte_mensaje_nuevo, vista v_soporte, columna diagnostico.
+-- Atiende el rol admin de cada empresa; avisos push vía función avisos {soporte: mensaje_id}.

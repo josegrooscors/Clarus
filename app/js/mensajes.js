@@ -203,6 +203,6 @@ const MSG = {
 };
 
 // Revisa comunicados al abrir, al volver a la app y cada 5 minutos
-document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && MSG.revisar());
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { MSG.revisar(); SOP.revisar(); } });
 setInterval(() => document.visibilityState === "visible" && MSG.revisar(), 5 * 60000);
-if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data?.tipo === "push") MSG.revisar(); });
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data?.tipo === "push") { MSG.revisar(); SOP.revisar(); } });

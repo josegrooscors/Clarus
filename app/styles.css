@@ -208,3 +208,17 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .badge-ic{position:absolute;top:-4px;right:calc(50% - 20px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#E5484D;color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px #fff}
 .side a .badge-ic{right:auto;left:14px;top:-6px}
 .msg-cuerpo{white-space:pre-wrap;line-height:1.55;font-size:15px}
+.fab-sop{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;background:#fff;color:var(--azul);display:grid;place-items:center;box-shadow:0 4px 16px rgba(20,40,90,.18),0 0 0 1px var(--borde);z-index:25;text-decoration:none}
+.fab-sop[hidden]{display:none}
+.fab-sop:active{transform:scale(.95)}
+.fab-n{position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#E5484D;color:#fff;font-size:11px;font-weight:700;line-height:19px;text-align:center;box-shadow:0 0 0 2px #fff}
+@media (min-width:900px){.fab-sop{bottom:24px;right:24px;width:56px;height:56px}}
+.dot-n{width:10px;height:10px;border-radius:50%;background:#E5484D;flex:none}
+.chat{display:flex;flex-direction:column;gap:8px;padding:6px 0 12px}
+.burb{max-width:82%;align-self:flex-start;background:#fff;border:1px solid var(--borde);border-radius:16px 16px 16px 4px;padding:9px 12px}
+.burb.mia{align-self:flex-end;background:var(--azul);color:#fff;border-color:var(--azul);border-radius:16px 16px 4px 16px}
+.burb-h{opacity:.6;margin-top:4px;text-align:right}
+.burb-img{display:block;max-width:220px;max-height:260px;border-radius:10px;margin-top:6px}
+.chat-in{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:flex-end;background:var(--fondo);padding:8px 0}
+.chat-in textarea{resize:none;min-height:44px}
+@media (min-width:900px){.chat-in{bottom:0}}

@@ -20,7 +20,8 @@ const App = {
     if (Visita.get() && !ruta) ruta = "visita";
     const [base, sub] = ruta.split("/");
     if (base === "mensajes") ruta = "mensajes";
-    if (!ruta || (ruta !== "visita" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
+    if (base === "soporte") ruta = "soporte";
+    if (!ruta || (ruta !== "visita" && ruta !== "soporte" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
     const app = $("#app");
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`;
     const navHtml = menu.map(link).join("");
@@ -42,6 +43,7 @@ const App = {
       else if (ruta === "programacion") await G.programacion(root);
       else if (ruta === "config") await C.config(root);
       else if (ruta === "mensajes") await MSG.render(root, sub);
+      else if (ruta === "soporte") await SOP.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
       if (ruta === "hoy" && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
@@ -49,6 +51,7 @@ const App = {
       root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
     }
     MSG.revisar();
+    SOP.revisar();
   },
 
   async syncPill() {

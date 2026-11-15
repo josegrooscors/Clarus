@@ -14,11 +14,14 @@ Deno.serve(async (req) => {
 
   // Autorización: token del cron o usuario con sesión válida
   const tok = req.headers.get("x-clarus-token");
+  let quien: string | null = null;
   if (tok !== S.cron_token) {
     const jwt = (req.headers.get("authorization") || "").replace(/^Bearer /i, "");
     const { data, error } = await db.auth.getUser(jwt);
     if (error || !data?.user) return json({ error: "no autorizado" }, 401);
+    quien = data.user.id;
   }
+  const body = await req.json().catch(() => ({}));
   webpush.setVapidDetails("mailto:soporte@clarus.app", S.vapid_publica, S.vapid_privada);
 
   const subsCache: Record<string, { endpoint: string; p256dh: string; auth: string }[]> = {};
@@ -39,6 +42,22 @@ Deno.serve(async (req) => {
     }
   };
   const ahora = new Date();
+
+  // Soporte: avisa a la otra parte cuando llega un mensaje
+  if (body.soporte) {
+    const { data: m } = await db.from("soporte_mensajes").select("id, autor_id, texto, soporte_tickets(id, user_id, empresa_id, asunto)").eq("id", body.soporte).maybeSingle();
+    const t = m?.soporte_tickets as unknown as { id: number; user_id: string; empresa_id: string; asunto: string } | undefined;
+    if (!m || !t || (quien && quien !== m.autor_id)) return json({ error: "mensaje no válido" }, 400);
+    let para: string[] = [];
+    if (m.autor_id === t.user_id) {
+      const { data: ad } = await db.from("perfiles").select("id").eq("empresa_id", t.empresa_id).eq("rol", "admin").eq("activo", true);
+      para = (ad || []).map((x) => x.id);
+    } else para = [t.user_id];
+    const { data: autor } = await db.from("perfiles").select("nombre").eq("id", m.autor_id).maybeSingle();
+    const titulo = m.autor_id === t.user_id ? "🛟 " + (autor?.nombre || "Soporte") + ": " + t.asunto : "🛟 Soporte respondió: " + t.asunto;
+    for (const u of para) await push(u, { title: titulo, body: (m.texto || "📷 Captura").slice(0, 140), tag: "sop-" + t.id, url: "./#soporte/" + t.id, renotify: true });
+    return json({ ok: true, enviados });
+  }
 
   // 1) Comunicados que ya tocan
   const { data: nuevos } = await db.from("comunicados").select("id, titulo, cuerpo").is("enviado_at", null).eq("anulado", false).lte("programado_at", ahora.toISOString());
