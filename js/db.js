@@ -28,7 +28,9 @@ const IDB = (() => {
 })();
 
 const DB = {
-  user: null, perfil: null, empresa: null,
+  user: null, perfil: null, empresa: null, permisos: LS.get("permisos", []),
+  // El administrador puede todo; los demás roles, según la tabla de permisos
+  puede(p) { return this.perfil?.rol === "admin" || this.permisos.includes(p); },
 
   async iniciar() {
     const { data } = await sb.auth.getSession();
@@ -65,16 +67,18 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
       sb.from("tareas_catalogo").select("*").eq("activo", true).order("orden"),
       sb.from("asignacion_productos").select("*"),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mesActual()),
+      sb.from("permisos_rol").select("permiso").eq("rol", this.perfil.rol).eq("permitido", true),
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
+    if (!pm.error) { this.permisos = pm.data.map((x) => x.permiso); LS.set("permisos", this.permisos); }
     const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data };
     LS.set("cat", out);
     return out;

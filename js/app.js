@@ -7,7 +7,7 @@ const App = {
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
-    if (r === "admin") m.push(["usuarios", "ajustes", "Usuarios", true]);
+    if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
     m.push(["yo", "yo", "Yo"]);
     return m;
   },
@@ -33,7 +33,7 @@ const App = {
       else if (ruta === "equipo") await G.equipo(root);
       else if (ruta === "objetivos") await G.objetivos(root);
       else if (ruta === "programacion") await G.programacion(root);
-      else if (ruta === "usuarios") await G.usuarios(root);
+      else if (ruta === "config") await C.config(root);
       else if (ruta === "yo") await this.yo(root);
     } catch (e) {
       console.error(e);
@@ -101,7 +101,10 @@ window.addEventListener("offline", () => App.syncPill());
   try { await DB.iniciar(); } catch (e) { DB.user = null; await sb.auth.signOut().catch(() => {}); return App.login(e.message); }
   App.render();
   DB.sincronizar();
-  if (DB.user) DB.catalogos().catch(() => {});
+  if (DB.user) {
+    const antes = JSON.stringify(DB.permisos);
+    DB.catalogos().then(() => { if (JSON.stringify(DB.permisos) !== antes) App.render(); }).catch(() => {});
+  }
 })();
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
