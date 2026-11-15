@@ -185,3 +185,11 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .pie-marca{display:flex;flex-direction:column;align-items:center;gap:6px;margin:28px 0 8px;text-align:center}
 .pie-marca p{margin:0;font-family:var(--font-t);font-size:16px;font-weight:600;color:var(--noche);letter-spacing:-.01em}
 @media (min-width:900px){.barra-marca{display:none}}
+
+.sec-t{margin:22px 0 10px;font-size:15px}
+.kpi.alerta{border-color:#F3C4C0;background:var(--rosa)}
+.kpi.alerta .v{color:var(--rosa-t)}
+.grid2>.card{min-width:0}
+.agot{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid var(--borde);background:#fff;font-size:13px;font-weight:600;color:var(--gris);cursor:pointer}
+.agot.on{background:var(--rosa);border-color:#F3C4C0;color:var(--rosa-t)}
+.inv.agotado .stepper{opacity:.4;pointer-events:none}
