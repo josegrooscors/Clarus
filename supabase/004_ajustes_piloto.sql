@@ -1,4 +1,4 @@
--- Pendiente de aplicar (requiere confirmación): ver mensaje en el chat del 15-nov-2026
+-- Aplicada el 15-nov-2026
 drop trigger if exists trg_fijar_coord on visitas;
 alter table fotos drop constraint fotos_tipo_check;
 alter table fotos add constraint fotos_tipo_check
