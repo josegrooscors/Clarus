@@ -1,16 +1,13 @@
 // Resumen (dashboard): efectividad de visitas, pedidos vs objetivo, alertas de agotados sin pedido
 const R = {
-  get periodos() {
-    const d = new Date(hoyISO() + "T12:00:00"); d.setDate(0);
-    const mesAnt = d.toLocaleDateString("es-PA", { month: "long" });
-    return [["hoy", "Hoy"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"], ["mes_anterior", mesAnt.charAt(0).toUpperCase() + mesAnt.slice(1)]];
-  },
+  periodos: [["hoy", "Hoy"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"], ["mes_anterior", "Mes anterior"], ["rango", "Rango de fechas"]],
 
   rango(p) {
     const hoy = hoyISO(), d = new Date(hoy + "T12:00:00"), iso = (x) => x.toISOString().slice(0, 10);
     const lunes = new Date(d.getTime() - (((d.getDay() + 6) % 7) * 864e5));
     if (p === "hoy") return [hoy, hoy];
     if (p === "semana") return [iso(lunes), hoy];
+    if (p === "rango") { const a = LS.get("res.d1", hoy.slice(0, 8) + "01"), b = LS.get("res.d2", hoy); return a <= b ? [a, b] : [b, a]; }
     if (p === "mes_anterior") { const f = new Date(hoy.slice(0, 8) + "01T12:00:00"); f.setDate(0); const fin = iso(f); return [fin.slice(0, 8) + "01", fin]; }
     if (p === "semana_pasada") return [iso(new Date(lunes.getTime() - 7 * 864e5)), iso(new Date(lunes.getTime() - 864e5))];
     return [hoy.slice(0, 8) + "01", hoy];
@@ -25,8 +22,14 @@ const R = {
     const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hasta.slice(0, 8) + "01", finMes = hasta < hoy ? hasta : hoy; // mes del período elegido
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Resumen</h1></div></div>
       <div class="steps">${this.periodos.map(([k, t]) => `<div class="step ${k === periodo ? "on" : ""}" data-per="${k}">${t}</div>`).join("")}</div>
+      ${periodo === "rango" ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin:-4px 0 14px;align-items:flex-end">
+        <div><label class="f" style="margin-top:0">Desde</label><input class="in" type="date" id="rd1" value="${desde}" max="${hoy}"></div>
+        <div><label class="f" style="margin-top:0">Hasta</label><input class="in" type="date" id="rd2" value="${hasta}" max="${hoy}"></div>
+        <button class="btn sm" id="rdok" style="height:44px">Aplicar</button></div>` : ""}
       <div id="rs" class="muted">Cargando…</div>`;
     $$("[data-per]", root).forEach((el) => (el.onclick = () => R.render(root, el.dataset.per, vend)));
+    const rok = $("#rdok", root);
+    if (rok) rok.onclick = () => { const a = $("#rd1", root).value, b = $("#rd2", root).value; if (!a || !b) return toast("Elige las dos fechas"); LS.set("res.d1", a); LS.set("res.d2", b); R.render(root, "rango", vend); };
 
     const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena)"),
@@ -102,7 +105,8 @@ const R = {
 
     const asistencia = R.asistencia(vend ? vendedoras.filter((v) => v.id === vend) : vendedoras, asigTodas, visMesR.data, mes0, hoy);
     const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:4px">${sub}</div>` : ""}</div>`;
-    const etPer = this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
+    const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
+    const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
     $("#rs").outerHTML = `
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
