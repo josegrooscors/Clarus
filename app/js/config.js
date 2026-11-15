@@ -101,6 +101,7 @@ const C = {
         <div><label class="f">Zona</label><select class="in" name="zona_id" ${dis}><option value="">—</option>${zonasCat.filter((x) => x.activo || x.id === t.zona_id).map((x) => `<option value="${x.id}" ${x.id === t.zona_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div></div>
       <div class="grid2c"><div><label class="f">Lista de precio</label><select class="in" name="lista_id" ${dis}><option value="">${esc(listas.find((l) => l.por_defecto)?.nombre ? "Por defecto (" + listas.find((l) => l.por_defecto).nombre + ")" : "—")}</option>${listas.filter((x) => x.activo || x.id === t.lista_id).map((x) => `<option value="${x.id}" ${x.id === t.lista_id ? "selected" : ""}>${esc(x.nombre)}</option>`).join("")}</select></div>
         <div><label class="f">Grupo de ruta</label><input class="in" name="zona" list="zl" value="${esc(t.zona || "")}" ${dis}><datalist id="zl">${zonas.map((z) => `<option value="${esc(z)}">`).join("")}</datalist></div></div>
+      <label class="f">Cómo se atiende</label><select class="in" name="modalidad" ${dis}>${MODALIDADES.map(([k, txt]) => `<option value="${k}" ${k === (t.modalidad || "pedido_tienda") ? "selected" : ""}>${txt}</option>`).join("")}</select>
       <label class="f">Dirección</label><input class="in" name="direccion" value="${esc(t.direccion || "")}" ${dis}>
       <label class="f">Ubicación (coordenadas o link de Google Maps)</label>
       <input class="in" name="gps" placeholder="9.0293, -79.5064" value="${t.lat != null ? t.lat + ", " + t.lng : ""}" ${dis}>
@@ -143,7 +144,7 @@ const C = {
             const gps = f("gps") ? leerCoordenadas(f("gps")) : { lat: null, lng: null };
             if (!gps) return toast("No entiendo la ubicación. Escribe: 9.0293, -79.5064", 4000);
             const datos = { nombre: f("nombre"), codigo: f("codigo") || null, cadena: f("cadena") || null, zona: f("zona") || null,
-              tipo_id: Number(f("tipo_id")) || null, zona_id: Number(f("zona_id")) || null, lista_id: Number(f("lista_id")) || null,
+              tipo_id: Number(f("tipo_id")) || null, zona_id: Number(f("zona_id")) || null, lista_id: Number(f("lista_id")) || null, modalidad: f("modalidad") || "pedido_tienda",
               direccion: f("direccion") || null, lat: gps.lat, lng: gps.lng, radio_m: Math.max(20, Number(f("radio")) || 100), activo: f("activo") === "1" };
             btn.disabled = true;
             const r = id ? await sb.from("clientes").update(datos).eq("id", id).select("id").single() : await sb.from("clientes").insert(datos).select("id").single();

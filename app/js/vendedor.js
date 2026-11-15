@@ -114,7 +114,7 @@ const V = {
       if (dist > (c.radio_m || 100)) aviso = `Estás a ${fmtDist(dist)} de la tienda, fuera del radio permitido (${c.radio_m || 100} m). La visita quedará registrada como FUERA DE RADIO.`;
     } else aviso = "Esta tienda todavía no tiene ubicación registrada, así que no se puede validar que estés en ella. Avísale a tu supervisor.";
     if (aviso && !(await confirmar(aviso, "Continuar igual"))) return;
-    const v = { lid: uid(), cliente_id: c.id, tienda: c.nombre, cadena: c.cadena, at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, precision: pos.precision,
+    const v = { lid: uid(), cliente_id: c.id, tienda: c.nombre, cadena: c.cadena, modalidad: c.modalidad || "pedido_tienda", at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, precision: pos.precision,
       gestiones: {}, fotos: [], inv: {}, promos: [], pedido: null, guardado: {} };
     Visita.set(v);
     await DB.encolar({ t: "visita_in", lid: v.lid, data: { cliente_id: c.id, at: v.at, lat: pos.lat, lng: pos.lng, precision: pos.precision } });
@@ -151,7 +151,7 @@ const V = {
   // Qué está completo en la visita
   estado(v) {
     const fotosOk = FOTOS_REQ.every(([k]) => v.fotos.some((f) => f.tipo === k));
-    return { fotos: fotosOk, inventario: !!v.guardado.inventario, promos: !!v.guardado.promos || v.promos.length > 0, pedido: !!v.pedido, gestion: !!v.guardado.gestion };
+    return { fotos: fotosOk, inventario: !!v.guardado.inventario, promos: !!v.guardado.promos || v.promos.length > 0, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion: !!v.guardado.gestion };
   },
   pendientes(v) {
     const e = this.estado(v), out = [];
@@ -295,6 +295,13 @@ const V = {
   },
 
   pPedido(box, v, cat, siguiente) {
+    if (!v.pedido && v.modalidad === "pedido_cliente" && !v.forzarPedido) {
+      box.innerHTML = `<div class="card"><div class="row"><span style="color:var(--azul)">${ic("pedidos", 26)}</span><div class="grow"><h2>Este cliente envía su pedido</h2>
+        <p class="small muted" style="margin:4px 0 0">${esc(v.cadena || "La cadena")} manda el pedido directamente a la empresa. Aquí solo haces la visita y el servicio; no necesitas levantar pedido.</p></div></div>
+        <button class="btn ghost block sm" style="margin-top:12px" data-forzar>Hacer un pedido de todas formas</button></div><button class="btn block" data-ok>Seguir</button>`;
+      $("[data-forzar]", box).onclick = () => { v.forzarPedido = true; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
+      $("[data-ok]", box).onclick = siguiente; return;
+    }
     if (v.pedido && !v.editandoPedido) {
       if (v.pedido.ninguno) {
         box.innerHTML = `<div class="card"><h2>Sin pedido</h2><p class="small muted">Indicaste que esta visita no necesita pedido.</p>
@@ -398,7 +405,7 @@ const V = {
     box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Resumen de la visita</h2>
       ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${t}</span>${h ? `<span class="pill p-menta">✓ Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
       <div class="row" style="padding:7px 0"><span class="sp">Tiempo en tienda</span><b>${minutos(v.at, new Date())} min</b></div></div>
-      ${(() => { const ag = Object.keys(v.agot || {}).filter((k) => v.agot[k] && !(v.pedido?.items || []).some((i) => String(i.producto_id) === k)); return ag.length ? `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b style="color:var(--rosa-t)">Producto agotado sin pedido</b><div class="small">Marcaste producto agotado y no está en el pedido. Esto aparece como alerta para tu supervisor.</div><button class="btn sm" style="margin-top:8px" data-ir="pedido">Ir al pedido</button></div>` : ""; })()}
+      ${(() => { const ag = v.modalidad === "pedido_cliente" ? [] : Object.keys(v.agot || {}).filter((k) => v.agot[k] && !(v.pedido?.items || []).some((i) => String(i.producto_id) === k)); return ag.length ? `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b style="color:var(--rosa-t)">Producto agotado sin pedido</b><div class="small">Marcaste producto agotado y no está en el pedido. Esto aparece como alerta para tu supervisor.</div><button class="btn sm" style="margin-top:8px" data-ir="pedido">Ir al pedido</button></div>` : ""; })()}
       ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b><div class="small">Completa lo pendiente. Toca cada punto para ir directo.</div></div>`}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
       <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>`;

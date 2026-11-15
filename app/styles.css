@@ -204,3 +204,7 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .leaflet-container{font-family:var(--font)}
 
 .num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;color:#fff;font-size:11px;font-weight:700;flex:none;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.ic{position:relative}
+.badge-ic{position:absolute;top:-4px;right:calc(50% - 20px);min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:#E5484D;color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px #fff}
+.side a .badge-ic{right:auto;left:14px;top:-6px}
+.msg-cuerpo{white-space:pre-wrap;line-height:1.55;font-size:15px}

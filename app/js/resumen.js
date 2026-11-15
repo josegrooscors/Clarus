@@ -23,7 +23,7 @@ const R = {
       <div id="rs" class="muted">Cargando…</div>`;
     $$("[data-per]", root).forEach((el) => (el.onclick = () => R.render(root, el.dataset.per, vend)));
 
-    const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR] = await Promise.all([
+    const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena)"),
       sb.from("perfiles").select("id, nombre, rol, activo").in("rol", ["vendedor", "supervisor"]).eq("activo", true),
       sb.from("v_visitas").select("id, vendedor_id, vendedor, cliente_id, tienda, fecha, checkin_at, checkout_at, minutos_en_tienda, estado, checkin_dentro, checkout_dentro").gte("fecha", desde).lte("fecha", hasta).limit(5000),
@@ -33,15 +33,19 @@ const R = {
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mes0),
       sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").limit(5000),
       sb.from("productos").select("id, nombre, kg_por_pedido").eq("activo", true).order("nombre"),
+      sb.from("clientes").select("id, modalidad").neq("modalidad", "pedido_tienda"),
     ]);
-    const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR].find((r) => r.error);
+    const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR].find((r) => r.error);
+    // Clientes que no piden en tienda (El Machetazo: el cliente envía el pedido; Rey: resurtido automático) no cuentan para efectividad ni alertas sin pedido
+    const sinPedTienda = new Set(cliR.data.map((c) => c.id)), pideEnTienda = (x) => !sinPedTienda.has(x.cliente_id);
     if (err) { $("#rs").textContent = err.error.message; return; }
 
     // Vendedoras = perfiles con tiendas asignadas
     const asigTodas = asigR.data;
     const vendedoras = perfR.data.filter((p) => asigTodas.some((a) => a.vendedor_id === p.id)).sort((a, b) => a.nombre.localeCompare(b.nombre));
     const f = (xs, k = "vendedor_id") => (vend ? xs.filter((x) => (k.includes(".") ? x.pedidos.vendedor_id : x[k]) === vend) : xs);
-    const asig = f(asigTodas), vis = f(visR.data), ped = f(pedR.data), items = f(itR.data, "pedidos.vendedor_id"), alertas = f(alR.data), pedMes = f(pedMesR.data);
+    const asig = f(asigTodas), vis = f(visR.data), ped = f(pedR.data), items = f(itR.data, "pedidos.vendedor_id"), alertas = f(alR.data).filter(pideEnTienda), pedMes = f(pedMesR.data);
+    const visPT = vis.filter(pideEnTienda);
     const misClientes = new Set(asig.map((a) => a.cliente_id));
     const obj = vend ? objR.data.filter((o) => misClientes.has(o.cliente_id)) : objR.data;
 
@@ -55,11 +59,11 @@ const R = {
     const fueraAgenda = vis.filter((v) => !progKey.has(v.vendedor_id + "|" + v.cliente_id + "|" + v.fecha)).length;
     // Efectividad: visitas con pedido
     const pedKey = new Set(ped.map((p) => p.cliente_id + "|" + new Date(p.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" })));
-    const visConPedido = vis.filter((v) => ped.some((p) => p.visita_id === v.id) || pedKey.has(v.cliente_id + "|" + v.fecha)).length;
+    const visConPedido = visPT.filter((v) => ped.some((p) => p.visita_id === v.id) || pedKey.has(v.cliente_id + "|" + v.fecha)).length;
     const visitados = new Set(vis.map((v) => v.cliente_id));
     const sinVisita = [...new Map(prog.filter((p) => !visitados.has(p.cliente_id)).map((p) => [p.cliente_id, p])).values()];
     const conPedido = new Set(ped.map((p) => p.cliente_id));
-    const sinPedido = [...new Map(asig.filter((a) => !conPedido.has(a.cliente_id) && (periodo === "hoy" ? prog.some((p) => p.cliente_id === a.cliente_id) : true)).map((a) => [a.cliente_id, a])).values()];
+    const sinPedido = [...new Map(asig.filter((a) => pideEnTienda(a) && !conPedido.has(a.cliente_id) && (periodo === "hoy" ? prog.some((p) => p.cliente_id === a.cliente_id) : true)).map((a) => [a.cliente_id, a])).values()];
     const abiertas = vis.filter((v) => v.estado === "abierta" && v.fecha < hoy).length;
     const minProm = (() => { const m = vis.filter((v) => v.minutos_en_tienda != null).map((v) => Number(v.minutos_en_tienda)); return m.length ? m.reduce((a, b) => a + b, 0) / m.length : null; })();
 
@@ -79,8 +83,8 @@ const R = {
     // ---- Por vendedora ----
     const filasV = (vend ? vendedoras.filter((v) => v.id === vend) : vendedoras).map((u) => {
       const pg = prog.filter((p) => p.vendedor_id === u.id), vs = vis.filter((v) => v.vendedor_id === u.id), pd = ped.filter((p) => p.vendedor_id === u.id);
-      return { u, prog: pg.length, ok: pg.filter((p) => p.hecha).length, vis: vs.length, ped: pd.length, kg: pd.reduce((a, p) => a + Number(p.total_kg || 0), 0),
-        conPed: vs.filter((v) => pd.some((p) => p.visita_id === v.id) || pd.some((p) => p.cliente_id === v.cliente_id && new Date(p.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" }) === v.fecha)).length,
+      return { u, prog: pg.length, ok: pg.filter((p) => p.hecha).length, vis: vs.length, visPT: vs.filter(pideEnTienda).length, ped: pd.length, kg: pd.reduce((a, p) => a + Number(p.total_kg || 0), 0),
+        conPed: vs.filter(pideEnTienda).filter((v) => pd.some((p) => p.visita_id === v.id) || pd.some((p) => p.cliente_id === v.cliente_id && new Date(p.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" }) === v.fecha)).length,
         alertas: agotSinPed.filter((a) => a.vendedor_id === u.id).length };
     });
     const sinVisitas = filasV.filter((r) => r.prog > 0 && !r.vis), sinPedidos = filasV.filter((r) => r.vis > 0 && !r.ped), conVisitas = filasV.filter((r) => r.vis > 0);
@@ -103,7 +107,7 @@ const R = {
         ${kpi(progN, "Visitas programadas", "", dias.length < this.fechas(desde, hasta).length ? "hasta hoy" : "")}
         ${kpi(`${pct(progOk, progN) ?? 0}%`, "Cumplimiento de agenda", "", `${progOk} de ${progN} realizadas`)}
         ${kpi(vis.length, "Visitas realizadas", "", fueraAgenda ? `${fueraAgenda} fuera de agenda` : "")}
-        ${kpi(`${pct(visConPedido, vis.length) ?? 0}%`, "Efectividad (visitas con pedido)", "", `${visConPedido} de ${vis.length}`)}
+        ${kpi(`${pct(visConPedido, visPT.length) ?? 0}%`, "Efectividad (visitas con pedido)", "", `${visConPedido} de ${visPT.length}${vis.length > visPT.length ? ` · ${vis.length - visPT.length} sin pedido en tienda (Machetazo)` : ""}`)}
         ${kpi(sinVisita.length, "Clientes programados sin visita", sinVisita.length ? "alerta" : "")}
         ${kpi(sinPedido.length, "Clientes sin pedido", "", periodo === "hoy" ? "de la ruta de hoy" : "de sus tiendas asignadas")}
         ${kpi(minProm != null ? fmtNum(minProm, 0) + " min" : "–", "Tiempo promedio en tienda")}
@@ -136,7 +140,7 @@ const R = {
       <div class="card scroll-x"><table class="t"><tr><th>Vendedora</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
         ${filasV.map((r) => `<tr><td><b>${esc(r.u.nombre)}</b>${!r.vis && r.prog ? ` <span class="pill p-rosa">Sin visitas</span>` : r.vis && !r.ped ? ` <span class="pill p-durazno">Sin pedidos</span>` : ""}</td>
           <td>${r.prog}</td><td><span class="pill ${colorPct(pct(r.ok, r.prog))}">${pct(r.ok, r.prog) ?? "–"}${r.prog ? "%" : ""}</span> <span class="tiny muted">${r.ok}/${r.prog}</span></td>
-          <td>${r.vis}</td><td>${r.vis ? pct(r.conPed, r.vis) + "%" : "–"}</td><td>${fmtNum(r.kg, 0)}</td><td>${r.alertas ? `<span class="pill p-rosa">${r.alertas}</span>` : "–"}</td></tr>`).join("")}</table></div>
+          <td>${r.vis}</td><td>${r.visPT ? pct(r.conPed, r.visPT) + "%" : "–"}</td><td>${fmtNum(r.kg, 0)}</td><td>${r.alertas ? `<span class="pill p-rosa">${r.alertas}</span>` : "–"}</td></tr>`).join("")}</table></div>
       <div class="kpis">
         ${kpi(conVisitas.length, "Usuarios con visitas")}
         ${kpi(sinVisitas.length, "Usuarios sin visitas", sinVisitas.length ? "alerta" : "", sinVisitas.map((r) => esc(r.u.nombre.split(" ")[0])).join(", "))}

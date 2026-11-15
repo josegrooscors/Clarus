@@ -9,7 +9,7 @@ const App = {
     if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
-    m.push(["yo", "yo", "Yo"]);
+    m.push(["mensajes", "msg", "Mensajes"], ["yo", "yo", "Yo"]);
     return m;
   },
 
@@ -18,11 +18,13 @@ const App = {
     let ruta = (location.hash || "").slice(1);
     const menu = this.rutas();
     if (Visita.get() && !ruta) ruta = "visita";
+    const [base, sub] = ruta.split("/");
+    if (base === "mensajes") ruta = "mensajes";
     if (!ruta || (ruta !== "visita" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
     const app = $("#app");
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`;
     const navHtml = menu.map(link).join("");
-    const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x)).join("");
+    const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x[0] === "mensajes" ? [x[0], x[1], "Avisos"] : x)).join("");
     const lema = `Te hago ver lo que tú <b>no puedes ver.</b>`;
     app.innerHTML = `<header class="barra-marca"><div class="brand">${logo(24)}clarus</div><span class="lema-c">${lema}</span></header>
       <div class="shell"><nav class="side"><div class="brand">${logo(30)}clarus</div><p class="lema-side">${lema}</p>${navHtml}</nav>
@@ -39,11 +41,14 @@ const App = {
       else if (ruta === "mapa") await M.render(root);
       else if (ruta === "programacion") await G.programacion(root);
       else if (ruta === "config") await C.config(root);
+      else if (ruta === "mensajes") await MSG.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
+      if (ruta === "hoy" && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
       console.error(e);
       root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
     }
+    MSG.revisar();
   },
 
   async syncPill() {
@@ -96,7 +101,7 @@ const App = {
       e.preventDefault();
       const u = $("#lu").value;
       $("#lb").disabled = true; $("#lb").textContent = "Entrando…";
-      try { await DB.entrar(u, $("#lp").value); location.hash = ""; this.render(); }
+      try { await DB.entrar(u, $("#lp").value); location.hash = ""; this.render(); MSG.activarPush(false); }
       catch (err) { this.login(err.message, u); }
     });
     (usuario ? $("#lp") : $("#lu")).focus();
@@ -113,6 +118,7 @@ window.addEventListener("offline", () => App.syncPill());
   App.render();
   DB.sincronizar();
   if (DB.user) {
+    MSG.activarPush(false);
     const antes = JSON.stringify(DB.permisos);
     DB.catalogos().then(() => { if (JSON.stringify(DB.permisos) !== antes) App.render(); }).catch(() => {});
   }
