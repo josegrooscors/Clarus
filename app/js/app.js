@@ -3,6 +3,7 @@ const App = {
   rutas() {
     const r = DB.perfil.rol;
     const m = [];
+    if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
     if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r !== "vendedor") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"]);
@@ -28,7 +29,8 @@ const App = {
       <main class="main" id="main"></main></div><nav class="nav">${movil}</nav>`;
     const root = $("#main");
     try {
-      if (ruta === "hoy") await V.hoy(root);
+      if (ruta === "resumen") await R.render(root);
+      else if (ruta === "hoy") await V.hoy(root);
       else if (ruta === "visita") await V.visita(root);
       else if (ruta === "mis-pedidos") await V.pedidos(root);
       else if (ruta === "pedidos") await G.pedidos(root);

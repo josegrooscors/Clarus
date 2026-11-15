@@ -154,7 +154,7 @@ const DB = {
         const id = await this.idVisita(op.lid);
         const del = op.rows.filter((x) => x.unidades == null);
         const up = op.rows.filter((x) => x.unidades != null);
-        if (up.length) ok(await sb.from("inventarios").upsert(up.map((x) => ({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion, unidades: x.unidades })), { onConflict: "visita_id,producto_id,ubicacion" }));
+        if (up.length) ok(await sb.from("inventarios").upsert(up.map((x) => ({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion, unidades: x.unidades, agotado: !!x.agotado })), { onConflict: "visita_id,producto_id,ubicacion" }));
         for (const x of del) await sb.from("inventarios").delete().match({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion });
         return;
       }

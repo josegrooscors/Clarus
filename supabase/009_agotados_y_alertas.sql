@@ -1,0 +1,2 @@
+-- Aplicada el 15-nov-2026: inventarios.agotado + vista v_inventario_visita (agotado/bajo/con_pedido por visita y producto)
+-- Bajo = unidades <= stock_minimo de la tienda; si no hay mínimo, kg < 40% del objetivo semanal (objetivo mensual / 4.33).

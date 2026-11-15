@@ -214,8 +214,9 @@ const V = {
     const val = (p, u) => v.inv[p + ":" + u] ?? "";
     box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta las unidades. La app las convierte a kilos.</p>
       <div class="list">${prods.map((p) => `
-        <div class="inv" data-p="${p.id}"><div class="nm">${esc(p.nombre)}</div>
-          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div>
+        <div class="inv ${v.agot?.[p.id] ? "agotado" : ""}" data-p="${p.id}"><div class="row"><div class="grow"><div class="nm">${esc(p.nombre)}</div>
+          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div>
+          <button type="button" class="agot ${v.agot?.[p.id] ? "on" : ""}" data-agot="${p.id}">${v.agot?.[p.id] ? "✕ Agotado" : "Agotado"}</button></div>
           <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(p.unidad_conteo)}s)</div>
             <div class="stepper"><button data-m="${u}">−</button><input inputmode="decimal" data-u="${u}" value="${val(p.id, u)}" placeholder="0"><button data-s="${u}">+</button></div></div>`).join("")}</div>
           <div class="kg"></div></div>`).join("")}</div>
@@ -227,11 +228,19 @@ const V = {
         const p = prods.find((x) => x.id == el.dataset.p);
         const b = parseFloat($("[data-u=bodega]", el).value) || 0, e = parseFloat($("[data-u=exhibicion]", el).value) || 0;
         const kg = (b + e) * Number(p.peso_kg_unidad); tot += kg;
-        $(".kg", el).innerHTML = b + e ? `${fmtNum(b + e)} ${esc(p.unidad_conteo)}s = <b>${fmtNum(kg, 2)} kg</b>` : "";
+        $(".kg", el).innerHTML = v.agot?.[p.id] ? `<b style="color:var(--rosa-t)">Producto agotado en la tienda</b>` : b + e ? `${fmtNum(b + e)} ${esc(p.unidad_conteo)}s = <b>${fmtNum(kg, 2)} kg</b>` : "";
       });
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
     box.addEventListener("click", (e) => {
+      const ag = e.target.closest("[data-agot]");
+      if (ag) {
+        const pid = ag.dataset.agot, card = ag.closest(".inv"); v.agot = v.agot || {};
+        v.agot[pid] = !v.agot[pid];
+        card.classList.toggle("agotado", v.agot[pid]); ag.classList.toggle("on", v.agot[pid]); ag.textContent = v.agot[pid] ? "✕ Agotado" : "Agotado";
+        if (v.agot[pid]) $$("[data-u]", card).forEach((i) => { i.value = 0; v.inv[pid + ":" + i.dataset.u] = 0; });
+        Visita.set(v); calc(); return;
+      }
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
       const u = b.dataset.m || b.dataset.s, inp = $(`[data-u=${u}]`, b.closest(".inv"));
       inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (b.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true }));
@@ -243,7 +252,9 @@ const V = {
     calc();
     $("[data-ok]", box).onclick = async () => {
       const rows = [];
-      prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? null : Number(x) }); }));
+      const sinContar = prods.filter((p) => !v.agot?.[p.id] && ["bodega", "exhibicion"].every((u) => (v.inv[p.id + ":" + u] ?? "") === ""));
+      if (sinContar.length) { toast(`Cuenta ${sinContar.map((p) => p.nombre).join(" y ")} o márcalo como agotado`, 4000); return; }
+      prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.agot?.[p.id] ? 0 : v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }); }));
       await DB.encolar({ t: "inventario", lid: v.lid, rows });
       v.guardado.inventario = true; Visita.set(v); toast("Inventario guardado ✓"); siguiente();
     };
@@ -335,7 +346,7 @@ const V = {
       <div class="list">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp"><div class="nm">${esc(f.p.nombre)}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
           <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div>
-          ${f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
+          ${v.agot?.[f.p.id] ? `<span class="pill p-rosa">AGOTADO</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
           <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div>
           <div class="kg" data-kg></div></div>`).join("")}</div>
@@ -386,6 +397,7 @@ const V = {
     box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Resumen de la visita</h2>
       ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${t}</span>${h ? `<span class="pill p-menta">✓ Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
       <div class="row" style="padding:7px 0"><span class="sp">Tiempo en tienda</span><b>${minutos(v.at, new Date())} min</b></div></div>
+      ${(() => { const ag = Object.keys(v.agot || {}).filter((k) => v.agot[k] && !(v.pedido?.items || []).some((i) => String(i.producto_id) === k)); return ag.length ? `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b style="color:var(--rosa-t)">Producto agotado sin pedido</b><div class="small">Marcaste producto agotado y no está en el pedido. Esto aparece como alerta para tu supervisor.</div><button class="btn sm" style="margin-top:8px" data-ir="pedido">Ir al pedido</button></div>` : ""; })()}
       ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b><div class="small">Completa lo pendiente. Toca cada punto para ir directo.</div></div>`}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
       <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>`;
