@@ -76,21 +76,27 @@ const App = {
     $("[data-salir]", root).onclick = () => DB.salir();
   },
 
-  login(msg) {
+  login(msg, usuario = "") {
     $("#app").innerHTML = `<div class="login">
       <div class="brand">${logo(46)}clarus</div>
       <p class="lema">Te hago ver lo que tú <b>no puedes ver.</b></p>
-      <div class="card"><label class="f" style="margin-top:0">Usuario</label><input class="in" id="lu" autocapitalize="none" autocomplete="username">
-        <label class="f">Contraseña</label><input class="in" id="lp" type="password" autocomplete="current-password">
-        <button class="btn block" style="margin-top:18px" id="lb">Entrar</button>
-        ${msg ? `<p class="small" style="color:var(--rosa-t)">${esc(msg)}</p>` : ""}</div></div>`;
-    const go = async () => {
+      <form class="card" id="lf" autocomplete="on" novalidate>
+        <label class="f" style="margin-top:0" for="lu">Usuario</label>
+        <input class="in" id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}">
+        <label class="f" for="lp">Contraseña</label>
+        <div style="position:relative"><input class="in" id="lp" name="password" type="password" autocomplete="current-password" style="padding-right:84px">
+          <button type="button" id="lver" class="btn ghost sm" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0">Mostrar</button></div>
+        <button type="submit" class="btn block" style="margin-top:18px" id="lb">Entrar</button>
+        ${msg ? `<p class="small" style="color:var(--rosa-t)">${esc(msg)}</p>` : ""}</form></div>`;
+    $("#lver").onclick = () => { const p = $("#lp"); const ver = p.type === "password"; p.type = ver ? "text" : "password"; $("#lver").textContent = ver ? "Ocultar" : "Mostrar"; p.focus(); };
+    $("#lf").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const u = $("#lu").value;
       $("#lb").disabled = true; $("#lb").textContent = "Entrando…";
-      try { await DB.entrar($("#lu").value, $("#lp").value); location.hash = ""; this.render(); }
-      catch (e) { this.login(e.message); }
-    };
-    $("#lb").onclick = go;
-    $("#lp").onkeydown = (e) => e.key === "Enter" && go();
+      try { await DB.entrar(u, $("#lp").value); location.hash = ""; this.render(); }
+      catch (err) { this.login(err.message, u); }
+    });
+    (usuario ? $("#lp") : $("#lu")).focus();
   },
 };
 
