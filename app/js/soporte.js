@@ -3,6 +3,7 @@ const SOP = {
   CATS: [["tecnico", "Problema técnico"], ["duda", "Duda de uso"], ["pedido", "Pedido"], ["otro", "Otro"]],
   esAgente: () => DB.perfil?.rol === "admin",
   timer: null,
+  ultN: null,
 
   hace(t) {
     const m = Math.max(0, Math.round((Date.now() - new Date(t)) / 60000));
@@ -26,6 +27,8 @@ const SOP = {
     const { data } = await sb.from("soporte_tickets").select("id, user_id, estado, ultimo_at, ultimo_de_soporte, leido_usuario_at, leido_soporte_at").neq("estado", "resuelto").limit(500);
     const n = (data || []).filter((t) => this.sinLeer(t)).length, el = $(".fab-n", fab);
     el.hidden = !n; el.textContent = n > 9 ? "9+" : n;
+    if (this.ultN != null && n > this.ultN) toast(this.esAgente() ? "🛟 Nueva consulta en Soporte" : "🛟 Soporte te respondió", 5000);
+    this.ultN = n;
   },
 
   // ---------- Lista ----------
@@ -38,7 +41,8 @@ const SOP = {
       root.innerHTML = `<div class="top"><div><div class="muted small">${ag ? "Buzón de soporte" : "¿Algún problema o duda? Escríbenos aquí."}</div><h1>Soporte</h1></div>${!ag ? `<button class="btn sm" data-nueva>+ Nueva consulta</button>` : ""}</div>
         ${ag ? `<div id="sk"></div><div class="steps">${[["pendientes", "Por responder"], ["respondidos", "Respondidos"], ["resueltos", "Resueltos"]].map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div>`
           : `<div class="card flat small" style="background:var(--azul-cl);border-color:var(--azul-med)">En vez de WhatsApp, escribe aquí: queda registrado y te avisamos en el teléfono cuando te respondan. Si es algo de la app, adjunta una captura de pantalla.</div>`}
-        <div id="sl" class="muted">Cargando…</div>`;
+        ${MSG.bannerPush()}<div id="sl" class="muted">Cargando…</div>`;
+      MSG.enlazarBanner(root, pintar);
       $$("[data-tab]", root).forEach((el) => (el.onclick = () => { tab = el.dataset.tab; LS.set("sop.tab", tab); pintar(); }));
       const nb = $("[data-nueva]", root); if (nb) nb.onclick = () => this.nueva();
       let q = sb.from("v_soporte").select("*").order("ultimo_at", { ascending: false }).limit(200);
@@ -185,3 +189,6 @@ const SOP = {
     }, 15000);
   },
 };
+
+// Revisa el buzón de soporte cada minuto mientras la app está abierta
+setInterval(() => document.visibilityState === "visible" && DB.user && SOP.revisar(), 60000);
