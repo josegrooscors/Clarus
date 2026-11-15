@@ -58,7 +58,7 @@ const App = {
     const el = $("#syncpill"); if (!el) return;
     const n = await DB.pendientes();
     el.innerHTML = !navigator.onLine ? `<span class="sync p-durazno">Sin señal${n ? " · " + n + " por enviar" : ""}</span>`
-      : n ? `<span class="sync p-azul">Enviando ${n}…</span>` : `<span class="sync p-menta">✓ Al día</span>`;
+      : n ? `<span class="sync p-azul">Enviando ${n}…</span>` : "";
   },
 
   async yo(root) {
@@ -127,4 +127,13 @@ window.addEventListener("offline", () => App.syncPill());
   }
 })();
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// Actualización automática: si sale una versión nueva, se instala y la app se recarga sola una vez
+if ("serviceWorker" in navigator) {
+  const habiaSW = !!navigator.serviceWorker.controller;
+  let recargado = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (habiaSW && !recargado && !Visita.get()) { recargado = true; location.reload(); } });
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+    reg.update().catch(() => {});
+    document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && reg.update().catch(() => {}));
+  }).catch(() => {});
+}
