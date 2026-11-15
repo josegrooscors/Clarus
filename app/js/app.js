@@ -22,7 +22,9 @@ const App = {
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span>${t}</a>`;
     const navHtml = menu.map(link).join("");
     const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x)).join("");
-    app.innerHTML = `<div class="shell"><nav class="side"><div class="brand">${logo(30)}clarus</div>${navHtml}</nav>
+    const lema = `Te hago ver lo que tú <b>no puedes ver.</b>`;
+    app.innerHTML = `<header class="barra-marca"><div class="brand">${logo(24)}clarus</div><span class="lema-c">${lema}</span></header>
+      <div class="shell"><nav class="side"><div class="brand">${logo(30)}clarus</div><p class="lema-side">${lema}</p>${navHtml}</nav>
       <main class="main" id="main"></main></div><nav class="nav">${movil}</nav>`;
     const root = $("#main");
     try {
@@ -63,7 +65,7 @@ const App = {
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
       ${this.rutas().filter((x) => x[3]).length ? `<div class="card solo-movil list">${this.rutas().filter((x) => x[3]).map(([k, i, t]) => `<a class="item" href="#${k}"><span style="color:var(--azul)">${ic(i)}</span><span class="grow">${t}</span>›</a>`).join("")}</div>` : ""}
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
-      <p class="tiny muted" style="text-align:center;margin-top:16px">Clarus ${CLARUS.version}</p>`;
+      <div class="pie-marca">${logo(28)}<p>Te hago ver lo que tú <b>no puedes ver.</b></p><span class="tiny muted">Clarus ${CLARUS.version}</span></div>`;
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
     $("[data-cat]", root).onclick = async () => { try { await DB.catalogos(true); toast("Datos actualizados ✓"); } catch (e) { toast(e.message); } };
     $("[data-pw]", root).onclick = async () => {

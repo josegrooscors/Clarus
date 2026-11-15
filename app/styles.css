@@ -175,3 +175,13 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .sw input:checked+span{background:var(--azul)}
 .sw input:checked+span::after{transform:translateX(18px)}
 .sw input:focus-visible+span{box-shadow:0 0 0 3px var(--azul-med)}
+
+/* Lema de la marca */
+.barra-marca{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:#fff;border-bottom:1px solid var(--borde);position:sticky;top:0;z-index:15}
+.barra-marca .brand{font-size:18px;gap:8px}
+.lema-c{font-family:var(--font-t);font-size:12.5px;font-weight:600;color:var(--gris);text-align:right;line-height:1.25;letter-spacing:-.01em}
+.lema-c b,.lema-side b,.pie-marca b{color:var(--azul);font-weight:700}
+.lema-side{margin:-10px 6px 20px;font-family:var(--font-t);font-size:13px;font-weight:600;line-height:1.35;color:var(--gris);letter-spacing:-.01em}
+.pie-marca{display:flex;flex-direction:column;align-items:center;gap:6px;margin:28px 0 8px;text-align:center}
+.pie-marca p{margin:0;font-family:var(--font-t);font-size:16px;font-weight:600;color:var(--noche);letter-spacing:-.01em}
+@media (min-width:900px){.barra-marca{display:none}}
