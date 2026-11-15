@@ -20,17 +20,42 @@ const Camara = {
       const v = $("video", el); v.srcObject = stream;
       const cerrar = (r) => { stream.getTracks().forEach((t) => t.stop()); el.remove(); resolve(r); };
       $("[data-x]", el).onclick = () => cerrar(null);
-      $("[data-shot]", el).onclick = async () => {
-        if (!v.videoWidth) return;
-        const c = document.createElement("canvas");
-        c.width = v.videoWidth; c.height = v.videoHeight;
-        c.getContext("2d").drawImage(v, 0, 0);
+      const btn = $("[data-shot]", el);
+      btn.onclick = async () => {
+        if (!v.videoWidth || btn.disabled) return;
+        btn.disabled = true;
         const tomadaEn = new Date().toISOString();
+        let c = null;
+        // 1) Foto real del sensor (mejor calidad y exposición), si el navegador lo permite
+        try {
+          if (window.ImageCapture) {
+            const blob = await new ImageCapture(stream.getVideoTracks()[0]).takePhoto();
+            const bmp = await createImageBitmap(blob);
+            c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+            c.getContext("2d").drawImage(bmp, 0, 0);
+            if (Camara.oscura(c)) c = null;
+          }
+        } catch (e) { c = null; }
+        // 2) Cuadro del video
+        if (!c) {
+          c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+          c.getContext("2d").drawImage(v, 0, 0);
+        }
+        if (Camara.oscura(c)) { btn.disabled = false; toast("La foto salió negra. Apunta a la zona con luz e inténtalo de nuevo.", 3500); return; }
         stream.getTracks().forEach((t) => t.stop());
         el.remove();
         resolve({ canvas: c, at: tomadaEn, marca });
       };
     });
+  },
+
+  // ¿La imagen salió negra? (promedio de brillo muy bajo)
+  oscura(c) {
+    const t = document.createElement("canvas"); t.width = 32; t.height = 24;
+    const g = t.getContext("2d", { willReadFrequently: true }); g.drawImage(c, 0, 0, 32, 24);
+    const d = g.getImageData(0, 0, 32, 24).data; let s = 0;
+    for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2];
+    return s / (d.length / 4) / 3 < 12;
   },
 
   // Foto de evidencia: reduce tamaño y estampa fecha, hora y tienda

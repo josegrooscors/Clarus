@@ -96,6 +96,10 @@ const DB = {
           try { await this.ejecutar(op); await IDB.delOp(op.k); }
           catch (e) {
             console.warn("sync", op.t, e);
+            if (e && (e.code === "P0001" || e.permanente)) { // regla de negocio: no se puede reintentar
+              await IDB.delOp(op.k); const av = LS.get("avisos", []); av.unshift({ at: Date.now(), msg: e.message }); LS.set("avisos", av.slice(0, 20));
+              toast(e.message, 5000); continue;
+            }
             op.intentos = (op.intentos || 0) + 1; op.error = String(e.message || e);
             await IDB.putOp(op);
             break; // mantener el orden: se reintenta luego
@@ -174,6 +178,18 @@ const DB = {
         ok(r);
         const pid = r.data?.id || (await sb.from("pedidos").select("id").eq("id_local", op.plid).single()).data.id;
         ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: pid, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto })), { onConflict: "pedido_id,producto_id" }));
+        return;
+      }
+      case "pedido_editar":
+      case "pedido_anular": {
+        const { data: p } = await sb.from("pedidos").select("id, estado").eq("id_local", op.plid).maybeSingle();
+        if (!p) throw new Error("Pedido aún no sincronizado");
+        if (p.estado !== "propuesto") { const e = new Error("El pedido ya fue revisado por el supervisor y no se pudo cambiar"); e.permanente = true; throw e; }
+        if (op.t === "pedido_anular") { ok(await sb.from("pedidos").update({ estado: "anulado" }).eq("id", p.id)); return; }
+        ok(await sb.from("pedidos").update({ nota_vendedor: op.nota || null }).eq("id", p.id));
+        const ids = op.items.map((x) => x.producto_id);
+        ok(await sb.from("pedido_items").delete().eq("pedido_id", p.id).not("producto_id", "in", `(${ids.join(",")})`));
+        ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: p.id, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto })), { onConflict: "pedido_id,producto_id" }));
         return;
       }
       case "orden": {
