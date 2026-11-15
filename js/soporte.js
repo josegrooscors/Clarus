@@ -122,7 +122,7 @@ const SOP = {
     const ag = this.esAgente();
     const [{ data: t }, { data: ms, error }] = await Promise.all([
       sb.from("v_soporte").select("*").eq("id", id).maybeSingle(),
-      sb.from("soporte_mensajes").select("id, autor_id, texto, adjunto, creado_at, perfiles(nombre)").eq("ticket_id", id).order("creado_at"),
+      sb.from("soporte_mensajes").select("id, autor_id, texto, adjunto, creado_at, perfiles!soporte_mensajes_autor_id_fkey(nombre)").eq("ticket_id", id).order("creado_at"),
     ]);
     if (!t || error) { root.innerHTML = `<div class="empty card flat">No encontré esta consulta.</div><a class="btn sec" href="#soporte">Volver</a>`; return; }
     const soyDueno = t.user_id === DB.user.id;

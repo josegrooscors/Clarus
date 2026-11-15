@@ -6,7 +6,7 @@ const MSG = {
   // ---------- Datos ----------
   async cargarMios() {
     const { data, error } = await sb.from("comunicado_destinos")
-      .select("comunicado_id, leido_at, ok_at, comunicados!inner(id, titulo, cuerpo, requiere_ok, programado_at, anulado, perfiles(nombre))")
+      .select("comunicado_id, leido_at, ok_at, comunicados!inner(id, titulo, cuerpo, requiere_ok, programado_at, anulado, perfiles!comunicados_autor_id_fkey(nombre))")
       .eq("user_id", DB.user.id).eq("comunicados.anulado", false).lte("comunicados.programado_at", new Date().toISOString());
     if (error) throw error;
     this.mios = (data || []).map((d) => ({ ...d.comunicados, autor: d.comunicados.perfiles?.nombre, leido_at: d.leido_at, ok_at: d.ok_at }))
@@ -128,7 +128,7 @@ const MSG = {
     let c = mio, dest = null;
     if (gestor) {
       const [{ data: cc }, { data: dd }] = await Promise.all([sb.from("v_comunicados").select("*").eq("id", id).maybeSingle(),
-        sb.from("comunicado_destinos").select("user_id, leido_at, ok_at, recordatorios, perfiles(nombre)").eq("comunicado_id", id)]);
+        sb.from("comunicado_destinos").select("user_id, leido_at, ok_at, recordatorios, perfiles!comunicado_destinos_user_id_fkey(nombre)").eq("comunicado_id", id)]);
       if (cc) { c = { ...cc, ...(mio ? { leido_at: mio.leido_at, ok_at: mio.ok_at } : {}) }; dest = (dd || []).sort((a, b) => (a.perfiles?.nombre || "").localeCompare(b.perfiles?.nombre || "")); }
     }
     if (!c) { root.innerHTML = `<div class="empty card flat">Este comunicado no existe o fue anulado.</div><a class="btn sec" href="#mensajes">Volver</a>`; return; }
@@ -189,7 +189,7 @@ const MSG = {
         if (cuando === "prog") { prog = new Date($("#cf", m).value); if (isNaN(prog) || prog < new Date()) return toast("Elige una fecha y hora futura"); }
         e.target.disabled = true;
         try {
-          const { data: c, error } = await sb.from("comunicados").insert({ titulo, cuerpo, requiere_ok: $("#cok", m).classList.contains("on"), recordar_min: Number($("#cr", m).value), programado_at: prog.toISOString() }).select("id").single();
+          const { data: c, error } = await sb.from("comunicados").insert({ titulo, cuerpo, requiere_ok: $("#cok", m).classList.contains("on"), recordar_min: Number($("#cr", m).value), ...(cuando === "prog" ? { programado_at: prog.toISOString() } : {}) }).select("id").single();
           if (error) throw error;
           const r2 = await sb.from("comunicado_destinos").insert(ids.map((u) => ({ comunicado_id: c.id, user_id: u })));
           if (r2.error) { await sb.from("comunicados").delete().eq("id", c.id); throw r2.error; }
