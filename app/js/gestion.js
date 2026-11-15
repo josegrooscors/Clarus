@@ -1,28 +1,27 @@
-// Pantallas de gestión: aprobación de pedidos, órdenes para operaciones, equipo del día y usuarios
+// Pantallas de gestión: pedidos para operaciones, equipo del día y usuarios
 const G = {
   // ---------------- PEDIDOS (supervisor / operaciones / admin) ----------------
   async pedidos(root, filtro) {
     const rol = DB.perfil.rol;
-    const tabs = [["propuesto", "Por aprobar"], ["imprimir", "Por imprimir"], ["aprobado", "Aprobados sin orden"], ["impreso", "Impresos"], ["rechazado", "Rechazados"]];
-    filtro = filtro || (rol === "operaciones" ? "imprimir" : "propuesto");
+    const tabs = [["imprimir", "Por imprimir"], ["sinorden", "Sin orden escaneada"], ["impreso", "Impresos"], ["anulado", "Anulados"]];
+    filtro = filtro || "imprimir";
     root.innerHTML = `<div class="top"><h1>Pedidos</h1></div>
       <div class="steps">${tabs.map(([k, t]) => `<div class="step ${k === filtro ? "on" : ""}" data-f="${k}">${t} <span data-n="${k}"></span></div>`).join("")}</div>
       <div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
     $$("[data-f]", root).forEach((el) => (el.onclick = () => this.pedidos(root, el.dataset.f)));
-    const POR_IMPRIMIR = ["propuesto", "aprobado", "orden_escaneada"];
+    const ACTIVOS = ["propuesto", "aprobado", "orden_escaneada"];
     const { data: cnt } = await sb.from("v_pedidos").select("estado, documento");
     const n = {};
     (cnt || []).forEach((r) => {
-      if (r.documento && POR_IMPRIMIR.includes(r.estado)) n.imprimir = (n.imprimir || 0) + 1;
-      if (r.estado === "aprobado" && !r.documento) n.aprobado = (n.aprobado || 0) + 1;
-      else if (r.estado !== "aprobado") n[r.estado] = (n[r.estado] || 0) + 1;
+      const k = ACTIVOS.includes(r.estado) ? (r.documento ? "imprimir" : "sinorden") : r.estado;
+      n[k] = (n[k] || 0) + 1;
     });
-    tabs.forEach(([k]) => { const s = $(`[data-n="${k}"]`, root); if (n[k] && ["propuesto", "imprimir"].includes(k)) s.innerHTML = `<span class="badge">${n[k]}</span>`; else if (n[k]) s.textContent = "· " + n[k]; });
+    tabs.forEach(([k]) => { const s = $(`[data-n="${k}"]`, root); if (n[k] && k === "imprimir") s.innerHTML = `<span class="badge">${n[k]}</span>`; else if (n[k]) s.textContent = "· " + n[k]; });
     let q = sb.from("v_pedidos").select("*");
-    if (filtro === "imprimir") q = q.in("estado", POR_IMPRIMIR).not("documento", "is", null);
-    else if (filtro === "aprobado") q = q.eq("estado", "aprobado").is("documento", null);
+    if (filtro === "imprimir") q = q.in("estado", ACTIVOS).not("documento", "is", null);
+    else if (filtro === "sinorden") q = q.in("estado", ACTIVOS).is("documento", null);
     else q = q.eq("estado", filtro);
-    const { data, error } = await q.order("creado_at", { ascending: filtro === "propuesto" || filtro === "imprimir" }).limit(100);
+    const { data, error } = await q.order("creado_at", { ascending: filtro === "imprimir" }).limit(100);
     if (error) { $("#lp").innerHTML = esc(error.message); return; }
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${esc(iniciales(p.vendedor))}</div>
       <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
@@ -32,7 +31,7 @@ const G = {
 
   async detalle(p, recargar) {
     const rol = DB.perfil.rol;
-    const puedeAprobar = ["admin", "supervisor"].includes(rol) && p.estado === "propuesto";
+    const puedeAprobar = false; // el flujo no lleva aprobación
     const puedeImprimir = ["admin", "operaciones", "supervisor"].includes(rol) && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
     const [{ data: items }, { data: ev }] = await Promise.all([
       sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo)").eq("pedido_id", p.id).order("id"),
@@ -40,14 +39,13 @@ const G = {
     ]);
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)}</div>
+      ${!p.documento && ["propuesto", "aprobado"].includes(p.estado) ? `<p class="small" style="color:var(--durazno-t)">La vendedora todavía no ha escaneado la orden de compra.</p>` : ""}
       ${p.nota_vendedor ? `<p class="small"><b>Nota del vendedor:</b> ${esc(p.nota_vendedor)}</p>` : ""}
-      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Prop.</th><th>Aprobado</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td>${fmtNum(i.propuesto)}</td>
-        <td>${puedeAprobar ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : `<b>${i.aprobado != null ? fmtNum(i.aprobado) : "–"}</b>`}</td></tr>`).join("")}</table></div>
+      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Cantidad</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td><b>${fmtNum(i.propuesto)}</b></td></tr>`).join("")}</table></div>
       ${puedeAprobar ? `<label class="f">Nota (opcional; obligatoria si rechazas)</label><input class="in" id="nrev">
         <div class="row" style="margin-top:14px"><button class="btn peligro sp" data-rech>Rechazar</button><button class="btn ok sp" data-apr>Aprobar</button></div>` : ""}
       ${p.documento ? `<div class="row" style="margin-top:14px"><button class="btn ${puedeImprimir ? "" : "sec"} sp" data-pdf>${ic("doc", 18)} Abrir / imprimir</button><button class="btn sec sp" data-desc>Descargar PDF</button></div>` : ""}
-      ${puedeImprimir && p.estado === "propuesto" ? `<p class="small" style="color:var(--durazno-t)">Ojo: este pedido todavía no está aprobado.</p>` : ""}
       ${puedeImprimir ? `<button class="btn ok block" style="margin-top:10px" data-imp>Marcar como impreso</button>` : ""}
       <h3 style="margin:18px 0 6px">Historial</h3>
       ${(ev || []).map((e) => `<div class="row small" style="padding:4px 0"><span class="sp">${(ESTADOS_PEDIDO[e.estado] || [e.estado])[0]}${e.perfiles ? " · " + esc(e.perfiles.nombre) : ""}</span><span class="muted">${fmtFechaHora(e.at)}</span></div>`).join("")}`,
@@ -86,19 +84,19 @@ const G = {
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Equipo hoy</h1></div></div><div id="eq" class="muted">Cargando…</div>`;
     const [{ data: vis, error }, { data: ped }] = await Promise.all([
       sb.from("v_visitas").select("*").eq("fecha", hoyISO()).order("checkin_at"),
-      sb.from("pedidos").select("estado"),
+      sb.from("v_pedidos").select("estado, documento"),
     ]);
     if (error) { $("#eq").textContent = error.message; return; }
     const enTienda = vis.filter((v) => v.estado === "abierta").length;
     const fuera = vis.filter((v) => v.checkin_dentro === false || v.checkout_dentro === false).length;
-    const porAprobar = (ped || []).filter((p) => p.estado === "propuesto").length;
+    const porImprimir = (ped || []).filter((p) => ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado) && p.documento).length;
     const porVend = {};
     vis.forEach((v) => (porVend[v.vendedor] = porVend[v.vendedor] || []).push(v));
     $("#eq").outerHTML = `<div class="kpis">
         <div class="kpi"><div class="v">${vis.length}</div><div class="l">Visitas hoy</div></div>
         <div class="kpi"><div class="v">${enTienda}</div><div class="l">En tienda ahora</div></div>
         <div class="kpi"><div class="v" style="color:${fuera ? "var(--rosa-t)" : "inherit"}">${fuera}</div><div class="l">Fuera de la tienda (GPS)</div></div>
-        <div class="kpi"><div class="v">${porAprobar}</div><div class="l">Pedidos por aprobar</div></div></div>
+        <div class="kpi"><div class="v">${porImprimir}</div><div class="l">Órdenes por imprimir</div></div></div>
       ${Object.entries(porVend).map(([n, vs]) => {
         const ini = vs[0].checkin_at, fin = vs.filter((v) => v.checkout_at).slice(-1)[0]?.checkout_at;
         return `<div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(n))}</div><div class="grow"><h3>${esc(n)}</h3>
