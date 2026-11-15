@@ -193,3 +193,12 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .agot{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid var(--borde);background:#fff;font-size:13px;font-weight:600;color:var(--gris);cursor:pointer}
 .agot.on{background:var(--rosa);border-color:#F3C4C0;color:var(--rosa-t)}
 .inv.agotado .stepper{opacity:.4;pointer-events:none}
+
+.mapa-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.mapa-lista{max-height:320px;overflow:auto;margin:0}
+.mapa-mapa{margin:0;height:420px}
+@media (min-width:900px){.mapa-grid{grid-template-columns:340px 1fr;height:calc(100vh - 230px);min-height:480px}.mapa-lista{max-height:none;height:100%}.mapa-mapa{height:100%}}
+.mrow{display:flex;gap:10px;align-items:center;padding:8px 4px;border-top:1px solid var(--borde);cursor:pointer}
+.mrow:hover{background:var(--fondo)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none}
+.leaflet-container{font-family:var(--font)}
