@@ -9,7 +9,7 @@ const cors = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
-const ROLES = ["admin", "supervisor", "operaciones", "vendedor"];
+const ROLES = ["admin", "supervisor", "operaciones", "administracion", "vendedor"];
 const DOMINIO = "clarus.app";
 
 Deno.serve(async (req) => {
@@ -69,7 +69,11 @@ Deno.serve(async (req) => {
     if (b.accion === "password") {
       if (!b.password || String(b.password).length < 6) return json({ error: "La contraseña debe tener al menos 6 caracteres" }, 400);
       const { error } = await admin.auth.admin.updateUserById(b.id, { password: String(b.password) });
-      return error ? json({ error: error.message }, 400) : json({ ok: true });
+      if (error) return json({ error: error.message }, 400);
+      // Si había pedido "Olvidé mi contraseña", queda atendido
+      await admin.from("solicitudes").update({ estado: "atendida", atendida_por: u.user.id, atendida_at: new Date().toISOString() })
+        .eq("tipo", "clave").eq("perfil_id", b.id).eq("estado", "pendiente");
+      return json({ ok: true });
     }
     if (b.accion === "activo") {
       const { error } = await admin.from("perfiles").update({ activo: !!b.activo }).eq("id", b.id);

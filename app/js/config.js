@@ -216,7 +216,18 @@ const C = {
     const roles = Object.entries(ROLES_TXT).filter(([k]) => esAdmin || k !== "admin");
     const [{ data }, at] = await Promise.all([sb.from("perfiles").select("*").order("nombre"), sb.from("asignacion_tiendas").select("vendedor_id")]);
     const nT = (id) => (at.data || []).filter((a) => a.vendedor_id === id).length;
-    box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="sp muted small">${(data || []).filter((u) => u.activo).length} usuarios activos</span><button class="btn" data-nuevo>+ Nuevo usuario</button></div><div class="list" id="lu"></div>`;
+    const { data: sol } = await sb.from("solicitudes").select("*").eq("estado", "pendiente").order("creado_at", { ascending: false }).limit(50);
+    const claves = (sol || []).filter((x) => x.tipo === "clave"), demos = (sol || []).filter((x) => x.tipo === "demo");
+    const hace = (t) => fmtFecha(t) + " " + fmtHora(t);
+    box.innerHTML = `${claves.length ? `<div class="card sol-card"><div class="row"><b class="grow">Piden contraseña nueva</b><span class="pill p-rosa">${claves.length}</span></div>
+        ${claves.map((x) => `<div class="sol-fila"><div class="grow"><b>${esc(x.nombre || x.usuario)}</b> <span class="tiny muted">@${esc(x.usuario)} · ${hace(x.creado_at)}</span>${x.mensaje ? `<div class="small muted">"${esc(x.mensaje)}"</div>` : ""}</div>
+          <button class="btn sm" data-solpw="${x.perfil_id}">Asignar contraseña</button><button class="btn ghost sm" data-solok="${x.id}" title="Marcar atendida">✓</button></div>`).join("")}</div>` : ""}
+      ${demos.length ? `<div class="card sol-card"><div class="row"><b class="grow">Interesados en Clarus</b><span class="pill p-azul">${demos.length}</span></div>
+        ${R.paginar(demos.map((x) => `<div class="sol-fila"><div class="grow"><b>${esc(x.nombre)}</b> · ${esc(x.empresa_nombre || "")} <span class="tiny muted">${hace(x.creado_at)}</span>
+          <div class="small muted">${[x.rubro, x.vendedores ? x.vendedores + " vendedores" : "", x.telefono, x.correo].filter(Boolean).map(esc).join(" · ")}</div>${x.mensaje ? `<div class="small">"${esc(x.mensaje)}"</div>` : ""}</div>
+          ${x.telefono ? `<a class="btn sm sec" target="_blank" rel="noopener" href="https://wa.me/${esc(String(x.telefono).replace(/\D/g, "").replace(/^(\d{8})$/, "507$1"))}">WhatsApp</a>` : ""}${x.correo ? `<a class="btn sm ghost" href="mailto:${esc(x.correo)}">Correo</a>` : ""}<button class="btn ghost sm" data-solok="${x.id}" title="Marcar atendida">✓</button></div>`))}</div>` : ""}
+      <div class="row" style="margin-bottom:10px"><span class="sp muted small">${(data || []).filter((u) => u.activo).length} usuarios activos</span><button class="btn" data-nuevo>+ Nuevo usuario</button></div><div class="list" id="lu"></div>`;
+    $$("[data-solok]", box).forEach((b) => (b.onclick = async () => { const { error } = await sb.from("solicitudes").update({ estado: "atendida", atendida_por: DB.user.id, atendida_at: new Date().toISOString() }).eq("id", b.dataset.solok); if (error) return toast(error.message); this.usuarios(box); }));
     $("#lu", box).innerHTML = (data || []).map((u) => `<div class="item" data-id="${u.id}"><div class="ava">${esc(iniciales(u.nombre))}</div>
       <div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${ROLES_TXT[u.rol]}${nT(u.id) ? " · " + nT(u.id) + " tiendas" : ""}${u.telefono ? " · " + esc(u.telefono) : ""}</div></div>
       ${u.activo ? `<span class="pill p-menta">Activo</span>` : `<span class="pill p-gris">Inactivo</span>`}</div>`).join("");
@@ -237,8 +248,8 @@ const C = {
         } catch (e) { toast(e.message, 4000); }
       };
     });
-    $$("[data-id]", box).forEach((el) => (el.onclick = () => {
-      const u = data.find((x) => x.id === el.dataset.id);
+    const abrir = (id, enfocarPw) => {
+      const u = data.find((x) => x.id === id); if (!u) return;
       if (u.rol === "admin" && !esAdmin) return toast("Solo un administrador puede modificar a otro administrador");
       const yo = u.id === DB.user.id;
       modal(`<h2>${esc(u.nombre)}</h2>
@@ -253,11 +264,14 @@ const C = {
           try { await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: $("[name=nombre]", m).value, telefono: $("[name=telefono]", m).value.trim(), rol: $("[name=rol]", m).value }); close(); toast("Usuario actualizado ✓"); this.usuarios(box); }
           catch (e) { toast(e.message, 4000); }
         };
-        $("[data-pw]", m).onclick = async () => { try { await DB.funcion("usuarios", { accion: "password", id: u.id, password: $("[name=pw]", m).value }); close(); toast("Contraseña cambiada ✓"); } catch (e) { toast(e.message, 4000); } };
+        $("[data-pw]", m).onclick = async () => { try { await DB.funcion("usuarios", { accion: "password", id: u.id, password: $("[name=pw]", m).value }); close(); toast("Contraseña cambiada ✓ Avísale a " + u.nombre.split(" ")[0], 4000); this.usuarios(box); } catch (e) { toast(e.message, 4000); } };
+        if (enfocarPw) setTimeout(() => $("[name=pw]", m).focus(), 60);
         const a = $("[data-act]", m);
         if (a) a.onclick = async () => { try { await DB.funcion("usuarios", { accion: "activo", id: u.id, activo: !u.activo }); close(); this.usuarios(box); } catch (e) { toast(e.message, 4000); } };
       });
-    }));
+    };
+    $$("[data-id]", box).forEach((el) => (el.onclick = () => abrir(el.dataset.id)));
+    $$("[data-solpw]", box).forEach((b) => (b.onclick = () => abrir(b.dataset.solpw, true)));
   },
 
   // ---------------- PERMISOS POR ROL (solo administrador) ----------------

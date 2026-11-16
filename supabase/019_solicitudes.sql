@@ -1,0 +1,3 @@
+-- 019 (15-nov-2026): tabla solicitudes (tipo clave|demo, estado pendiente|atendida). Inserta solo la función Edge `publico` (sin JWT).
+-- Ver/actualizar: 'clave' = admin o permiso usuarios de la empresa; 'demo' = dueño de la plataforma (app_secretos.dueno_plataforma, private.es_dueno_plataforma()).
+-- Función `usuarios`: acepta rol administracion; al cambiar contraseña marca atendidas las solicitudes 'clave' del usuario.
