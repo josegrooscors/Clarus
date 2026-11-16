@@ -21,7 +21,14 @@ const App = {
   // Barra inferior del celular: todos los botones del rol, con nombres cortos para que quepan completos.
   movil() {
     const corto = { programacion: "Agenda", mensajes: "Avisos", objetivos: "Metas", "mis-pedidos": "Pedidos" };
-    return { nav: this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, i, corto[k] || t, d]), extra: [] };
+    // Celular: máximo 5 botones (los principales + Yo). Avisos, Equipo, Agenda y lo demás quedan dentro de "Yo".
+    const m = this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, i, corto[k] || t, d]);
+    const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos", "objetivos", "facturacion"];
+    const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 4);
+    const yo = m.filter((x) => x[0] === "yo");
+    const nav = m.filter((x) => prim.includes(x)).concat(yo);
+    const extra = m.filter((x) => !nav.includes(x)).sort((a, b) => (b[0] === "mensajes") - (a[0] === "mensajes"));
+    return { nav, extra };
   },
 
 
@@ -105,7 +112,7 @@ const App = {
         <button class="btn ghost block" style="margin-top:8px" data-cat>Actualizar tiendas y productos</button></div>
       <div class="card"><label class="f" style="margin-top:0">Cambiar mi contraseña</label><input class="in" type="password" id="npw" placeholder="mínimo 6 caracteres">
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
-      ${this.movil().extra.concat(this.rutas().filter((x) => x[3])).length ? `<div class="card solo-movil list">${this.movil().extra.concat(this.rutas().filter((x) => x[3])).map(([k, i, t]) => [k, i, k === "programacion" ? "Agenda" : t]).map(([k, i, t]) => `<a class="item" href="#${k}"><span style="color:var(--azul)">${ic(i)}</span><span class="grow">${t}</span>›</a>`).join("")}</div>` : ""}
+      ${this.movil().extra.concat(this.rutas().filter((x) => x[3])).length ? `<div class="card solo-movil list">${this.movil().extra.concat(this.rutas().filter((x) => x[3])).map(([k, i, t]) => [k, i, k === "programacion" ? "Agenda" : t]).map(([k, i, t]) => `<a class="item" href="#${k}"><span class="ic" style="color:var(--azul);position:relative;display:flex">${ic(i)}</span><span class="grow">${k === "mensajes" ? "Avisos y comunicados" : t}</span>›</a>`).join("")}</div>` : ""}
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
       <div class="pie-marca">${logo(28)}<p>Te hago ver lo que tú <b>no puedes ver.</b></p><span class="tiny muted">Clarus ${CLARUS.version}</span></div>`;
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
