@@ -20,9 +20,9 @@ const App = {
 
   // Barra inferior del celular: todos los botones del rol, con nombres cortos para que quepan completos.
   movil() {
-    const corto = { programacion: "Agenda", mensajes: "Avisos", objetivos: "Metas", "mis-pedidos": "Pedidos" };
+    const corto = { programacion: "Agenda", mensajes: "Avisos", objetivos: "Metas", "mis-pedidos": "Pedidos", yo: "Más" };
     // Celular: máximo 5 botones (los principales + Yo). Avisos, Equipo, Agenda y lo demás quedan dentro de "Yo".
-    const m = this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, i, corto[k] || t, d]);
+    const m = this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, k === "yo" ? "menu" : i, corto[k] || t, d]);
     const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos", "objetivos", "facturacion"];
     const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 4);
     const yo = m.filter((x) => x[0] === "yo");
@@ -103,16 +103,18 @@ const App = {
     const n = await DB.pendientes();
     const ops = await IDB.ops();
     const err = ops.find((o) => o.error);
-    root.innerHTML = `<div class="top"><h1>Mi cuenta</h1></div>
-      <div class="card"><div class="row"><div class="ava">${esc(iniciales(DB.perfil.nombre))}</div><div class="grow"><h2>${esc(DB.perfil.nombre)}</h2>
-        <div class="small muted">${esc(DB.empresa?.nombre || "")} · ${esc(DB.perfil.rol)}</div></div></div></div>
+    const items = this.movil().extra.concat(this.rutas().filter((x) => x[3])).map(([k, i, t]) => [k, i, k === "programacion" ? "Agenda" : t]);
+    // Celular: primero el menú (lo que no cabe abajo); después la cuenta, sincronización y contraseña.
+    root.innerHTML = `<div class="yo-cab"><div class="ava">${esc(iniciales(DB.perfil.nombre))}</div><div class="grow"><b>${esc(DB.perfil.nombre)}</b>
+        <div class="small muted">${esc(DB.empresa?.nombre || "")} · ${esc(ROLES_TXT?.[DB.perfil.rol] || DB.perfil.rol)}</div></div></div>
+      ${items.length ? `<div class="card solo-movil list yo-menu">${items.map(([k, i, t]) => `<a class="item" href="#${k}"><span class="ic" style="color:var(--azul);position:relative;display:flex">${ic(i)}</span><span class="grow">${k === "mensajes" ? "Avisos y comunicados" : t}</span>›</a>`).join("")}</div>` : ""}
+      <h3 class="yo-sec">Cuenta y datos</h3>
       <div class="card"><div class="row"><span class="sp">Registros por enviar</span><b>${n}</b></div>
         ${err ? `<div class="small" style="color:var(--rosa-t);margin-top:6px">Último error: ${esc(err.error)}</div>` : ""}
         <button class="btn sec block" style="margin-top:12px" data-sync>Sincronizar ahora</button>
         <button class="btn ghost block" style="margin-top:8px" data-cat>Actualizar tiendas y productos</button></div>
       <div class="card"><label class="f" style="margin-top:0">Cambiar mi contraseña</label><input class="in" type="password" id="npw" placeholder="mínimo 6 caracteres">
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
-      ${this.movil().extra.concat(this.rutas().filter((x) => x[3])).length ? `<div class="card solo-movil list">${this.movil().extra.concat(this.rutas().filter((x) => x[3])).map(([k, i, t]) => [k, i, k === "programacion" ? "Agenda" : t]).map(([k, i, t]) => `<a class="item" href="#${k}"><span class="ic" style="color:var(--azul);position:relative;display:flex">${ic(i)}</span><span class="grow">${k === "mensajes" ? "Avisos y comunicados" : t}</span>›</a>`).join("")}</div>` : ""}
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
       <div class="pie-marca">${logo(28)}<p>Te hago ver lo que tú <b>no puedes ver.</b></p><span class="tiny muted">Clarus ${CLARUS.version}</span></div>`;
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
