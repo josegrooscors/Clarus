@@ -294,6 +294,7 @@ const C = {
     };
     $$("[data-id]", box).forEach((el) => (el.onclick = () => abrir(el.dataset.id)));
     $$("[data-solpw]", box).forEach((b) => (b.onclick = () => abrir(b.dataset.solpw, true)));
+    const pend = LS.get("abrirUsuario"); if (pend) { LS.del ? LS.del("abrirUsuario") : localStorage.removeItem("clarus.abrirUsuario"); abrir(pend, true); }
   },
 
   // ---------------- PERMISOS POR ROL (solo administrador) ----------------

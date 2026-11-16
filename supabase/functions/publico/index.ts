@@ -1,5 +1,5 @@
 // Clarus · Solicitudes desde la pantalla de inicio, sin sesión:
-//  - clave: "Olvidé mi contraseña" → avisa (push) a los administradores de la empresa del usuario.
+//  - clave: "Olvidé mi contraseña" → avisa (push) a los administradores y abre un ticket en Soporte.
 //  - demo:  "Solicitar demostración" → avisa (push) al dueño de la plataforma.
 //  - registro: prueba gratis de 15 días → crea la empresa y su administrador con correo y contraseña; entra de inmediato.
 //  - contratar: (con sesión) la empresa en prueba quiere pagar → avisa al dueño de la plataforma.
@@ -62,11 +62,14 @@ Deno.serve(async (req) => {
         const { data: dup } = await db.from("solicitudes").select("id").eq("tipo", "clave").eq("perfil_id", p.id).eq("estado", "pendiente").gte("creado_at", hace30).limit(1);
         if (!dup?.length) {
           await db.from("solicitudes").insert({ tipo: "clave", empresa_id: p.empresa_id, perfil_id: p.id, usuario, nombre: p.nombre, mensaje: txt(b.mensaje, 300) || null });
+          // También llega al buzón de Soporte del administrador (con botón "Asignar contraseña")
+          const { data: tk } = await db.from("soporte_tickets").insert({ empresa_id: p.empresa_id, user_id: p.id, categoria: "otro", asunto: "Olvidé mi contraseña", diagnostico: `Solicitud desde la pantalla de inicio · usuario ${usuario}` }).select("id").single();
+          if (tk) await db.from("soporte_mensajes").insert({ ticket_id: tk.id, autor_id: p.id, texto: `${p.nombre} (usuario ${usuario}) pide una contraseña nueva desde la pantalla de inicio.${b.mensaje ? "\nMensaje: " + txt(b.mensaje, 300) : ""}` });
           const { data: adm } = await db.from("perfiles").select("id, rol").eq("empresa_id", p.empresa_id).eq("activo", true).in("rol", ["admin", "supervisor"]);
           const { data: perm } = await db.from("permisos_rol").select("rol").eq("empresa_id", p.empresa_id).eq("permiso", "usuarios").eq("permitido", true);
           const rolesOk = new Set(["admin", ...(perm || []).map((x) => x.rol)]);
           await push((adm || []).filter((a) => rolesOk.has(a.rol) && a.id !== p.id).map((a) => a.id),
-            { title: "Olvidó su contraseña", body: `${p.nombre} pide una contraseña nueva. Toca para asignarla.`, url: "#config", tag: "clave-" + p.id });
+            { title: "Olvidó su contraseña", body: `${p.nombre} pide una contraseña nueva. Toca para asignarla.`, url: tk ? "#soporte/" + tk.id : "#config", tag: "clave-" + p.id });
         }
       }
     }

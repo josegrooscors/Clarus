@@ -73,6 +73,12 @@ Deno.serve(async (req) => {
       // Si había pedido "Olvidé mi contraseña", queda atendido
       await admin.from("solicitudes").update({ estado: "atendida", atendida_por: u.user.id, atendida_at: new Date().toISOString() })
         .eq("tipo", "clave").eq("perfil_id", b.id).eq("estado", "pendiente");
+      // y se cierra el ticket de Soporte "Olvidé mi contraseña"
+      const { data: tks } = await admin.from("soporte_tickets").select("id").eq("user_id", b.id).eq("asunto", "Olvidé mi contraseña").neq("estado", "resuelto");
+      for (const t of tks || []) {
+        await admin.from("soporte_mensajes").insert({ ticket_id: t.id, autor_id: u.user.id, texto: "Listo: se asignó una contraseña nueva. Te la entregamos por otro medio." });
+        await admin.from("soporte_tickets").update({ estado: "resuelto", resuelto_at: new Date().toISOString() }).eq("id", t.id);
+      }
       return json({ ok: true });
     }
     if (b.accion === "activo") {

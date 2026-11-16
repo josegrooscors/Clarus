@@ -159,6 +159,7 @@ const SOP = {
       <div class="chat-in"><label class="btn ghost sm" title="Adjuntar captura" style="padding:0 10px">📎<input type="file" accept="image/*" id="cf" hidden></label>
         <textarea class="in" id="cm" rows="1" placeholder="${ag && !soyDueno ? "Responder…" : "Escribe un mensaje…"}"></textarea><button class="btn sm" data-env>Enviar</button></div>
       <div id="cfp" class="tiny muted"></div>
+      ${ag && !soyDueno && t.asunto === "Olvidé mi contraseña" && t.estado !== "resuelto" ? `<button class="btn block" style="margin-top:10px" data-clave="${t.user_id}">Asignar contraseña nueva</button>` : ""}
       ${ag && !soyDueno ? `<button class="btn ${t.estado === "resuelto" ? "sec" : "ghost"} sm" style="margin-top:10px" data-res>${t.estado === "resuelto" ? "Reabrir" : "✓ Marcar resuelto"}</button>` : ""}`;
     const ch = $("#ch", root); ch.scrollTop = ch.scrollHeight; window.scrollTo(0, document.body.scrollHeight);
     let foto = null;
@@ -172,6 +173,7 @@ const SOP = {
       try { await this.enviar(id, texto, foto); this.chat(root, id); }
       catch (err) { e.target.disabled = false; toast(err.message || String(err)); }
     };
+    const bc = $("[data-clave]", root); if (bc) bc.onclick = () => { LS.set("cfgTab", "usuarios"); LS.set("abrirUsuario", bc.dataset.clave); location.hash = "#config"; };
     const rs = $("[data-res]", root);
     if (rs) rs.onclick = async () => {
       const res = t.estado !== "resuelto";
