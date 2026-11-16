@@ -27,7 +27,12 @@ const SOP = {
     const { data } = await sb.from("soporte_tickets").select("id, user_id, estado, ultimo_at, ultimo_de_soporte, leido_usuario_at, leido_soporte_at").neq("estado", "resuelto").limit(500);
     const n = (data || []).filter((t) => this.sinLeer(t)).length, el = $(".fab-n", fab);
     el.hidden = !n; el.textContent = n > 9 ? "9+" : n;
-    if (this.ultN != null && n > this.ultN) toast(this.esAgente() ? "🛟 Nueva consulta en Soporte" : "🛟 Soporte te respondió", 5000);
+    if (this.ultN != null && n > this.ultN) {
+      const txt = this.esAgente() ? "Nueva consulta en Soporte" : "Soporte te respondió";
+      toast(txt, 6000);
+      MSG.notificar(txt, this.esAgente() ? "Toca para verla y responder." : "Toca para leer la respuesta.", "./#soporte", "soporte");
+      fab.classList.add("fab-pulso"); setTimeout(() => fab.classList.remove("fab-pulso"), 4000);
+    }
     this.ultN = n;
   },
 
@@ -193,4 +198,4 @@ const SOP = {
 };
 
 // Revisa el buzón de soporte cada minuto mientras la app está abierta
-setInterval(() => document.visibilityState === "visible" && DB.user && SOP.revisar(), 60000);
+setInterval(() => document.visibilityState === "visible" && DB.user && SOP.revisar(), 20000); // respaldo si el tiempo real se corta
