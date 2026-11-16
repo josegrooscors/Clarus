@@ -353,3 +353,15 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .sol-fila:first-of-type{margin-top:8px}
 .foco-in{overflow-y:auto;overscroll-behavior:none}
 @media (max-height:520px){.foco-lema,.foco-agua{display:none}.foco-in{padding-top:20px}}
+
+/* Prueba gratis */
+.prueba-barra{display:flex;align-items:center;gap:12px;background:#0B1B33;color:#fff;border-radius:14px;padding:10px 12px 10px 16px;margin-bottom:14px}
+.prueba-barra .grow{display:flex;align-items:center;gap:8px;font-size:14px}
+.prueba-barra .btn{background:#fff;color:#0B1B33}
+.pasos{border:1px solid var(--azul-med)}
+.pasos-l{display:grid;gap:8px;margin-top:12px}
+@media (min-width:900px){.pasos-l{grid-template-columns:1fr 1fr}}
+.paso{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--borde);border-radius:12px;text-decoration:none;color:inherit}
+.paso .grow{display:flex;flex-direction:column;gap:2px}
+.paso-n{width:28px;height:28px;border-radius:50%;background:var(--azul-cl);color:var(--azul);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.paso.ok{opacity:.65}.paso.ok .paso-n{background:var(--azul);color:#fff}

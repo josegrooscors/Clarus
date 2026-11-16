@@ -217,16 +217,33 @@ const C = {
     const [{ data }, at] = await Promise.all([sb.from("perfiles").select("*").order("nombre"), sb.from("asignacion_tiendas").select("vendedor_id")]);
     const nT = (id) => (at.data || []).filter((a) => a.vendedor_id === id).length;
     const { data: sol } = await sb.from("solicitudes").select("*").eq("estado", "pendiente").order("creado_at", { ascending: false }).limit(50);
-    const claves = (sol || []).filter((x) => x.tipo === "clave"), demos = (sol || []).filter((x) => x.tipo === "demo");
+    const claves = (sol || []).filter((x) => x.tipo === "clave"), demos = (sol || []).filter((x) => x.tipo === "demo" || x.tipo === "contratar");
+    const { data: emps } = await sb.rpc("plataforma_empresas");
+    const PLAN = { prueba: ["En prueba", "p-azul"], activo: ["Activa", "p-menta"], vencido: ["Vencida", "p-gris"] };
+    const diasDe = (e) => e.prueba_hasta ? Math.ceil((new Date(e.prueba_hasta) - Date.now()) / 864e5) : null;
     const hace = (t) => fmtFecha(t) + " " + fmtHora(t);
     box.innerHTML = `${claves.length ? `<div class="card sol-card"><div class="row"><b class="grow">Piden contraseña nueva</b><span class="pill p-rosa">${claves.length}</span></div>
         ${claves.map((x) => `<div class="sol-fila"><div class="grow"><b>${esc(x.nombre || x.usuario)}</b> <span class="tiny muted">@${esc(x.usuario)} · ${hace(x.creado_at)}</span>${x.mensaje ? `<div class="small muted">"${esc(x.mensaje)}"</div>` : ""}</div>
           <button class="btn sm" data-solpw="${x.perfil_id}">Asignar contraseña</button><button class="btn ghost sm" data-solok="${x.id}" title="Marcar atendida">✓</button></div>`).join("")}</div>` : ""}
+      ${(emps || []).length ? `<div class="card sol-card"><div class="row"><b class="grow">Empresas que se registraron</b><span class="pill p-azul">${emps.length}</span></div>
+        ${R.paginar(emps.map((e) => { const d = diasDe(e), pl = e.plan === "prueba" && d <= 0 ? ["Prueba vencida", "p-rosa"] : PLAN[e.plan];
+          return `<div class="sol-fila"><div class="grow"><b>${esc(e.nombre)}</b> <span class="pill ${pl[1]}">${pl[0]}${e.plan === "prueba" && d > 0 ? ` · ${d} día(s)` : ""}</span>
+          <div class="small muted">${esc(e.correo_contacto || "")} · ${e.usuarios} usuario(s) · ${e.tiendas} tienda(s) · ${e.visitas} visita(s)${e.ultima_visita ? " · última " + fmtFecha(e.ultima_visita) : ""} · desde ${fmtFecha(e.creado_at)}</div></div>
+          ${e.correo_contacto ? `<a class="btn sm ghost" href="mailto:${esc(e.correo_contacto)}">Correo</a>` : ""}
+          ${e.plan !== "activo" ? `<button class="btn sm" data-plan="activar" data-emp="${e.id}">Activar</button>` : ""}
+          <button class="btn sm sec" data-plan="extender" data-emp="${e.id}">+15 días</button>
+          ${e.plan !== "vencido" ? `<button class="btn sm ghost" data-plan="suspender" data-emp="${e.id}">Suspender</button>` : ""}</div>`; }))}</div>` : ""}
       ${demos.length ? `<div class="card sol-card"><div class="row"><b class="grow">Interesados en Clarus</b><span class="pill p-azul">${demos.length}</span></div>
-        ${R.paginar(demos.map((x) => `<div class="sol-fila"><div class="grow"><b>${esc(x.nombre)}</b> · ${esc(x.empresa_nombre || "")} <span class="tiny muted">${hace(x.creado_at)}</span>
+        ${R.paginar(demos.map((x) => `<div class="sol-fila"><div class="grow">${x.tipo === "contratar" ? `<span class="pill p-menta">Quiere contratar</span> ` : ""}<b>${esc(x.nombre)}</b> · ${esc(x.empresa_nombre || "")} <span class="tiny muted">${hace(x.creado_at)}</span>
           <div class="small muted">${[x.rubro, x.vendedores ? x.vendedores + " vendedores" : "", x.telefono, x.correo].filter(Boolean).map(esc).join(" · ")}</div>${x.mensaje ? `<div class="small">"${esc(x.mensaje)}"</div>` : ""}</div>
           ${x.telefono ? `<a class="btn sm sec" target="_blank" rel="noopener" href="https://wa.me/${esc(String(x.telefono).replace(/\D/g, "").replace(/^(\d{8})$/, "507$1"))}">WhatsApp</a>` : ""}${x.correo ? `<a class="btn sm ghost" href="mailto:${esc(x.correo)}">Correo</a>` : ""}<button class="btn ghost sm" data-solok="${x.id}" title="Marcar atendida">✓</button></div>`))}</div>` : ""}
       <div class="row" style="margin-bottom:10px"><span class="sp muted small">${(data || []).filter((u) => u.activo).length} usuarios activos</span><button class="btn" data-nuevo>+ Nuevo usuario</button></div><div class="list" id="lu"></div>`;
+    $$("[data-plan]", box).forEach((b) => (b.onclick = async () => {
+      const txt = { activar: "La empresa queda activa (cliente que paga).", extender: "Se suman 15 días de prueba.", suspender: "La empresa deja de poder usar Clarus (sus datos se guardan)." }[b.dataset.plan];
+      if (!(await confirmar(txt, "Confirmar"))) return;
+      const { error } = await sb.rpc("plataforma_plan", { p_empresa: b.dataset.emp, p_accion: b.dataset.plan });
+      if (error) return toast(error.message); toast("Listo ✓"); this.usuarios(box);
+    }));
     $$("[data-solok]", box).forEach((b) => (b.onclick = async () => { const { error } = await sb.from("solicitudes").update({ estado: "atendida", atendida_por: DB.user.id, atendida_at: new Date().toISOString() }).eq("id", b.dataset.solok); if (error) return toast(error.message); this.usuarios(box); }));
     $("#lu", box).innerHTML = (data || []).map((u) => `<div class="item" data-id="${u.id}"><div class="ava">${esc(iniciales(u.nombre))}</div>
       <div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${ROLES_TXT[u.rol]}${nT(u.id) ? " · " + nT(u.id) + " tiendas" : ""}${u.telefono ? " · " + esc(u.telefono) : ""}</div></div>

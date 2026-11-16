@@ -27,6 +27,7 @@ const App = {
 
   async render() {
     if (!DB.user) return this.login();
+    if (DB.estado?.vencida) return this.vencido();
     document.body.classList.remove("en-login");
     let ruta = (location.hash || "").slice(1);
     const menu = this.rutas();
@@ -65,6 +66,8 @@ const App = {
       else if (ruta === "planogramas") await PL.render(root, sub);
       else if (ruta === "picking") await PK.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
+      if (ruta === "resumen") await this.primerosPasos(root).catch(() => {});
+      if (this.barraPrueba()) { root.insertAdjacentHTML("afterbegin", this.barraPrueba()); $("[data-contratar]", root).onclick = () => this.contratar(); }
       if ((ruta === "hoy" || ruta === "resumen") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
       console.error(e);
@@ -125,25 +128,25 @@ const App = {
         <div class="foco-marca">${lente(30, "#2F5BEA", "#0B1B33")}<span>clarus</span></div>
         <div class="foco-lema"><span class="foco-eti">Ejecución en punto de venta</span><h1>Te hago ver lo que tú <b>no puedes ver.</b></h1></div>
         <form class="foco-form" id="lf" autocomplete="on" novalidate>
-          <div class="foco-campo"><label for="lu">Usuario</label>
+          <div class="foco-campo"><label for="lu">Usuario o correo</label>
             <input id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}"></div>
           <div class="foco-campo"><label for="lp">Contraseña</label>
             <div class="foco-pw"><input id="lp" name="password" type="password" autocomplete="current-password"><button type="button" id="lver">Mostrar</button></div></div>
           ${msg ? `<p class="foco-error">${esc(msg)}</p>` : ""}
           <div class="foco-acc"><a href="javascript:void 0" id="lolv">Olvidé mi contraseña</a>
             <button type="submit" class="foco-entrar" id="lb">Entrar<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
-          <a href="javascript:void 0" class="foco-demo" id="ldemo">¿Tu empresa aún no usa Clarus?&nbsp;<b>Pide una demo</b></a>
+          <a href="javascript:void 0" class="foco-demo" id="ldemo">¿Tu empresa aún no usa Clarus?&nbsp;<b>Pruébalo gratis 15 días</b></a>
         </form>
       </div></div>`;
     $("#lver").onclick = () => { const p = $("#lp"); const ver = p.type === "password"; p.type = ver ? "text" : "password"; $("#lver").textContent = ver ? "Ocultar" : "Mostrar"; p.focus(); };
     $("#lolv").onclick = () => this.olvide($("#lu").value.trim());
-    $("#ldemo").onclick = () => this.demo();
+    $("#ldemo").onclick = () => this.registro();
     $("#lf").addEventListener("submit", async (e) => {
       e.preventDefault();
       const u = $("#lu").value;
       $("#lb").disabled = true; $("#lb").firstChild.textContent = "Entrando…";
       try { await DB.entrar(u, $("#lp").value); document.body.classList.remove("en-login"); location.hash = ""; this.render(); MSG.activarPush(false); }
-      catch (err) { this.login(err.message, u); }
+      catch (err) { if (err.vencida) return this.vencido(); this.login(err.message, u); }
     });
     // Solo en computadora se pone el cursor en el campo; en el celular no se abre el teclado hasta que la persona toque.
     if (matchMedia("(hover: hover) and (pointer: fine)").matches) (usuario ? $("#lp") : $("#lu")).focus();
@@ -159,13 +162,13 @@ const App = {
   // "Olvidé mi contraseña": los usuarios entran con usuario (no correo), así que la solicitud le llega al administrador de su empresa.
   olvide(usuario) {
     modal(`<h2>¿Olvidaste tu contraseña?</h2>
-      <p class="small muted" style="margin-top:-4px">Escribe tu usuario. Le avisamos a tu administrador para que te asigne una contraseña nueva.</p>
-      <label class="f">Usuario</label><input class="in" name="u" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(usuario)}" placeholder="ej. doris">
+      <p class="small muted" style="margin-top:-4px">Escribe tu usuario o tu correo. Le avisamos a tu administrador para que te asigne una contraseña nueva.</p>
+      <label class="f">Usuario o correo</label><input class="in" name="u" autocapitalize="none" autocorrect="off" spellcheck="false" value="${esc(usuario)}" placeholder="ej. doris">
       <label class="f">Mensaje (opcional)</label><input class="in" name="m" placeholder="Ej.: cambié de teléfono">
       <button class="btn block" style="margin-top:16px" data-ok>Pedir contraseña nueva</button>`, (m, close) => {
       const ok = $("[data-ok]", m);
       ok.onclick = async () => {
-        const u = $("[name=u]", m).value.trim(); if (!u) return toast("Escribe tu usuario");
+        const u = $("[name=u]", m).value.trim(); if (!u) return toast("Escribe tu usuario o correo");
         ok.disabled = true; ok.textContent = "Enviando…";
         try {
           await this.publico({ tipo: "clave", usuario: u, mensaje: $("[name=m]", m).value });
@@ -175,6 +178,93 @@ const App = {
       };
       setTimeout(() => $(usuario ? "[name=m]" : "[name=u]", m).focus(), 50);
     });
+  },
+
+  // Prueba gratis: se registra con su correo y entra de inmediato (15 días)
+  registro() {
+    modal(`<div class="demo-cab">${logo(34)}<div><h2 style="margin:0">Prueba Clarus gratis</h2><p class="small muted" style="margin:2px 0 0">15 días con todo incluido. Sin tarjeta.</p></div></div>
+      <label class="f">Tu nombre</label><input class="in" name="nombre" autocomplete="name">
+      <label class="f">Empresa</label><input class="in" name="empresa" autocomplete="organization">
+      <label class="f">Correo</label><input class="in" name="correo" type="email" inputmode="email" autocomplete="email" autocapitalize="none">
+      <label class="f">Contraseña</label><div style="position:relative"><input class="in" name="password" type="password" autocomplete="new-password" placeholder="mínimo 8 caracteres" style="padding-right:84px">
+        <button type="button" class="btn ghost sm" data-ver style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0">Mostrar</button></div>
+      <button class="btn block" style="margin-top:18px" data-ok>Crear mi cuenta y entrar</button>
+      <p class="tiny muted" style="text-align:center;margin:10px 0 0">Entras con tu correo. Tú eres el administrador: creas tus tiendas, productos y vendedores.</p>
+      <p class="small" style="text-align:center;margin:12px 0 0"><a href="javascript:void 0" data-demo style="color:var(--azul);font-weight:600;text-decoration:none">¿Prefieres que te lo mostremos? Agenda una demo</a></p>`, (m, close) => {
+      const v = (n) => $(`[name=${n}]`, m).value.trim();
+      $("[data-ver]", m).onclick = (e) => { const p = $("[name=password]", m); const ver = p.type === "password"; p.type = ver ? "text" : "password"; e.target.textContent = ver ? "Ocultar" : "Mostrar"; };
+      $("[data-demo]", m).onclick = () => { close(); this.demo(); };
+      const ok = $("[data-ok]", m);
+      ok.onclick = async () => {
+        if (!v("nombre") || !v("empresa")) return toast("Escribe tu nombre y tu empresa");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v("correo"))) return toast("Revisa tu correo");
+        if ($("[name=password]", m).value.length < 8) return toast("La contraseña debe tener al menos 8 caracteres");
+        ok.disabled = true; ok.textContent = "Creando tu cuenta…";
+        try {
+          await this.publico({ tipo: "registro", nombre: v("nombre"), empresa: v("empresa"), correo: v("correo"), password: $("[name=password]", m).value });
+          await DB.entrar(v("correo"), $("[name=password]", m).value);
+          close(); document.body.classList.remove("en-login"); LS.set("bienvenida", true); location.hash = "#resumen"; this.render();
+        } catch (e) { ok.disabled = false; ok.textContent = "Crear mi cuenta y entrar"; toast(e.message, 5000); }
+      };
+    });
+  },
+
+  // Aviso arriba durante la prueba (solo administradores)
+  barraPrueba() {
+    const e = DB.estado;
+    if (!e || e.plan !== "prueba" || DB.perfil?.rol !== "admin") return "";
+    const d = e.dias ?? 0;
+    return `<div class="prueba-barra"><span class="grow">${ic("reloj", 18)}<span><b>Prueba gratis</b> · ${d === 0 ? "termina hoy" : d === 1 ? "te queda 1 día" : `te quedan ${d} días`}</span></span><button class="btn sm" data-contratar>Contratar Clarus</button></div>`;
+  },
+
+  // Primeros pasos para una empresa nueva (se ocultan cuando ya cargó tiendas, productos y vendedores)
+  async primerosPasos(root) {
+    if (DB.estado?.plan !== "prueba" || DB.perfil?.rol !== "admin") return;
+    const cuenta = (t, f) => { let q = sb.from(t).select("id", { count: "exact", head: true }); if (f) q = f(q); return q.then((r) => r.count || 0); };
+    const [prod, tiendas, vend, asig] = await Promise.all([cuenta("productos"), cuenta("clientes"), cuenta("perfiles", (q) => q.eq("rol", "vendedor")), cuenta("asignacion_tiendas")]);
+    const pasos = [["Agrega tus productos", "Nombre, peso y cómo se piden (caja, unidad…).", "#config", prod > 0, "productos"],
+      ["Carga tus tiendas", "Una por una o importa tu mapa de Google My Maps con la ubicación.", "#config", tiendas > 0, "tiendas"],
+      ["Crea a tus vendedores", "Cada uno entra con su usuario y contraseña.", "#config", vend > 0, "usuarios"],
+      ["Arma sus rutas", "Asigna las tiendas y los días de visita de cada vendedor.", "#programacion", asig > 0, ""]];
+    const hechos = pasos.filter((p) => p[3]).length;
+    if (hechos === pasos.length) return;
+    root.insertAdjacentHTML("afterbegin", `<div class="card pasos"><div class="row"><div class="grow"><b style="font-size:17px">${LS.get("bienvenida") ? `¡Bienvenido a Clarus, ${esc((DB.perfil?.nombre || "").split(" ")[0])}!` : "Primeros pasos"}</b>
+      <div class="small muted">${hechos} de ${pasos.length} listos. Al terminar, tus vendedores ya pueden salir a ruta con Clarus en su teléfono.</div></div></div>
+      <div class="pasos-l">${pasos.map(([t, d, h, ok, tab], i) => `<a class="paso ${ok ? "ok" : ""}" href="${h}" ${tab ? `data-cfgtab="${tab}"` : ""}><span class="paso-n">${ok ? ic("ok", 16) : i + 1}</span><span class="grow"><b>${t}</b><span class="tiny muted">${d}</span></span><span class="muted">›</span></a>`).join("")}</div></div>`);
+    $$("[data-cfgtab]", root).forEach((a) => (a.onclick = () => LS.set("cfgTab", a.dataset.cfgtab)));
+  },
+
+  // Formulario para contratar (desde la prueba o cuando ya terminó)
+  contratar() {
+    modal(`<div class="demo-cab">${logo(34)}<div><h2 style="margin:0">Contratar Clarus</h2><p class="small muted" style="margin:2px 0 0">Te contactamos para activar tu cuenta. No pierdes nada de lo que cargaste.</p></div></div>
+      <label class="f">WhatsApp / teléfono</label><input class="in" name="telefono" inputmode="tel" value="${esc(DB.perfil?.telefono || "")}">
+      <label class="f">¿Cuántos usuarios necesitas?</label><select class="in" name="vendedores"><option value="">Elige…</option><option>1–5</option><option>6–15</option><option>16–50</option><option>Más de 50</option></select>
+      <label class="f">Comentario (opcional)</label><textarea class="in" name="mensaje" rows="2"></textarea>
+      <button class="btn block" style="margin-top:16px" data-ok>Quiero contratar</button>`, (m, close) => {
+      const ok = $("[data-ok]", m);
+      ok.onclick = async () => {
+        ok.disabled = true; ok.textContent = "Enviando…";
+        try {
+          await this.publico({ tipo: "contratar", telefono: $("[name=telefono]", m).value.trim(), vendedores: $("[name=vendedores]", m).value, mensaje: $("[name=mensaje]", m).value.trim() });
+          m.innerHTML = `<div class="login-ok">${logo(44)}<h2>¡Listo!</h2><p class="muted">Recibimos tu solicitud. Te contactaremos muy pronto para activar tu cuenta.</p><button class="btn block" data-c>Entendido</button></div>`;
+          $("[data-c]", m).onclick = close;
+        } catch (e) { ok.disabled = false; ok.textContent = "Quiero contratar"; toast(e.message, 4000); }
+      };
+    });
+  },
+
+  // Pantalla cuando la prueba terminó: los datos se guardan, pero no se puede usar hasta contratar
+  vencido() {
+    document.body.classList.add("en-login");
+    const e = DB.estado || {};
+    $("#app").innerHTML = `<div class="foco"><div class="foco-in">
+      <div class="foco-marca">${logo(30)}<span>clarus</span></div>
+      <div class="foco-lema"><span class="foco-eti">${esc(e.empresa || "")}</span><h1>Tu prueba gratis <b>terminó.</b></h1>
+        <p class="muted" style="font-size:16px;margin:4px 0 0">Todo lo que cargaste sigue guardado. Contrata Clarus y sigues exactamente donde te quedaste.</p></div>
+      <div class="foco-form"><button class="foco-entrar" style="justify-content:center" data-contratar>Quiero contratar</button>
+        <a href="javascript:void 0" class="foco-demo" data-salir>Cerrar sesión</a></div></div></div>`;
+    $("[data-contratar]").onclick = () => this.contratar();
+    $("[data-salir]").onclick = async () => { await sb.auth.signOut(); localStorage.clear(); location.reload(); };
   },
 
   // Formulario de interesados (para promocionar Clarus)
@@ -212,7 +302,7 @@ window.addEventListener("online", () => App.syncPill());
 window.addEventListener("offline", () => App.syncPill());
 
 (async () => {
-  try { await DB.iniciar(); } catch (e) { DB.user = null; await sb.auth.signOut().catch(() => {}); return App.login(e.message); }
+  try { await DB.iniciar(); } catch (e) { if (e.vencida) return App.vencido(); DB.user = null; await sb.auth.signOut().catch(() => {}); return App.login(e.message); }
   App.render();
   DB.sincronizar();
   if (DB.user) {
