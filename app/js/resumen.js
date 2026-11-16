@@ -221,7 +221,7 @@ const R = {
       return Object.entries(porV).map(([uid, v]) => {
         const ts = Object.values(v.t), pn = (v.nombre || "").split(" ")[0];
         const titulo = ts.length === 1 ? `Pedido pendiente: ${ts[0].tienda}` : `Pedidos pendientes: ${ts.length} tiendas con agotados`;
-        const cuerpo = `Hola ${pn}, en estas visitas registraste producto agotado o bajo y no se hizo pedido:\n\n${ts.map((t) => `• ${t.tienda} (${t.fecha}): ${t.prods.join(", ")}`).join("\n")}\n\nPor favor gestiona hoy el pedido con la tienda o confírmanos si la tienda ya lo envió. Toca «Entendido» para confirmar que lo recibiste. Estamos pendientes.`;
+        const cuerpo = `Hola ${pn}, en estas visitas registraste producto agotado o bajo y no se hizo pedido:\n\n${ts.map((t) => `• ${t.tienda} (${t.fecha}): ${t.prods.join(", ")}`).join("\n")}\n\nEsperamos tu pedido en la próxima visita a esta(s) tienda(s). Si hay alguna irregularidad, escríbenos por Soporte y explícanos la situación. Toca «Entendido» para confirmar que lo recibiste.`;
         return { uid, nombre: v.nombre, titulo, cuerpo, n: ts.length };
       });
     };
