@@ -140,7 +140,7 @@ const App = {
           <div class="foco-campo"><label for="lu">Usuario o correo</label>
             <input id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}"></div>
           <div class="foco-campo"><label for="lp">Contraseña</label>
-            <div class="foco-pw"><input id="lp" name="password" type="password" autocomplete="current-password"><button type="button" id="lver">Mostrar</button></div></div>
+            <div class="foco-pw"><input id="lp" name="password" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" id="lver">Mostrar</button></div></div>
           ${msg ? `<p class="foco-error">${esc(msg)}</p>` : ""}
           <div class="foco-acc"><a href="javascript:void 0" id="lolv">Olvidé mi contraseña</a>
             <button type="submit" class="foco-entrar" id="lb">Entrar<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>

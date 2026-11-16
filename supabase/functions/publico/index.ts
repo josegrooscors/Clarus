@@ -18,6 +18,19 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const b = await req.json().catch(() => ({}));
 
+  // alias: la persona escribió su nombre ("Diranis", "Itzel Pérez") en vez de su usuario → devuelve el usuario si hay UNA sola coincidencia
+  if (b.tipo === "alias") {
+    const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const q = norm(txt(b.nombre, 80));
+    if (q.length < 3) return json({ usuario: null });
+    const { data: ps } = await db.from("perfiles").select("id, nombre").eq("activo", true);
+    const hits = (ps || []).filter((p) => { const n = norm(p.nombre || ""); return n === q || n.split(/\s+/).includes(q); });
+    if (hits.length !== 1) return json({ usuario: null });
+    const { data: au } = await db.auth.admin.getUserById(hits[0].id);
+    const email = (au?.user?.email || "").toLowerCase();
+    return json({ usuario: email.endsWith("@" + DOMINIO) ? email.split("@")[0] : null });
+  }
+
   // Límite global: máximo 40 solicitudes por hora
   const hace1h = new Date(Date.now() - 3600e3).toISOString();
   const { count } = await db.from("solicitudes").select("id", { count: "exact", head: true }).gte("creado_at", hace1h);

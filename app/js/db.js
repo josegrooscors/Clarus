@@ -55,11 +55,19 @@ const DB = {
     return true;
   },
 
+  // Inicio de sesión tolerante: ignora espacios del teclado y acepta el nombre de la persona además del usuario
   async entrar(usuario, password) {
-    const u = usuario.trim().toLowerCase();
-    const email = u.includes("@") ? u : `${u}@${CLARUS.dominio}`;
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message.includes("Invalid") ? "Usuario o contraseña incorrectos" : error.message);
+    const u = usuario.trim().toLowerCase().replace(/\s+/g, " ");
+    const pw = password.replace(/^\s+|\s+$/g, "");
+    const intentar = async (x) => (await sb.auth.signInWithPassword({ email: x.includes("@") ? x : `${x}@${CLARUS.dominio}`, password: pw })).error;
+    let error = await intentar(u.replace(/ /g, ""));
+    if (error && error.message.includes("Invalid") && !u.includes("@")) {
+      try {
+        const { data } = await sb.functions.invoke("publico", { body: { tipo: "alias", nombre: u } });
+        if (data?.usuario && data.usuario !== u) error = await intentar(data.usuario);
+      } catch {}
+    }
+    if (error) throw new Error(error.message.includes("Invalid") ? "Usuario o contraseña incorrectos. Revisa con «Mostrar» que la contraseña esté bien escrita." : error.message);
     return this.iniciar();
   },
 
