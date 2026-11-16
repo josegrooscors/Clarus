@@ -273,15 +273,20 @@ const C = {
         <label class="f">Nombre completo</label><input class="in" name="nombre" value="${esc(u.nombre)}">
         <div class="grid2c"><div><label class="f">Rol</label><select class="in" name="rol" ${yo ? "disabled" : ""}>${opciones(u.rol)}</select></div>
           <div><label class="f">Teléfono</label><input class="in" name="telefono" inputmode="tel" value="${esc(u.telefono || "")}"></div></div>
-        <button class="btn block" style="margin-top:12px" data-ed>Guardar cambios</button>
-        <label class="f" style="margin-top:20px">Nueva contraseña</label><input class="in" name="pw" placeholder="mínimo 6 caracteres">
-        <button class="btn sec block" style="margin-top:10px" data-pw>Cambiar contraseña</button>
+        <label class="f">Nueva contraseña <span class="muted">(déjala vacía si no la cambias)</span></label><input class="in" name="pw" placeholder="mínimo 6 caracteres" autocomplete="new-password">
+        <button class="btn block" style="margin-top:16px" data-ed>Guardar cambios</button>
         ${!yo ? `<button class="btn ${u.activo ? "peligro" : "ok"} block" style="margin-top:10px" data-act>${u.activo ? "Desactivar usuario" : "Activar usuario"}</button>` : ""}`, (m, close) => {
-        $("[data-ed]", m).onclick = async () => {
-          try { await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: $("[name=nombre]", m).value, telefono: $("[name=telefono]", m).value.trim(), rol: $("[name=rol]", m).value }); close(); toast("Usuario actualizado ✓"); this.usuarios(box); }
-          catch (e) { toast(e.message, 4000); }
+        // Un solo botón Guardar: datos del usuario y, si se escribió, la contraseña nueva
+        $("[data-ed]", m).onclick = async (e) => {
+          const pw = $("[name=pw]", m).value.trim();
+          if (pw && pw.length < 6) return toast("La contraseña debe tener al menos 6 caracteres");
+          e.target.disabled = true;
+          try {
+            await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: $("[name=nombre]", m).value, telefono: $("[name=telefono]", m).value.trim(), rol: $("[name=rol]", m).value });
+            if (pw) await DB.funcion("usuarios", { accion: "password", id: u.id, password: pw });
+            close(); toast(pw ? `Guardado ✓ Contraseña nueva de ${u.nombre.split(" ")[0]}: ${pw}` : "Usuario actualizado ✓", pw ? 8000 : 3000); this.usuarios(box);
+          } catch (err) { e.target.disabled = false; toast(err.message, 4000); }
         };
-        $("[data-pw]", m).onclick = async () => { try { await DB.funcion("usuarios", { accion: "password", id: u.id, password: $("[name=pw]", m).value }); close(); toast("Contraseña cambiada ✓ Avísale a " + u.nombre.split(" ")[0], 4000); this.usuarios(box); } catch (e) { toast(e.message, 4000); } };
         if (enfocarPw) setTimeout(() => $("[name=pw]", m).focus(), 60);
         const a = $("[data-act]", m);
         if (a) a.onclick = async () => { try { await DB.funcion("usuarios", { accion: "activo", id: u.id, activo: !u.activo }); close(); this.usuarios(box); } catch (e) { toast(e.message, 4000); } };
