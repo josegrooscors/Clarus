@@ -295,7 +295,7 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .al-t{display:flex;flex-direction:column;min-width:0}
 .al-t b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .al-p{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.al-b{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:var(--azul)}
+.al-b{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;color:#fff}
 @media (max-width:700px){.al-fila{grid-template-columns:1fr auto}.al-p{grid-column:1/-1;order:3}}
 /* Logo de la empresa cliente */
 .logo-cliente{display:none}
