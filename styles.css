@@ -376,3 +376,8 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .chk-al-ic{width:34px;height:34px;border-radius:10px;background:#fff;display:grid;place-items:center;color:var(--azul);flex:none}
 .chk-al-i.alta .chk-al-ic{color:var(--rosa-t)}
 .chk-al-ok{height:54px;font-size:17px;margin-top:6px}
+
+/* Página "Más" (celular): menú primero, cuenta después */
+.yo-cab{display:flex;align-items:center;gap:12px;margin:4px 2px 14px}
+.yo-cab b{font-size:17px;color:#0B1B33}
+.yo-sec{margin:22px 4px 8px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gris)}
