@@ -181,7 +181,8 @@ const SOP = {
     const bc = $("[data-clave]", root); if (bc) bc.onclick = () => { LS.set("cfgTab", "usuarios"); LS.set("abrirUsuario", bc.dataset.clave); location.hash = "#config"; };
     const rs = $("[data-res]", root);
     if (rs) rs.onclick = async () => {
-      const res = t.estado !== "resuelto";
+      const { data: fr } = await sb.from("soporte_tickets").select("estado").eq("id", id).maybeSingle();
+      const res = (fr?.estado || t.estado) !== "resuelto";
       const { error: e2 } = await sb.from("soporte_tickets").update(res ? { estado: "resuelto", resuelto_at: new Date().toISOString() } : { estado: "abierto", resuelto_at: null }).eq("id", id);
       if (e2) return toast(e2.message);
       toast(res ? "Marcada como resuelta ✓" : "Reabierta"); this.chat(root, id);
