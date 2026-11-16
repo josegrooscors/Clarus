@@ -154,6 +154,12 @@ const DB = {
         ok(await sb.from("visitas").update({ checkout_at: d.at, checkout_lat: d.lat, checkout_lng: d.lng, checkout_precision_m: d.precision, comentario: d.comentario || null }).eq("id", id));
         return;
       }
+      case "alertas": {
+        const id = await this.idVisita(op.lid);
+        ok(await sb.from("visita_alertas").upsert({ visita_id: id, cliente_id: op.cliente_id, alertas: op.alertas, confirmado_at: op.at }, { onConflict: "visita_id" }));
+        if (op.comunicados?.length) ok(await sb.from("comunicado_destinos").update({ ok_at: op.at, leido_at: op.at }).in("comunicado_id", op.comunicados).eq("user_id", this.user.id).is("ok_at", null));
+        return;
+      }
       case "planos": {
         const id = await this.idVisita(op.lid);
         ok(await sb.from("planograma_revisiones").upsert(op.rows.map((x) => ({ visita_id: id, planograma_id: x.planograma_id, cumple: x.cumple })), { onConflict: "visita_id,planograma_id" }));

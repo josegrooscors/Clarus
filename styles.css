@@ -365,3 +365,13 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .paso .grow{display:flex;flex-direction:column;gap:2px}
 .paso-n{width:28px;height:28px;border-radius:50%;background:var(--azul-cl);color:var(--azul);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
 .paso.ok{opacity:.65}.paso.ok .paso-n{background:var(--azul);color:#fff}
+
+/* Alertas al hacer check-in */
+.chk-al{background:#fff;border:1.5px solid #F2B8B5;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.chk-al-cab{display:flex;gap:12px;align-items:center;color:var(--rosa-t);padding-bottom:4px}
+.chk-al-cab b{font-size:17px;color:#0B1B33}.chk-al-cab .small{color:var(--gris)}
+.chk-al-i{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:12px;background:#F7F9FC;border:1px solid var(--borde)}
+.chk-al-i.alta{background:#FDEEEE;border-color:#F2B8B5}
+.chk-al-ic{width:34px;height:34px;border-radius:10px;background:#fff;display:grid;place-items:center;color:var(--azul);flex:none}
+.chk-al-i.alta .chk-al-ic{color:var(--rosa-t)}
+.chk-al-ok{height:54px;font-size:17px;margin-top:6px}
