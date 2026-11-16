@@ -21,7 +21,9 @@ const MSG = {
     if (!DB.user || !navigator.onLine) return;
     try { await this.cargarMios(); } catch { return; }
     const n = this.mios.filter(this.pendiente).length;
-    $$('a[href="#mensajes"] .ic').forEach((el) => {
+    // En el celular Avisos está dentro de "Yo": el contador también se muestra sobre Yo
+    const enBarra = !!$('.nav a[href="#mensajes"]');
+    $$(`a[href="#mensajes"] .ic${enBarra ? "" : ', .nav a[href="#yo"] .ic'}`).forEach((el) => {
       el.querySelector(".badge-ic")?.remove();
       if (n) el.insertAdjacentHTML("beforeend", `<span class="badge-ic">${n > 9 ? "9+" : n}</span>`);
     });
