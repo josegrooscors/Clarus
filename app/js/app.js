@@ -18,16 +18,12 @@ const App = {
     return m;
   },
 
-  // Barra inferior del celular: máximo 5 botones (los principales + Avisos + Yo). El resto se abre desde "Yo".
+  // Barra inferior del celular: todos los botones del rol, con nombres cortos para que quepan completos.
   movil() {
-    const m = this.rutas().filter((x) => !x[3]);
-    if (m.length <= 5) return { nav: m, extra: [] };
-    const fijos = m.filter((x) => x[0] === "mensajes" || x[0] === "yo");
-    const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos"];
-    const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 5 - fijos.length);
-    const orden = m.filter((x) => prim.includes(x)).concat(fijos);
-    return { nav: orden, extra: m.filter((x) => !orden.includes(x)) };
+    const corto = { programacion: "Agenda", mensajes: "Avisos", objetivos: "Metas", "mis-pedidos": "Pedidos" };
+    return { nav: this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, i, corto[k] || t, d]), extra: [] };
   },
+
 
   async render() {
     if (!DB.user) return this.login();
@@ -43,7 +39,7 @@ const App = {
     const app = $("#app");
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span><span class="lbl">${t}</span></a>`.replace("<a ", `<a title="${t}" `);
     const navHtml = menu.map(link).join("");
-    const movil = this.movil().nav.map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x[0] === "mensajes" ? [x[0], x[1], "Avisos"] : x)).join("");
+    const movil = this.movil().nav.map(link).join("");
     const lema = `Te hago ver lo que tú <b>no puedes ver.</b>`;
     app.innerHTML = `<header class="barra-marca"><div class="brand">${logo(24)}clarus</div><span class="lema-c">${lema}</span></header>
       <div class="shell"><nav class="side"><div class="brand">${logo(30)}<span class="lbl">clarus</span><button class="side-tog" id="sideTog" title="Ocultar / mostrar menú" aria-label="Ocultar menú">${ic("chev", 16)}</button></div><p class="lema-side">${lema}</p>${menu.filter((x) => x[0] !== "mensajes").map(link).join("")}
