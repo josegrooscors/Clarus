@@ -37,6 +37,13 @@ const DB = {
     this.user = data.session?.user || null;
     if (!this.user) return false;
     this.perfil = LS.get("perfil");
+    this.estado = LS.get("estado");
+    if (navigator.onLine) {
+      // Plan de la empresa (prueba gratis / activo). Si la prueba venció, el servidor ya no entrega datos.
+      const { data: est } = await sb.rpc("estado_cuenta");
+      if (est) { this.estado = est; LS.set("estado", est); }
+    }
+    if (this.estado?.vencida) { const e = new Error("Tu prueba terminó"); e.vencida = true; throw e; }
     if (navigator.onLine) {
       const { data: p, error } = await sb.from("perfiles").select("*, empresas(*)").eq("id", this.user.id).maybeSingle();
       if (error && !this.perfil) throw error;

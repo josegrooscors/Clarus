@@ -1,0 +1,4 @@
+-- 020 (15-nov-2026): empresas.plan (prueba|activo|vencido), prueba_hasta, correo_contacto, registro_publico.
+-- private.mi_empresa() devuelve null si la empresa está inactiva, vencida o con prueba expirada → bloqueo en el servidor (datos guardados).
+-- public.estado_cuenta() (funciona aunque esté vencida), public.plataforma_empresas() y public.plataforma_plan(empresa, 'activar'|'extender'|'suspender') solo para el dueño.
+-- solicitudes.tipo admite 'contratar'. Función publico: tipos registro (crea empresa + admin con correo, copia permisos_rol) y contratar (con sesión).

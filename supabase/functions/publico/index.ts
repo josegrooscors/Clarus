@@ -1,6 +1,8 @@
 // Clarus · Solicitudes desde la pantalla de inicio, sin sesión:
 //  - clave: "Olvidé mi contraseña" → avisa (push) a los administradores de la empresa del usuario.
 //  - demo:  "Solicitar demostración" → avisa (push) al dueño de la plataforma.
+//  - registro: prueba gratis de 15 días → crea la empresa y su administrador con correo y contraseña; entra de inmediato.
+//  - contratar: (con sesión) la empresa en prueba quiere pagar → avisa al dueño de la plataforma.
 // Nunca revela si un usuario existe. Límite simple contra abuso.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -34,11 +36,12 @@ Deno.serve(async (req) => {
   };
 
   if (b.tipo === "clave") {
-    const usuario = txt(b.usuario, 60).toLowerCase().replace(/@.*$/, "");
-    if (!/^[a-z0-9._-]{2,30}$/.test(usuario)) return json({ error: "Escribe tu usuario" }, 400);
+    const usuario = txt(b.usuario, 120).toLowerCase();
+    const correoBuscado = usuario.includes("@") ? usuario : `${usuario}@${DOMINIO}`;
+    if (!/^[a-z0-9._+-]{2,60}(@[^@\s]+\.[^@\s]+)?$/.test(usuario)) return json({ error: "Escribe tu usuario o correo" }, 400);
     // Buscar el usuario sin revelar si existe
     const { data: lista } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const au = (lista?.users || []).find((u) => (u.email || "").toLowerCase() === `${usuario}@${DOMINIO}`);
+    const au = (lista?.users || []).find((u) => (u.email || "").toLowerCase() === correoBuscado);
     if (au) {
       const { data: p } = await db.from("perfiles").select("id, nombre, empresa_id, activo").eq("id", au.id).maybeSingle();
       if (p?.activo) {
@@ -54,6 +57,50 @@ Deno.serve(async (req) => {
         }
       }
     }
+    return json({ ok: true });
+  }
+
+  if (b.tipo === "registro") {
+    const nombre = txt(b.nombre, 80), empresa = txt(b.empresa, 100), correo = txt(b.correo, 120).toLowerCase(), password = String(b.password ?? "");
+    const telefono = txt(b.telefono, 30);
+    if (!nombre || !empresa) return json({ error: "Escribe tu nombre y el de tu empresa" }, 400);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return json({ error: "Revisa tu correo" }, 400);
+    if (correo.endsWith("@" + DOMINIO)) return json({ error: "Usa tu correo de trabajo" }, 400);
+    if (password.length < 8) return json({ error: "La contraseña debe tener al menos 8 caracteres" }, 400);
+    const { count: nuevas } = await db.from("empresas").select("id", { count: "exact", head: true }).eq("registro_publico", true).gte("creado_at", hace1h);
+    if ((nuevas || 0) >= 15) return json({ error: "Muchos registros en este momento. Intenta en un rato." }, 429);
+    const hasta = new Date(Date.now() + 15 * 864e5).toISOString();
+    const { data: emp, error: e1 } = await db.from("empresas").insert({ nombre: empresa, plan: "prueba", prueba_hasta: hasta, correo_contacto: correo, registro_publico: true, activo: true }).select("id").single();
+    if (e1) return json({ error: "No se pudo crear la empresa" }, 500);
+    const { data: nu, error: e2 } = await db.auth.admin.createUser({ email: correo, password, email_confirm: true, user_metadata: { nombre, registro: "prueba" } });
+    if (e2) {
+      await db.from("empresas").delete().eq("id", emp.id);
+      return json({ error: /already|registered|exists/i.test(e2.message) ? "Ese correo ya tiene una cuenta. Inicia sesión o usa “Olvidé mi contraseña”." : "No se pudo crear la cuenta" }, 400);
+    }
+    const { error: e3 } = await db.from("perfiles").insert({ id: nu.user.id, empresa_id: emp.id, nombre, telefono: telefono || null, rol: "admin" });
+    if (e3) { await db.auth.admin.deleteUser(nu.user.id); await db.from("empresas").delete().eq("id", emp.id); return json({ error: "No se pudo crear el usuario" }, 500); }
+    // Permisos por rol: copia los de la empresa del dueño de la plataforma como punto de partida
+    if (S.dueno_plataforma) {
+      const { data: dueno } = await db.from("perfiles").select("empresa_id").eq("id", S.dueno_plataforma).maybeSingle();
+      if (dueno) {
+        const { data: per } = await db.from("permisos_rol").select("rol, permiso, permitido").eq("empresa_id", dueno.empresa_id);
+        if (per?.length) await db.from("permisos_rol").insert(per.map((x) => ({ ...x, empresa_id: emp.id })));
+      }
+      await push([S.dueno_plataforma], { title: "Nueva empresa en prueba", body: `${empresa} · ${nombre} · ${correo}`, url: "#config", tag: "registro" });
+    }
+    return json({ ok: true });
+  }
+
+  if (b.tipo === "contratar") {
+    const jwt = (req.headers.get("authorization") || "").replace(/^Bearer /i, "");
+    const { data: u } = await db.auth.getUser(jwt);
+    if (!u?.user) return json({ error: "Inicia sesión" }, 401);
+    const { data: p } = await db.from("perfiles").select("id, nombre, telefono, empresa_id, empresas(nombre, correo_contacto)").eq("id", u.user.id).maybeSingle();
+    if (!p) return json({ error: "Usuario no encontrado" }, 404);
+    const emp = p.empresas as unknown as { nombre: string; correo_contacto: string | null };
+    const telefono = txt(b.telefono, 30) || p.telefono || null;
+    await db.from("solicitudes").insert({ tipo: "contratar", empresa_id: p.empresa_id, perfil_id: p.id, nombre: p.nombre, empresa_nombre: emp?.nombre, correo: u.user.email, telefono, vendedores: txt(b.vendedores, 20) || null, mensaje: txt(b.mensaje, 600) || null });
+    if (S.dueno_plataforma) await push([S.dueno_plataforma], { title: "¡Quieren contratar Clarus!", body: `${emp?.nombre} · ${p.nombre}${telefono ? " · " + telefono : ""}`, url: "#config", tag: "contratar" });
     return json({ ok: true });
   }
 
