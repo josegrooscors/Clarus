@@ -1,0 +1,4 @@
+-- 022 (16-nov-2026): alertas_tienda con detalle por producto (último conteo, kg, % del objetivo semanal).
+-- inventario: agotado o < 40% del objetivo semanal en el conteo de la VISITA ANTERIOR (aunque haya habido pedido: "revisa si llegó").
+-- sin_conteo: la visita anterior no contó inventario → muestra el último conteo conocido (≤ 60 días) con su fecha.
+-- sin_pedido: visita anterior sin pedido (solo pedido_tienda); muestra productos si hubo conteo y no hay alerta de inventario.

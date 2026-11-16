@@ -131,12 +131,13 @@ const V = {
 
   // Pantalla de alertas al hacer check-in: no se puede empezar la visita sin tocar «Entendido»
   alertas(root, v) {
-    const ICO = { inventario: "alerta", sin_pedido: "pedidos", planograma: "planograma", comunicado: "msg" };
+    const ICO = { inventario: "alerta", sin_conteo: "caja", sin_pedido: "pedidos", planograma: "planograma", comunicado: "msg" };
     root.innerHTML = `<div class="top"><div><div class="small muted">Check-in ${fmtHora(v.at)} · ${esc(v.cadena || "")}</div><h1>${esc(v.tienda)}</h1></div></div>
       <div class="chk-al"><div class="chk-al-cab">${ic("alerta", 22)}<div><b>Antes de empezar</b><div class="small">${v.alertas.length === 1 ? "Esta tienda tiene 1 alerta pendiente" : `Esta tienda tiene ${v.alertas.length} alertas pendientes`}${v.ultima ? ` · última visita ${fmtFecha(v.ultima.fecha)}` : ""}</div></div></div>
         ${v.alertas.map((a) => `<div class="chk-al-i ${a.nivel === "alta" ? "alta" : ""}"><span class="chk-al-ic">${ic(ICO[a.tipo] || "alerta", 20)}</span><div class="grow"><b>${esc(a.titulo)}</b>
-          ${a.productos ? `<div class="al-p" style="margin:6px 0">${a.productos.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto)}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span>`).join("")}</div>` : ""}
-          <div class="small">${esc(a.detalle)}</div></div></div>`).join("")}
+          <div class="small">${esc(a.detalle)}</div>
+          ${a.productos?.length ? `<div class="al-p" style="margin:6px 0">${a.productos.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : p.bajo ? "p-durazno" : "p-gris"}">${esc(p.producto)}: ${p.agotado ? "AGOTADO" : fmtNum(p.kg, 1) + " kg" + (p.pct != null ? ` · ${p.pct}%` : "")}${!p.ultima && p.fecha ? ` <small>(${String(p.fecha).slice(8, 10)}/${String(p.fecha).slice(5, 7)})</small>` : ""}</span>`).join("")}</div>` : ""}
+          </div></div>`).join("")}
         <button class="btn block chk-al-ok" id="alOk">Entendido</button>
         <p class="tiny muted" style="text-align:center;margin:8px 0 0">Al confirmar queda registrado que leíste estas alertas.</p></div>`;
     $("#alOk", root).onclick = async () => {
