@@ -211,6 +211,32 @@ const C = {
   },
 
   // ---------------- USUARIOS ----------------
+  // Entrega de contraseña (patrón de grandes plataformas): se envía por un canal que la persona tiene sin iniciar sesión (WhatsApp);
+  // el ticket de Soporte queda cerrado con constancia, sin la contraseña.
+  entregarClave(u, pw) {
+    const nombre1 = (u.nombre || "").split(" ")[0];
+    const usuario = (u.usuario || "").trim();
+    const msg = () => `Hola ${nombre1}, ya tienes contraseña nueva para Clarus:\n\n1. Abre en Chrome: ${location.origin}${location.pathname}\n2. Usuario: ${$("#ecU")?.value || usuario || nombre1.toLowerCase()}\n3. Contraseña: ${pw}\n\nToca «Mostrar» para revisar que la escribiste bien.`;
+    const tel = (x) => { let d = String(x || "").replace(/\D/g, ""); if (d.length === 8) d = "507" + d; return d; };
+    modal(`<div class="login-ok" style="text-align:left">
+      <h2 style="margin-top:0">Contraseña asignada ✓</h2>
+      <p class="muted small" style="margin-top:-4px">Envíasela a ${esc(nombre1)} por WhatsApp.${u.ticket ? " El caso de Soporte ya quedó cerrado." : ""}</p>
+      <div class="card flat" style="margin:10px 0"><div class="row"><span class="sp muted">Contraseña</span><b style="font-size:20px;letter-spacing:.04em">${esc(pw)}</b></div></div>
+      <label class="f">Usuario para entrar</label><input class="in" id="ecU" value="${esc(usuario)}" placeholder="ej. itzel" autocapitalize="none">
+      <label class="f">WhatsApp de ${esc(nombre1)}</label><input class="in" id="ecT" inputmode="tel" value="${esc(u.telefono || "")}" placeholder="ej. 6123-4567">
+      <button class="btn block" style="margin-top:14px" data-wa>${ic("msg", 18)} Enviar por WhatsApp</button>
+      <button class="btn ghost block" style="margin-top:8px" data-copia>Copiar mensaje</button></div>`, (m, close) => {
+      $("[data-wa]", m).onclick = async () => {
+        const t = tel($("#ecT", m).value);
+        if (t.length < 10) return toast("Escribe su número de WhatsApp");
+        if (t !== tel(u.telefono)) { try { await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: u.nombre, telefono: $("#ecT", m).value.trim(), rol: u.rol }); } catch {} }
+        window.open(`https://wa.me/${t}?text=${encodeURIComponent(msg())}`, "_blank", "noopener");
+        close();
+      };
+      $("[data-copia]", m).onclick = async () => { try { await navigator.clipboard.writeText(msg()); toast("Mensaje copiado ✓"); } catch { toast(msg(), 9000); } };
+    });
+  },
+
   async usuarios(box) {
     const esAdmin = DB.perfil.rol === "admin";
     const roles = Object.entries(ROLES_TXT).filter(([k]) => esAdmin || k !== "admin");
@@ -283,8 +309,10 @@ const C = {
           e.target.disabled = true;
           try {
             await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: $("[name=nombre]", m).value, telefono: $("[name=telefono]", m).value.trim(), rol: $("[name=rol]", m).value });
-            if (pw) await DB.funcion("usuarios", { accion: "password", id: u.id, password: pw });
-            close(); toast(pw ? `Guardado ✓ Contraseña nueva de ${u.nombre.split(" ")[0]}: ${pw}` : "Usuario actualizado ✓", pw ? 8000 : 3000); this.usuarios(box);
+            const rpw = pw ? await DB.funcion("usuarios", { accion: "password", id: u.id, password: pw }) : null;
+            close(); this.usuarios(box);
+            if (pw) this.entregarClave({ ...u, usuario: rpw?.usuario || "", ticket: !!rpw?.tickets, nombre: $("[name=nombre]", m)?.value || u.nombre, telefono: $("[name=telefono]", m)?.value.trim() || u.telefono }, pw);
+            else toast("Usuario actualizado ✓");
           } catch (err) { e.target.disabled = false; toast(err.message, 4000); }
         };
         if (enfocarPw) setTimeout(() => $("[name=pw]", m).focus(), 60);

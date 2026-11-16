@@ -76,10 +76,12 @@ Deno.serve(async (req) => {
       // y se cierra el ticket de Soporte "Olvidé mi contraseña"
       const { data: tks } = await admin.from("soporte_tickets").select("id").eq("user_id", b.id).eq("asunto", "Olvidé mi contraseña").neq("estado", "resuelto");
       for (const t of tks || []) {
-        await admin.from("soporte_mensajes").insert({ ticket_id: t.id, autor_id: u.user.id, texto: "Listo: se asignó una contraseña nueva. Te la entregamos por otro medio." });
+        await admin.from("soporte_mensajes").insert({ ticket_id: t.id, autor_id: u.user.id, texto: "Listo: se asignó una contraseña nueva y te la enviamos por WhatsApp. Ya puedes entrar a Clarus." });
         await admin.from("soporte_tickets").update({ estado: "resuelto", resuelto_at: new Date().toISOString() }).eq("id", t.id);
       }
-      return json({ ok: true });
+      const { data: au } = await admin.auth.admin.getUserById(b.id);
+      const email = au?.user?.email || "";
+      return json({ ok: true, tickets: (tks || []).length, usuario: email.endsWith("@" + DOMINIO) ? email.split("@")[0] : email });
     }
     if (b.accion === "activo") {
       const { error } = await admin.from("perfiles").update({ activo: !!b.activo }).eq("id", b.id);
