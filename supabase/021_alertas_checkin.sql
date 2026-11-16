@@ -1,0 +1,4 @@
+-- 021 (16-nov-2026): tabla visita_alertas (visita_id único, alertas jsonb, confirmado_at; inserta la vendedora; ven ella y gestores).
+-- public.alertas_tienda(cliente) (security definer, limitado a mi_empresa): según la última visita ANTERIOR a hoy de cualquier vendedora:
+--   inventario (agotado/bajo sin pedido), sin_pedido (solo modalidad pedido_tienda), planograma (no/parcial),
+--   comunicado (con «Entendido» pendiente que menciona la tienda). Al confirmar, la app también marca esos comunicados como entendidos.
