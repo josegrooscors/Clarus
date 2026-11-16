@@ -27,6 +27,7 @@ const App = {
 
   async render() {
     if (!DB.user) return this.login();
+    document.body.classList.remove("en-login");
     let ruta = (location.hash || "").slice(1);
     const menu = this.rutas();
     if (Visita.get() && !ruta) ruta = "visita";
@@ -114,75 +115,38 @@ const App = {
     $("[data-salir]", root).onclick = () => DB.salir();
   },
 
-  // Ilustración de la pantalla de inicio: ruta de la vendedora → tienda, y la lente de Clarus mostrando el anaquel.
-  escena() {
-    return `<svg class="login-escena" viewBox="0 0 420 190" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <g stroke="#C9D6F2" stroke-width="1.5" fill="#F3F6FD">
-        <path d="M6 158V92h40v66M46 158V70h34v88M332 158V84h36v74M368 158V100h46v58"/>
-        <path d="M14 104h8M28 104h8M14 118h8M28 118h8M54 84h8M66 84h8M54 98h8M66 98h8M54 112h8M66 112h8M340 98h8M354 98h8M340 112h8M354 112h8M378 114h8M394 114h8M378 128h8M394 128h8" fill="none"/>
-      </g>
-      <g fill="#FFFFFF" stroke="#D7E1F7" stroke-width="1.5"><path d="M92 40c0-8 12-10 16-4 2-8 16-8 18 1 7-1 10 7 4 10H94c-3 0-4-4-2-7Z"/><path d="M286 28c0-6 9-8 12-3 2-6 12-6 13 1 5-1 7 5 3 7h-26c-2 0-3-3-2-5Z"/></g>
-      <path d="M0 158h420" stroke="#C9D6F2" stroke-width="1.5"/>
-      <!-- camión -->
-      <g stroke="#7E9CEB" stroke-width="1.8" fill="#FFFFFF">
-        <path d="M84 150v-34h50v34Z"/><path d="M134 126h18l10 12v12h-28Z"/><path d="M140 130h10l6 8h-16Z" fill="#EAF0FE"/>
-        <circle cx="98" cy="152" r="7"/><circle cx="148" cy="152" r="7"/>
-      </g>
-      <circle cx="98" cy="152" r="2" fill="#7E9CEB"/><circle cx="148" cy="152" r="2" fill="#7E9CEB"/>
-      <!-- ruta de la vendedora -->
-      <path d="M118 96c0-22 30-22 44-30s34-6 44-2" stroke="#2F5BEA" stroke-width="1.8" stroke-dasharray="4 5"/>
-      <circle cx="118" cy="100" r="9" fill="#2F5BEA"/><circle cx="118" cy="97" r="3" fill="#fff"/><path d="M112.5 105.5c1.5-3 9.5-3 11 0" stroke="#fff" stroke-width="1.6"/>
-      <!-- tienda -->
-      <g stroke="#7E9CEB" stroke-width="1.8">
-        <path d="M184 158V96h92v62" fill="#FFFFFF"/>
-        <path d="M178 96l8-16h88l8 16Z" fill="#EAF0FE"/>
-        <path d="M178 96c0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0 0 6 10 6 10 0" fill="#FFFFFF"/>
-        <rect x="196" y="62" width="68" height="16" rx="3" fill="#FFFFFF"/>
-        <path d="M194 158v-40h30v40M236 118h30v26h-30Z" fill="#F3F6FD"/>
-      </g>
-      <text x="230" y="73.5" text-anchor="middle" font-family="Inter Tight, Inter, sans-serif" font-size="8.5" font-weight="700" fill="#2F5BEA" letter-spacing=".6">MINI SÚPER</text>
-      <g fill="#C9D6F2"><rect x="198" y="124" width="7" height="6" rx="1"/><rect x="208" y="124" width="7" height="6" rx="1"/><rect x="198" y="138" width="7" height="6" rx="1"/><rect x="208" y="138" width="7" height="6" rx="1"/></g>
-      <!-- pin de ubicación -->
-      <path d="M216 40c-7 0-12 5-12 11 0 8 12 18 12 18s12-10 12-18c0-6-5-11-12-11Z" fill="#2F5BEA"/><circle cx="216" cy="51" r="4" fill="#fff"/>
-      <!-- lente de Clarus sobre el anaquel -->
-      <g>
-        <circle cx="251" cy="131" r="21" fill="#FFFFFF" fill-opacity=".92"/>
-        <g fill="#2F5BEA"><rect x="240" y="122" width="7" height="7" rx="1.5"/><rect x="249" y="122" width="7" height="7" rx="1.5"/><rect x="258" y="122" width="5" height="7" rx="1.5" fill-opacity=".5"/>
-          <rect x="240" y="133" width="7" height="7" rx="1.5" fill-opacity=".5"/><rect x="249" y="133" width="7" height="7" rx="1.5"/></g>
-        <path d="M268.5 119.5A21 21 0 1 0 268.5 142.5" stroke="#2F5BEA" stroke-width="5" stroke-linecap="round"/>
-        <circle cx="262" cy="136" r="3.2" fill="#0B1B33"/>
-      </g>
-      <!-- árbol y farol -->
-      <g stroke="#9DB5F5" stroke-width="1.6"><circle cx="302" cy="128" r="14" fill="#F3F6FD"/><path d="M302 158v-26M302 140l-6-6M302 136l6-6"/><path d="M318 158V110c0-4 4-6 8-6h6"/><path d="M328 104h8" stroke-width="3"/></g>
-    </svg>`;
-  },
-
+  // Pantalla de inicio "Foco" (v0.12.0): blanca, lema protagonista y la lente como marca de agua. Fija: cabe en la pantalla y no abre el teclado sola en el celular.
   login(msg, usuario = "") {
-    $("#app").innerHTML = `<div class="login-fondo"><div class="login">
-      <div class="brand">${logo(46)}clarus</div>
-      <p class="lema">Te hago ver lo que tú <b>no puedes ver.</b></p>
-      <form class="card" id="lf" autocomplete="on" novalidate>
-        <label class="f" style="margin-top:0" for="lu">Usuario</label>
-        <input class="in" id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}">
-        <label class="f" for="lp">Contraseña</label>
-        <div style="position:relative"><input class="in" id="lp" name="password" type="password" autocomplete="current-password" style="padding-right:84px">
-          <button type="button" id="lver" class="btn ghost sm" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0">Mostrar</button></div>
-        <div class="login-olvido"><a href="javascript:void 0" id="lolv">¿Olvidaste tu contraseña?</a></div>
-        <button type="submit" class="btn block" style="margin-top:14px" id="lb">Entrar</button>
-        ${msg ? `<p class="small" style="color:var(--rosa-t)">${esc(msg)}</p>` : ""}</form>
-      <div class="login-demo"><span>¿Tu empresa aún no usa Clarus?</span><a href="javascript:void 0" id="ldemo">Solicita una demostración</a></div>
-      </div>${this.escena()}<div class="login-pie">Clarus ${esc(CLARUS.version)} · Ejecución en punto de venta</div></div>`;
+    const lente = (w, color, punto) => `<svg aria-hidden="true" width="${w}" height="${w}" viewBox="0 0 48 48" fill="none"><path d="M37 13.5A17 17 0 1 0 37 34.5" stroke="${color}" stroke-width="${w > 100 ? 5 : 6}" stroke-linecap="round"/><circle cx="27" cy="21" r="${w > 100 ? 3.2 : 4.2}" fill="${punto}"/></svg>`;
+    document.body.classList.add("en-login");
+    $("#app").innerHTML = `<div class="foco">
+      <div class="foco-agua">${lente(520, "#EAF0FE", "#EAF0FE")}</div>
+      <div class="foco-in">
+        <div class="foco-marca">${lente(30, "#2F5BEA", "#0B1B33")}<span>clarus</span></div>
+        <div class="foco-lema"><span class="foco-eti">Ejecución en punto de venta</span><h1>Te hago ver lo que tú <b>no puedes ver.</b></h1></div>
+        <form class="foco-form" id="lf" autocomplete="on" novalidate>
+          <div class="foco-campo"><label for="lu">Usuario</label>
+            <input id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}"></div>
+          <div class="foco-campo"><label for="lp">Contraseña</label>
+            <div class="foco-pw"><input id="lp" name="password" type="password" autocomplete="current-password"><button type="button" id="lver">Mostrar</button></div></div>
+          ${msg ? `<p class="foco-error">${esc(msg)}</p>` : ""}
+          <div class="foco-acc"><a href="javascript:void 0" id="lolv">Olvidé mi contraseña</a>
+            <button type="submit" class="foco-entrar" id="lb">Entrar<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+          <a href="javascript:void 0" class="foco-demo" id="ldemo">¿Tu empresa aún no usa Clarus?&nbsp;<b>Pide una demo</b></a>
+        </form>
+      </div></div>`;
     $("#lver").onclick = () => { const p = $("#lp"); const ver = p.type === "password"; p.type = ver ? "text" : "password"; $("#lver").textContent = ver ? "Ocultar" : "Mostrar"; p.focus(); };
     $("#lolv").onclick = () => this.olvide($("#lu").value.trim());
     $("#ldemo").onclick = () => this.demo();
     $("#lf").addEventListener("submit", async (e) => {
       e.preventDefault();
       const u = $("#lu").value;
-      $("#lb").disabled = true; $("#lb").textContent = "Entrando…";
-      try { await DB.entrar(u, $("#lp").value); location.hash = ""; this.render(); MSG.activarPush(false); }
+      $("#lb").disabled = true; $("#lb").firstChild.textContent = "Entrando…";
+      try { await DB.entrar(u, $("#lp").value); document.body.classList.remove("en-login"); location.hash = ""; this.render(); MSG.activarPush(false); }
       catch (err) { this.login(err.message, u); }
     });
-    (usuario ? $("#lp") : $("#lu")).focus();
+    // Solo en computadora se pone el cursor en el campo; en el celular no se abre el teclado hasta que la persona toque.
+    if (matchMedia("(hover: hover) and (pointer: fine)").matches) (usuario ? $("#lp") : $("#lu")).focus();
   },
 
   async publico(body) {
