@@ -21,6 +21,8 @@ const MSG = {
     if (!DB.user || !navigator.onLine) return;
     try { await this.cargarMios(); } catch { return; }
     const n = this.mios.filter(this.pendiente).length;
+    if (this._n != null && n > this._n) this.notificar("Nuevo comunicado", "Tienes un comunicado nuevo en Clarus.", "./#mensajes", "comunicado");
+    this._n = n;
     // En el celular Avisos está dentro de "Yo": el contador también se muestra sobre Yo
     const enBarra = !!$('.nav a[href="#mensajes"]');
     $$(`a[href="#mensajes"] .ic${enBarra ? "" : ', .nav a[href="#yo"] .ic'}`).forEach((el) => {
@@ -56,6 +58,26 @@ const MSG = {
 
   // ---------- Notificaciones del teléfono ----------
   pushPosible: () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window,
+  // Sonido corto de aviso (dos tonos) y notificación del sistema cuando la app está abierta
+  sonar() {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      const ctx = this._ctx || (this._ctx = new C()); if (ctx.state === "suspended") ctx.resume();
+      [[880, 0], [1320, 0.16]].forEach(([f, t]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.22);
+        o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.25);
+      });
+    } catch {}
+  },
+  async notificar(titulo, cuerpo, url, tag) {
+    this.sonar();
+    try {
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification(titulo, { body: cuerpo, tag, renotify: true, icon: "icons/icon-192.png", badge: "icons/icon-192.png", data: { url } });
+    } catch {}
+  },
   async activarPush(pedir = false) {
     if (!this.pushPosible()) return "no";
     if (Notification.permission === "denied") return "denegado";

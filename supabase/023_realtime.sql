@@ -1,0 +1,1 @@
+-- 023 (16-nov-2026): publicación supabase_realtime con soporte_tickets y comunicado_destinos (la app escucha cambios al instante; RLS aplica).

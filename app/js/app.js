@@ -85,6 +85,21 @@ const App = {
     if (!root._obsLogo) { root._obsLogo = new MutationObserver(() => App.logoCliente(root)); root._obsLogo.observe(root, { childList: true }); }
     MSG.revisar();
     SOP.revisar();
+    App.conectarAvisos();
+  },
+
+  // Una vez por sesión: tiempo real (Soporte y comunicados llegan al instante) y registro de notificaciones
+  // si el navegador ya dio permiso (como Gmail o Slack: no hay que tocar "Activar" en cada equipo).
+  conectarAvisos() {
+    if (!DB.user || this._avisos) return;
+    this._avisos = true;
+    MSG.activarPush(false).catch(() => {});
+    try {
+      sb.channel("clarus-avisos-" + DB.user.id)
+        .on("postgres_changes", { event: "*", schema: "public", table: "soporte_tickets" }, () => SOP.revisar())
+        .on("postgres_changes", { event: "*", schema: "public", table: "comunicado_destinos", filter: "user_id=eq." + DB.user.id }, () => MSG.revisar())
+        .subscribe();
+    } catch (e) { console.warn(e); }
   },
 
   logoCliente(root) {
