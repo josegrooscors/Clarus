@@ -18,6 +18,17 @@ const App = {
     return m;
   },
 
+  // Barra inferior del celular: máximo 5 botones (los principales + Avisos + Yo). El resto se abre desde "Yo".
+  movil() {
+    const m = this.rutas().filter((x) => !x[3]);
+    if (m.length <= 5) return { nav: m, extra: [] };
+    const fijos = m.filter((x) => x[0] === "mensajes" || x[0] === "yo");
+    const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos"];
+    const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 5 - fijos.length);
+    const orden = m.filter((x) => prim.includes(x)).concat(fijos);
+    return { nav: orden, extra: m.filter((x) => !orden.includes(x)) };
+  },
+
   async render() {
     if (!DB.user) return this.login();
     let ruta = (location.hash || "").slice(1);
@@ -32,7 +43,7 @@ const App = {
     const app = $("#app");
     const link = ([k, i, t]) => `<a href="#${k}" class="${k === ruta || (ruta === "visita" && k === "hoy") ? "on" : ""}"><span class="ic">${ic(i)}</span><span class="lbl">${t}</span></a>`.replace("<a ", `<a title="${t}" `);
     const navHtml = menu.map(link).join("");
-    const movil = menu.filter((x) => !x[3]).map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x[0] === "mensajes" ? [x[0], x[1], "Avisos"] : x)).join("");
+    const movil = this.movil().nav.map((x) => link(x[0] === "programacion" ? [x[0], x[1], "Agenda"] : x[0] === "mensajes" ? [x[0], x[1], "Avisos"] : x)).join("");
     const lema = `Te hago ver lo que tú <b>no puedes ver.</b>`;
     app.innerHTML = `<header class="barra-marca"><div class="brand">${logo(24)}clarus</div><span class="lema-c">${lema}</span></header>
       <div class="shell"><nav class="side"><div class="brand">${logo(30)}<span class="lbl">clarus</span><button class="side-tog" id="sideTog" title="Ocultar / mostrar menú" aria-label="Ocultar menú">${ic("chev", 16)}</button></div><p class="lema-side">${lema}</p>${menu.filter((x) => x[0] !== "mensajes").map(link).join("")}
@@ -94,7 +105,7 @@ const App = {
         <button class="btn ghost block" style="margin-top:8px" data-cat>Actualizar tiendas y productos</button></div>
       <div class="card"><label class="f" style="margin-top:0">Cambiar mi contraseña</label><input class="in" type="password" id="npw" placeholder="mínimo 6 caracteres">
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
-      ${this.rutas().filter((x) => x[3]).length ? `<div class="card solo-movil list">${this.rutas().filter((x) => x[3]).map(([k, i, t]) => `<a class="item" href="#${k}"><span style="color:var(--azul)">${ic(i)}</span><span class="grow">${t}</span>›</a>`).join("")}</div>` : ""}
+      ${this.movil().extra.concat(this.rutas().filter((x) => x[3])).length ? `<div class="card solo-movil list">${this.movil().extra.concat(this.rutas().filter((x) => x[3])).map(([k, i, t]) => [k, i, k === "programacion" ? "Agenda" : t]).map(([k, i, t]) => `<a class="item" href="#${k}"><span style="color:var(--azul)">${ic(i)}</span><span class="grow">${t}</span>›</a>`).join("")}</div>` : ""}
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
       <div class="pie-marca">${logo(28)}<p>Te hago ver lo que tú <b>no puedes ver.</b></p><span class="tiny muted">Clarus ${CLARUS.version}</span></div>`;
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
