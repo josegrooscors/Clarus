@@ -14,7 +14,7 @@ const App = {
     if (r === "admin") m.push(["picking", "caja", "Picking", true]);
     if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
-    m.push(["mensajes", "msg", "Mensajes"], ["yo", "yo", "Yo"]);
+    m.push(["mensajes", "msg", "Mensajes"], ["yo", "menu", "Más"]); // "☰ Más" igual en celular y computadora
     return m;
   },
 
