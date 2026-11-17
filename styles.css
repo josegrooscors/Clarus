@@ -344,7 +344,7 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .pl-cofre .pl-caja{border-radius:4px 4px 10px 10px}
 /* isla / exhibidor de pisos */
 .pl-exhibidor .pl-caja{background:transparent;border:0;box-shadow:none;padding:0}
-.pl-exhibidor .pl-interior{background:transparent;padding:0;gap:5px}
+.pl-exhibidor .pl-interior{background:transparent;padding:0;gap:5px;align-items:center}
 .pl-exhibidor .pl-nivel{background:#fff;border:2px solid var(--metal);border-bottom-width:5px;border-radius:8px}
 .pl-letrero{display:flex;justify-content:center;margin-bottom:2px}
 .pl-letrero i{width:44px;height:22px;border:2px solid var(--metal);border-radius:4px;background:#fff;position:relative}
@@ -433,3 +433,19 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .desemp-mini{margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.22)}
 .desemp-mini>div{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:14px}
 .desemp-mini span{display:flex;align-items:center;gap:8px;color:#E6ECFF}.desemp-mini b{color:#fff}
+
+/* v0.14.15: frentes solo con color; isla con pisos de distinto largo y frentes del mismo tamaño */
+.pl-exhibidor .pl-nivel{max-width:100%}
+.pl-pisos{display:flex;gap:6px;flex-wrap:wrap}.pl-pisos label{display:flex;flex-direction:column;gap:4px;width:72px;color:var(--gris)}
+/* tiendas donde aplica: filtro de cadena desplegable */
+.pl-filtros{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 8px}
+@media (max-width:560px){.pl-filtros{grid-template-columns:1fr}}
+.pl-dd{position:relative}.pl-dd>summary{list-style:none;display:flex;align-items:center;gap:6px;cursor:pointer}.pl-dd>summary::-webkit-details-marker{display:none}
+.pl-dd-panel{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--borde);border-radius:14px;box-shadow:0 12px 32px rgba(11,27,51,.14);padding:10px}
+.pl-dd-list{max-height:260px;overflow:auto;margin-top:8px;display:flex;flex-direction:column}
+.pl-dd-op{display:flex;align-items:center;gap:10px;padding:10px 6px;border-radius:8px;cursor:pointer}.pl-dd-op:hover{background:var(--azul-cl)}
+.pl-dd-op input{width:18px;height:18px;accent-color:var(--azul)}
+.pl-acc{gap:6px;align-items:center;flex-wrap:wrap}
+.pl-solo{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--gris);margin:8px 0 2px}.pl-solo input{width:18px;height:18px;accent-color:var(--azul)}
+.pl-tiendas{max-height:none}
+.pl-dd-op .grow{flex:1}

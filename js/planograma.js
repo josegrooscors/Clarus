@@ -13,6 +13,10 @@ const PL = {
     anaquel: '<path d="M6 3v33M34 3v33M6 10h28M6 18h28M6 26h28M6 34h28"/>',
     punta: '<rect x="9" y="3" width="22" height="7" rx="1.5"/><path d="M10 10v26M30 10v26M10 17h20M10 24h20M10 31h20"/>',
   },
+  // Niveles habituales y máximos por mueble (deli y vitrinas: 2; congelador: 1)
+  TIPO: { nevera: { nv: 4, max: 8 }, puertas: { nv: 5, max: 8 }, deli: { nv: 2, max: 3 }, vitrina: { nv: 2, max: 3 }, exhibidor: { nv: 3, max: 5 }, cofre: { nv: 1, max: 2 }, anaquel: { nv: 5, max: 10 }, punta: { nv: 4, max: 8 } },
+  // Isla: cada piso tiene su propio número de espacios (los de arriba son más chicos). Índice 0 = piso de arriba.
+  piramide(niveles, base) { return Array.from({ length: niveles }, (_, n) => Math.max(2, base - 2 * (niveles - 1 - n))); },
   icono(t, s = 34) { return `<svg width="${s}" height="${s}" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${this.ICONOS[t] || this.ICONOS.nevera}</svg>`; },
   COLORES: ["#2F5BEA", "#F2B33D", "#E5484D", "#30A46C", "#8E4EC6", "#0B1B33", "#F76B15", "#12A594"],
 
@@ -31,13 +35,13 @@ const PL = {
   dibujo(pl, editable = false) {
     const t = this.MUEBLES[pl.mueble] ? pl.mueble : "nevera", filas = pl.celdas || [], N = filas.length;
     const ojos = ["nevera", "puertas", "anaquel", "punta"].includes(t) && N >= 3 ? 1 : -1; // segundo nivel desde arriba ≈ 1.4–1.6 m
-    const escalon = { deli: 16, exhibidor: 24 }[t] || 0; // vitrinas y exhibidores: los niveles de arriba van más atrás / más angostos
+    const max = Math.max(1, ...filas.map((f) => (f || []).length)); // isla: el ancho de cada piso depende de sus espacios; todos los frentes miden lo mismo
     const bandeja = ["deli", "exhibidor", "cofre"].includes(t);
     const niveles = filas.map((fila, n) => {
-      const margen = escalon ? `margin:0 ${Math.round((N - 1 - n) * escalon / Math.max(1, N - 1) * (N > 1 ? 1 : 0))}%` : "";
+      const margen = t === "exhibidor" ? `width:calc((100% - 22px) * ${(fila || []).length / max} + 26px)` : "";
       return `<div class="pl-nivel ${n === ojos ? "ojos" : ""}" style="${margen}" ${n === ojos ? 'title="Nivel de los ojos: el que más vende"' : ""}><span class="pl-num">${N - n}</span>${(fila || []).map((k, p) => {
         const c = k ? pl.productos?.[k] : null;
-        return `<div class="pl-celda ${k ? "llena" : ""}" ${editable ? `data-n="${n}" data-p="${p}"` : ""} style="${c ? `background:${c.color};border-color:${c.color}` : ""}" title="${c ? esc(c.nombre) : "Vacío"}">${c ? `<span>${esc(PL.sigla(c.nombre))}</span>${(c.alto || 1) > 1 ? `<i>×${c.alto}</i>` : ""}` : ""}</div>`;
+        return `<div class="pl-celda ${k ? "llena" : ""}" ${editable ? `data-n="${n}" data-p="${p}"` : ""} style="${c ? `background:${c.color};border-color:${c.color}` : ""}" title="${c ? esc(c.nombre) : "Vacío"}"></div>`;
       }).join("")}</div>`;
     }).join("");
     const puertas = t === "puertas" ? `<div class="pl-hojas">${"<i></i>".repeat(Math.max(1, Math.min(6, Math.round((pl.posiciones || 3) / 3))))}</div>` : "";
@@ -63,7 +67,7 @@ const PL = {
     ]);
     if (error) { $("#pll", root).textContent = error.message; return; }
     $("#pll", root).outerHTML = pls.length ? `<div class="pl-grid">${pls.map((pl) => `<a class="card pl-card" href="#planogramas/${pl.id}">
-        <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${esc(this.MUEBLES[pl.mueble])} · ${pl.niveles} niveles × ${pl.posiciones} posiciones</div></div>
+        <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${esc(this.MUEBLES[pl.mueble])} · ${pl.niveles} ${pl.niveles === 1 ? "nivel" : "niveles"} · ${(pl.celdas || []).flat().length} espacios</div></div>
         ${pl.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>
         <div class="pl-mini">${this.dibujo(pl)}</div>
         <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(pl).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}</div></a>`).join("")}</div>`
@@ -84,11 +88,15 @@ const PL = {
     cat.productos.forEach((p, i) => { const k = this.claveProd(p); if (!pl.productos[k] && !Object.values(pl.productos).some((c) => c.nombre === p.nombre)) pl.productos[k] = { nombre: p.nombre, color: this.COLORES[i % this.COLORES.length], fondo: 1, alto: 1, catalogo: true }; });
     const ajustar = () => {
       const c = [];
-      for (let n = 0; n < pl.niveles; n++) { c.push([]); for (let p = 0; p < pl.posiciones; p++) c[n].push(pl.celdas?.[n]?.[p] || null); }
+      const isla = pl.mueble === "exhibidor";
+      if (isla && (!pl.porNivel || pl.porNivel.length !== pl.niveles)) pl.porNivel = this.piramide(pl.niveles, pl.posiciones);
+      for (let n = 0; n < pl.niveles; n++) { c.push([]); const cant = isla ? pl.porNivel[n] : pl.posiciones; for (let p = 0; p < cant; p++) c[n].push(pl.celdas?.[n]?.[p] || null); }
+      if (isla) pl.posiciones = Math.max(...pl.porNivel);
       pl.celdas = c;
     };
+    if (pl.mueble === "exhibidor" && pl.celdas.length === pl.niveles && pl.celdas.every((f) => f && f.length)) pl.porNivel = pl.celdas.map((f) => f.length);
     ajustar();
-    let pincel = Object.keys(pl.productos)[0] || null, borrar = false, filtro = "";
+    let pincel = Object.keys(pl.productos)[0] || null, borrar = false, filtro = "", cadSel = new Set(), soloSel = false, verN = 10;
     const clientes = cat.clientes.filter((c) => c.modalidad !== "resurtido_auto" || tiendas.has(c.id));
 
     const pintar = () => {
@@ -101,8 +109,10 @@ const PL = {
             <label class="f">Mueble</label><input type="hidden" id="pm" value="${pl.mueble}">
             <div class="pl-tipos">${Object.entries(this.MUEBLES).map(([k, t]) => `<button type="button" class="pl-tipo ${k === pl.mueble ? "on" : ""}" data-mueble="${k}">${this.icono(k)}<span>${t}</span></button>`).join("")}</div>
             <div class="grid2c"><div><label class="f">Activo</label><select class="in" id="pa"><option value="1" ${pl.activo ? "selected" : ""}>Sí</option><option value="0" ${pl.activo ? "" : "selected"}>No</option></select></div>
-              <div><label class="f">Niveles</label><input class="in" type="number" min="1" max="10" id="pnv" value="${pl.niveles}"></div></div>
-            <div class="grid2c"><div><label class="f">Posiciones por nivel</label><input class="in" type="number" min="1" max="30" id="pps" value="${pl.posiciones}"></div><div></div></div>
+              <div><label class="f">Niveles</label><input class="in" type="number" min="1" max="${this.TIPO[pl.mueble].max}" id="pnv" value="${pl.niveles}"></div></div>
+            ${pl.mueble === "exhibidor"
+              ? `<label class="f">Espacios por piso <span class="tiny muted">(los pisos de arriba son más chicos)</span></label><div class="pl-pisos">${pl.porNivel.map((v, n) => `<label class="tiny">Piso ${pl.niveles - n}<input class="in" type="number" min="1" max="30" data-piso="${n}" value="${v}"></label>`).join("")}</div>`
+              : `<div class="grid2c"><div><label class="f">Espacios por nivel</label><input class="in" type="number" min="1" max="30" id="pps" value="${pl.posiciones}"></div><div></div></div>`}
             <label class="f">Instrucción para la vendedora</label><textarea class="in" id="pnt" rows="2" placeholder="Ej.: Mozzarella a la altura de los ojos, etiqueta de precio visible.">${esc(pl.nota || "")}</textarea>
 
             <h3 class="sec-t" style="margin-top:16px">Productos</h3>
@@ -119,19 +129,37 @@ const PL = {
               <div style="margin-top:14px">${this.tablaTotales(pl)}</div>
               <p class="tiny muted" style="margin:8px 0 0">Nivel 1 = el de abajo${["nevera", "puertas", "anaquel", "punta"].includes(pl.mueble) && pl.niveles >= 3 ? " · <b style=\"color:var(--azul)\">número azul</b> = nivel de los ojos, el que más vende" : ""} · Frentes = posiciones ocupadas · Fondo = unidades hacia atrás · Altura = unidades apiladas · Unidades = frentes × fondo × altura.</p></div>
             <div class="card"><div class="row"><h3 class="grow" style="margin:0">Tiendas donde aplica</h3><span class="pill p-azul">${tiendas.size} tienda(s)</span></div>
-              <div class="row" style="gap:6px;flex-wrap:wrap;margin:10px 0">${[...new Set(clientes.map((c) => c.cadena).filter(Boolean))].sort().map((cd) => `<button class="btn ghost sm" data-cad="${esc(cd)}">${esc(cd)}</button>`).join("")}<button class="btn ghost sm" data-ninguna>Ninguna</button></div>
-              <input class="in" id="pbus" placeholder="Buscar tienda…" value="${esc(filtro)}">
-              <div class="list pl-tiendas">${clientes.filter((c) => !filtro || sinAcentos(c.nombre + " " + (c.cadena || "")).includes(sinAcentos(filtro))).map((c) => `<div class="check ${tiendas.has(c.id) ? "on" : ""}" data-t="${c.id}"><div class="box">✓</div><div class="grow">${esc(c.nombre)}</div><span class="tiny muted">${esc(c.zona || "")}</span></div>`).join("")}</div>
+              <div class="pl-filtros">
+                <details class="pl-dd" id="pcad"><summary class="in"><span class="grow" id="pcadt"></span><span style="display:inline-flex;transform:rotate(-90deg)">${ic("chev", 16)}</span></summary>
+                  <div class="pl-dd-panel"><input class="in" id="pcadb" placeholder="Buscar cadena…"><div class="pl-dd-list" id="pcadl"></div>
+                    <div class="row" style="gap:6px;margin-top:8px"><button class="btn ghost sm" data-cadlimpiar>Todas</button><span class="sp"></span><button class="btn sm" data-cadok>Listo</button></div></div></details>
+                <input class="in" id="pbus" placeholder="Buscar tienda…" value="${esc(filtro)}">
+              </div>
+              <div id="ptz"></div>
             </div>
           </div>
         </div>`;
       const leer = () => { pl.nombre = $("#pn").value.trim(); pl.mueble = $("#pm").value; pl.activo = $("#pa").value === "1"; pl.nota = $("#pnt").value; };
       $("#pn").oninput = () => (pl.nombre = $("#pn").value);
       $("#pnt").oninput = () => (pl.nota = $("#pnt").value);
-      $$("[data-mueble]", root).forEach((b) => (b.onclick = () => { leer(); pl.mueble = b.dataset.mueble; $("#pm", root).value = pl.mueble; pintar(); }));
+      $$("[data-mueble]", root).forEach((b) => (b.onclick = () => {
+        leer(); const antes = pl.mueble; pl.mueble = b.dataset.mueble; $("#pm", root).value = pl.mueble;
+        const tp = this.TIPO[pl.mueble], vacio = !pl.celdas.flat().some(Boolean);
+        if (vacio) pl.niveles = tp.nv; else if (pl.niveles > tp.max) { pl.niveles = tp.max; toast(`Este mueble lleva hasta ${tp.max} niveles; se quitaron los de arriba.`); }
+        if (pl.mueble === "exhibidor" && antes !== "exhibidor") pl.porNivel = this.piramide(pl.niveles, pl.posiciones);
+        if (pl.mueble !== "exhibidor" && antes === "exhibidor") pl.posiciones = Math.max(...pl.porNivel);
+        pl.celdas = pl.celdas.slice(-pl.niveles); ajustar(); pintar();
+      }));
       $("#pa").onchange = () => (pl.activo = $("#pa").value === "1");
-      $("#pnv").onchange = () => { leer(); pl.niveles = Math.min(10, Math.max(1, Number($("#pnv").value) || 1)); ajustar(); pintar(); };
-      $("#pps").onchange = () => { leer(); pl.posiciones = Math.min(30, Math.max(1, Number($("#pps").value) || 1)); ajustar(); pintar(); };
+      $("#pnv", root).onchange = () => {
+        leer(); const nv = Math.min(this.TIPO[pl.mueble].max, Math.max(1, Number($("#pnv", root).value) || 1));
+        // los niveles se agregan o quitan arriba: el nivel 1 (abajo) conserva lo que tiene
+        const dif = nv - pl.niveles; pl.celdas = dif > 0 ? [...Array(dif).fill(null), ...pl.celdas] : pl.celdas.slice(-dif);
+        if (pl.porNivel) pl.porNivel = dif > 0 ? [...this.piramide(nv, pl.porNivel[pl.porNivel.length - 1]).slice(0, dif), ...pl.porNivel] : pl.porNivel.slice(-dif);
+        pl.niveles = nv; ajustar(); pintar();
+      };
+      const pps = $("#pps", root); if (pps) pps.onchange = () => { leer(); pl.posiciones = Math.min(30, Math.max(1, Number(pps.value) || 1)); ajustar(); pintar(); };
+      $$("[data-piso]", root).forEach((el) => (el.onchange = () => { leer(); pl.porNivel[+el.dataset.piso] = Math.min(30, Math.max(1, Number(el.value) || 1)); ajustar(); pintar(); }));
       $$("[data-pin]").forEach((el) => (el.onclick = (e) => { if (e.target.tagName === "INPUT") return; leer(); pincel = el.dataset.pin; borrar = false; pintar(); }));
       $$("[data-fondo]").forEach((el) => (el.onchange = () => { leer(); pl.productos[el.dataset.fondo].fondo = Math.max(1, Number(el.value) || 1); pintar(); }));
       $$("[data-alto]").forEach((el) => (el.onchange = () => { leer(); pl.productos[el.dataset.alto].alto = Math.max(1, Number(el.value) || 1); pintar(); }));
@@ -154,10 +182,33 @@ const PL = {
       });
       document.onpointerup = () => { if (arrastrando) { arrastrando = false; pintar(); } };
       // tiendas
-      $$("[data-t]").forEach((el) => (el.onclick = () => { const id2 = +el.dataset.t; tiendas.has(id2) ? tiendas.delete(id2) : tiendas.add(id2); el.classList.toggle("on"); $(".pill.p-azul", root).textContent = tiendas.size + " tienda(s)"; }));
-      $$("[data-cad]").forEach((el) => (el.onclick = () => { leer(); clientes.filter((c) => c.cadena === el.dataset.cad).forEach((c) => tiendas.add(c.id)); pintar(); }));
-      $("[data-ninguna]").onclick = () => { leer(); tiendas.clear(); pintar(); };
-      $("#pbus").oninput = (e) => { leer(); filtro = e.target.value; const pos = e.target.selectionStart; pintar(); const b = $("#pbus"); b.focus(); b.setSelectionRange(pos, pos); };
+      const cadenas = [...new Set(clientes.map((c) => c.cadena || "Sin cadena"))].sort((x, y) => x.localeCompare(y));
+      const pillT = () => { const pi = $(".pill.p-azul", root); if (pi) pi.textContent = tiendas.size + " tienda(s)"; };
+      const visibles = () => clientes.filter((c) => (!cadSel.size || cadSel.has(c.cadena || "Sin cadena")) && (!soloSel || tiendas.has(c.id)) && (!filtro || sinAcentos(c.nombre + " " + (c.cadena || "") + " " + (c.zona || "")).includes(sinAcentos(filtro))));
+      const pintarCadenas = () => {
+        $("#pcadt", root).innerHTML = cadSel.size ? `Cadena: <b>${cadSel.size === 1 ? esc([...cadSel][0]) : cadSel.size + " seleccionadas"}</b>` : `Cadena: <b>Todas</b>`;
+        const q = sinAcentos($("#pcadb", root).value || "");
+        $("#pcadl", root).innerHTML = cadenas.filter((c) => !q || sinAcentos(c).includes(q)).map((c) => `<label class="pl-dd-op"><input type="checkbox" data-cadop="${esc(c)}" ${cadSel.has(c) ? "checked" : ""}><span class="grow">${esc(c)}</span><span class="tiny muted">${clientes.filter((x) => (x.cadena || "Sin cadena") === c).length}</span></label>`).join("") || `<div class="tiny muted" style="padding:8px">Sin resultados</div>`;
+        $$("[data-cadop]", root).forEach((el) => (el.onchange = () => { el.checked ? cadSel.add(el.dataset.cadop) : cadSel.delete(el.dataset.cadop); verN = 10; pintarCadenas(); pintarTiendas(); }));
+      };
+      const pintarTiendas = () => {
+        const vis = visibles(), selVis = vis.filter((c) => tiendas.has(c.id)).length;
+        $("#ptz", root).innerHTML = `<div class="row small pl-acc"><span class="sp muted">${vis.length} tienda(s)${cadSel.size || filtro ? " con este filtro" : ""}</span>
+            ${vis.length && selVis < vis.length ? `<button class="btn ghost sm" data-todas>Seleccionar ${vis.length}</button>` : ""}${selVis ? `<button class="btn ghost sm" data-quitar>Quitar ${selVis}</button>` : ""}</div>
+          <label class="pl-solo"><input type="checkbox" data-solo ${soloSel ? "checked" : ""}> Ver solo las seleccionadas (${tiendas.size})</label>
+          <div class="list pl-tiendas">${vis.slice(0, verN).map((c) => `<div class="check ${tiendas.has(c.id) ? "on" : ""}" data-t="${c.id}"><div class="box">✓</div><div class="grow">${esc(c.nombre)}<div class="tiny muted">${esc(c.cadena || "")}</div></div><span class="tiny muted">${esc(c.zona || "")}</span></div>`).join("") || `<div class="empty small">No hay tiendas con este filtro.</div>`}</div>
+          ${vis.length > verN ? `<button class="btn ghost sm" data-mas style="margin-top:8px;width:100%">Ver 10 más (${vis.length - verN} restantes)</button>` : ""}`;
+        $$("[data-t]", root).forEach((el) => (el.onclick = () => { const id2 = +el.dataset.t; tiendas.has(id2) ? tiendas.delete(id2) : tiendas.add(id2); pillT(); pintarTiendas(); }));
+        const bt = $("[data-todas]", root); if (bt) bt.onclick = () => { vis.forEach((c) => tiendas.add(c.id)); pillT(); pintarTiendas(); };
+        const bq = $("[data-quitar]", root); if (bq) bq.onclick = () => { vis.forEach((c) => tiendas.delete(c.id)); pillT(); pintarTiendas(); };
+        const bm = $("[data-mas]", root); if (bm) bm.onclick = () => { verN += 10; pintarTiendas(); };
+        $("[data-solo]", root).onchange = (e) => { soloSel = e.target.checked; verN = 10; pintarTiendas(); };
+      };
+      $("#pcadb", root).oninput = () => pintarCadenas();
+      $("[data-cadlimpiar]", root).onclick = (e) => { e.preventDefault(); cadSel.clear(); verN = 10; pintarCadenas(); pintarTiendas(); };
+      $("[data-cadok]", root).onclick = (e) => { e.preventDefault(); $("#pcad", root).open = false; };
+      $("#pbus", root).oninput = (e) => { filtro = e.target.value; verN = 10; pintarTiendas(); };
+      pintarCadenas(); pintarTiendas();
       // guardar
       const guardar = async (copia = false) => {
         leer();
