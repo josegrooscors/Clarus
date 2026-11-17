@@ -1,0 +1,6 @@
+-- 024: public.mi_desempeno(p_vendedor uuid default null) → json {agendadas, cumplidas, dias_trabajados, inicio_min, cierre_min, tienda_min}
+--   Mes en curso hasta AYER (hora de Panamá). Agenda = asignacion_tiendas.dias_semana (isodow) por día; cumplida = hubo check-in en esa tienda ese día.
+--   SECURITY INVOKER (RLS): la vendedora solo se ve a sí misma; admin/supervisor ven a su equipo.
+-- 025: tabla dias_no_laborables (empresa_id, fecha, nombre); feriados de Panamá 2026 cargados; se excluyen de la agenda.
+--   Pendiente: pantalla en Configuración para que el admin agregue o quite días (y cargar 2027).
+-- Validado 16-nov: Doris 37/41 = 90 %, inicio 7:54 a. m., 48 min por tienda, cierre 2:13 p. m.; Doris no ve a Itzel; José sí ve a Doris.

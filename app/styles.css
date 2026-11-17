@@ -384,3 +384,18 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 
 .fab-pulso{animation:fabPulso 1s ease-in-out 3}
 @keyframes fabPulso{0%,100%{box-shadow:0 8px 24px rgba(11,27,51,.18)}50%{box-shadow:0 0 0 10px rgba(47,91,234,.25)}}
+
+/* Mi desempeño: azul de marca, contrasta con la tarjeta noche del objetivo */
+.card.desemp{background:var(--azul);border-color:var(--azul);color:#fff;border-radius:20px;padding:20px;margin-bottom:12px}
+.desemp .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#D6E0FF}
+.desemp-top{display:flex;align-items:center;gap:12px;margin-top:6px}
+.desemp-pct{font-size:44px;line-height:1;letter-spacing:-.04em;font-weight:700}
+.desemp-tag{font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff}
+.desemp-tag.ok{background:#5FD39B;color:#0B3B26}.desemp-tag.medio{background:#FFD39A;color:#4A3416}.desemp-tag.bajo{background:#FFB4AE;color:#4A1E24}
+.desemp-sub{font-size:15px;color:#E6ECFF;margin-top:4px}
+.desemp .barra{height:8px;border-radius:4px;background:rgba(255,255,255,.22);margin-top:12px}
+.desemp .barra i{background:#fff}.desemp .barra i.ok{background:#5FD39B}.desemp .barra i.medio{background:#FFD39A}.desemp .barra i.bajo{background:#FFB4AE}
+.desemp-cifras{margin-top:8px;color:#E6ECFF}.desemp-cifras b{color:#fff}
+.desemp-mini{margin-top:14px;padding-top:10px;border-top:1px solid rgba(255,255,255,.22)}
+.desemp-mini>div{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:14px}
+.desemp-mini span{display:flex;align-items:center;gap:8px;color:#E6ECFF}.desemp-mini b{color:#fff}

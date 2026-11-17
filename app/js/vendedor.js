@@ -34,10 +34,7 @@ const V = {
           <div class="row"><div class="grow"><div class="small muted">Visita en curso desde ${fmtHora(v.at)}</div><h2>${esc(v.tienda)}</h2></div>
           <a class="btn" href="#visita">Continuar</a></div></div>` : ""}
       <div id="porEscanear"></div>
-      <div class="kpis">
-        <div class="kpi"><div class="v">${cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length}</div><div class="l">Tiendas en ruta hoy</div></div>
-        <div class="kpi"><div class="v">${Object.keys(hechas).length}</div><div class="l">Visitadas hoy</div></div>
-      </div>
+      <div id="desemp">${V.tarjetaDesempeno(LS.get("desemp"), cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length)}</div>
       ${V.tarjetaObjetivo(cat)}
       <h3 style="margin:18px 0 10px">Mi ruta</h3>
       <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-dia="${d.iso}">${d.etiqueta} <span class="tiny">· ${cat.ruta.filter((r) => (r.dias_semana || []).includes(d.dia)).length}</span></div>`).join("")}</div>
@@ -65,6 +62,10 @@ const V = {
       this.iniciar(c);
     });
     App.syncPill();
+    if (navigator.onLine) sb.rpc("mi_desempeno").then(({ data }) => {
+      if (!data) return; LS.set("desemp", data);
+      const el = $("#desemp"); if (el) el.innerHTML = V.tarjetaDesempeno(data, cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length);
+    });
     if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
       const el = $("#porEscanear"); if (!el || !count) return;
       el.innerHTML = `<a class="card" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--azul-cl);border-color:var(--azul-med)">
@@ -472,6 +473,24 @@ const V = {
     if (!o || !Number(o.objetivo_kg)) return "";
     const falta = Math.max(0, cajas(o.objetivo_kg - o.venta_kg, p)), pc = pct(o.venta_kg, o.objetivo_kg);
     return `<div class="tiny" style="margin:2px 0"><span class="pill ${colorPct(pc)}" style="font-weight:500">Objetivo del mes ${fmtNum(cajas(o.objetivo_kg, p), 0)} cj · facturado ${fmtNum(cajas(o.venta_kg, p), 1)} · ${falta > 0 ? "faltan " + fmtNum(falta, 1) : "cumplido ✓"}</span></div>`;
+  },
+  // Mi desempeño del mes (hasta ayer, sin feriados): cumplimiento de ruta + horarios promedio. Hoy se suma aparte.
+  tarjetaDesempeno(d, hoyAg, hoyVis) {
+    const mes = new Date().toLocaleDateString("es-PA", { month: "long" });
+    const ag = d?.agendadas || 0, cu = d?.cumplidas || 0, pc = ag ? Math.round((cu / ag) * 100) : null;
+    const tono = pc == null ? "" : pc >= 90 ? "ok" : pc >= 70 ? "medio" : "bajo";
+    const hm = (m) => { if (m == null) return "—"; const h = Math.floor(m / 60), mi = String(m % 60).padStart(2, "0"); return `${h % 12 || 12}:${mi} ${h < 12 ? "a. m." : "p. m."}`; };
+    return `<div class="card desemp">
+      <div class="lbl">Mi desempeño de ${mes}</div>
+      <div class="desemp-top"><b class="desemp-pct">${pc == null ? "—" : pc + "%"}</b><span class="desemp-tag ${tono}">${pc == null ? "Sin días cerrados aún" : pc >= 90 ? "Excelente" : pc >= 70 ? "Puedes mejorar" : "Atención"}</span></div>
+      <div class="desemp-sub">Cumplimiento de ruta</div>
+      <div class="barra"><i class="${tono}" style="width:${Math.min(100, pc || 0)}%"></i></div>
+      <div class="row small desemp-cifras"><span class="sp">${cu} de ${ag} visitas agendadas</span><b>Hoy: ${hoyVis} de ${hoyAg}</b></div>
+      <div class="desemp-mini">
+        <div><span>${ic("sol", 16)} Inicio promedio</span><b>${hm(d?.inicio_min)}</b></div>
+        <div><span>${ic("reloj", 16)} Tiempo por tienda</span><b>${d?.tienda_min != null ? d.tienda_min + " min" : "—"}</b></div>
+        <div><span>${ic("luna", 16)} Cierre promedio</span><b>${hm(d?.cierre_min)}</b></div>
+      </div></div>`;
   },
   tarjetaObjetivo(cat) {
     const mias = new Set(cat.ruta.map((r) => r.cliente_id));
