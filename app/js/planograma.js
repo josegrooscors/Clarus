@@ -14,6 +14,7 @@ const PL = {
     punta: '<rect x="9" y="3" width="22" height="7" rx="1.5"/><path d="M10 10v26M30 10v26M10 17h20M10 24h20M10 31h20"/>',
   },
   COMP: "competencia",
+  OTRA: "otra", // otra categoría (embutidos, etc.): ocupa espacio pero no cuenta para la participación
   // Espacios por nivel habituales: una nevera real tiene muchos frentes por repisa (nuestros + competencia)
   ESPACIOS: { nevera: 16, puertas: 15, deli: 10, vitrina: 10, exhibidor: 10, cofre: 10, anaquel: 16, punta: 8 },
   // Nombre automático: mueble + tienda / cadena
@@ -41,7 +42,7 @@ const PL = {
   claveProd: (p) => "p" + p.id,
   totales(pl) {
     const t = {};
-    (pl.celdas || []).forEach((fila) => (fila || []).forEach((k) => { if (k && k !== this.COMP) t[k] = (t[k] || 0) + 1; }));
+    (pl.celdas || []).forEach((fila) => (fila || []).forEach((k) => { if (k && k !== this.COMP && k !== this.OTRA) t[k] = (t[k] || 0) + 1; }));
     return Object.entries(t).map(([k, frentes]) => {
       const c = pl.productos?.[k] || { nombre: k, fondo: 1, alto: 1 };
       return { k, nombre: c.nombre, color: c.color, frentes, fondo: c.fondo || 1, alto: c.alto || 1, unidades: frentes * (c.fondo || 1) * (c.alto || 1) };
@@ -59,7 +60,7 @@ const PL = {
       const margen = t === "exhibidor" ? `width:calc((100% - 22px) * ${(fila || []).length / max} + 26px)` : "";
       return `<div class="pl-nivel ${n === ojos ? "ojos" : ""}" style="${margen}" ${n === ojos ? 'title="Nivel de los ojos: el que más vende"' : ""}><span class="pl-num">${N - n}</span>${(fila || []).map((k, p) => {
         const c = k ? pl.productos?.[k] : null;
-        return `<div class="pl-celda ${k ? (k === PL.COMP ? "comp" : "llena") : ""}" ${editable ? `data-n="${n}" data-p="${p}"` : ""} style="${c && k !== PL.COMP ? `background:${c.color};border-color:${c.color}` : ""}" ${k === PL.COMP ? 'data-comp="1"' : ""} title="${c ? esc(c.nombre) : "Vacío"}"></div>`;
+        return `<div class="pl-celda ${k ? (k === PL.COMP ? "comp" : k === PL.OTRA ? "otra" : "llena") : ""}" ${editable ? `data-n="${n}" data-p="${p}"` : ""} style="${c && k !== PL.COMP && k !== PL.OTRA ? `background:${c.color};border-color:${c.color}` : ""}" title="${c ? esc(c.nombre) : "Vacío"}"></div>`;
       }).join("")}</div>`;
     }).join("");
     const puertas = t === "puertas" ? `<div class="pl-hojas">${"<i></i>".repeat(Math.max(1, Math.min(6, Math.round((pl.posiciones || 3) / 3))))}</div>` : "";
@@ -69,15 +70,24 @@ const PL = {
   },
   sigla: (n) => String(n).replace(/^Queso /i, "").split(/\s+/).slice(0, 2).map((w) => w.slice(0, w.length > 5 ? 4 : w.length)).join(" "),
   // Participación en el espacio del mueble (share of shelf): lo nuestro vs. competencia vs. libre
+  // Participación en la categoría = nuestro ÷ (nuestro + competencia). "Otra categoría" y vacíos no cuentan.
   espacio(pl) {
-    const todas = (pl.celdas || []).flat(), total = todas.length || 1;
-    const comp = todas.filter((k) => k === this.COMP).length, nuestro = todas.filter((k) => k && k !== this.COMP).length;
-    return { nuestro, comp, libre: todas.length - nuestro - comp, total: todas.length, pN: Math.round((nuestro / total) * 100), pC: Math.round((comp / total) * 100) };
+    const todas = (pl.celdas || []).flat();
+    const comp = todas.filter((k) => k === this.COMP).length, otra = todas.filter((k) => k === this.OTRA).length;
+    const nuestro = todas.filter((k) => k && k !== this.COMP && k !== this.OTRA).length, cat = nuestro + comp;
+    return { nuestro, comp, otra, libre: todas.length - nuestro - comp - otra, total: todas.length, cat, pN: cat ? Math.round((nuestro / cat) * 100) : null, pC: cat ? Math.round((comp / cat) * 100) : null };
+  },
+  barraEspacio(e) {
+    if (!e.total) return "";
+    return `<div class="pl-share"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><b style="font-size:22px">${e.pN == null ? "–" : e.pN + "%"}</b><span class="small muted">participación en la categoría</span></div>
+      <div class="pl-share-b"><i style="width:${e.pN || 0}%"></i><i class="c" style="width:${e.pC || 0}%"></i></div>
+      <div class="row small" style="gap:12px;flex-wrap:wrap"><span><b class="pl-dot" style="background:var(--azul)"></b>Nuestro <b>${e.nuestro}</b></span><span><b class="pl-dot pl-comp"></b>Competencia <b>${e.comp}</b></span>
+        <span class="muted"><b class="pl-dot pl-otra"></b>Otra categoría ${e.otra}</span><span class="muted">Vacíos ${e.libre}</span></div>
+      <div class="tiny muted" style="margin-top:4px">Nuestros frentes ÷ (nuestros + competencia). Otra categoría y vacíos no cuentan.</div></div>`;
   },
   tablaTotales(pl) {
     const t = this.totales(pl), e = this.espacio(pl);
-    const barra = e.total ? `<div class="pl-share"><div class="pl-share-b"><i style="width:${e.pN}%"></i><i class="c" style="width:${e.pC}%"></i></div>
-      <div class="row small" style="gap:12px;flex-wrap:wrap"><span><b class="pl-dot" style="background:var(--azul)"></b>Nuestro espacio <b>${e.pN}%</b></span><span><b class="pl-dot pl-comp"></b>Competencia <b>${e.pC}%</b></span><span class="muted">Libre ${Math.max(0, 100 - e.pN - e.pC)}%</span></div></div>` : "";
+    const barra = this.barraEspacio(e);
     if (!t.length) return barra + `<div class="small muted">Aún no hay productos en el planograma.</div>`;
     return barra + `<table class="t pl-tabla"><tr><th>Producto</th><th>Frentes</th><th>Fondo</th><th>Altura</th><th>Unidades</th></tr>
       ${t.map((x) => `<tr><td><span class="pl-dot" style="background:${x.color}"></span>${esc(x.nombre)}</td><td><b>${x.frentes}</b></td><td>${x.fondo}</td><td>${x.alto}</td><td><b>${x.unidades}</b></td></tr>`).join("")}</table>`;
@@ -96,7 +106,7 @@ const PL = {
         <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${this.lista(pl).map((m) => esc(this.MUEBLES[m.mueble])).join(" + ")}</div></div>
         ${pl.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>
         <div class="pl-mini">${this.dibujo(this.lista(pl)[0])}</div>${this.lista(pl).length > 1 ? `<div class="tiny muted">+ ${this.lista(pl).length - 1} mueble(s) más</div>` : ""}
-        <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(this.junto(pl)).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(this.junto(pl)).comp ? ` · ${this.espacio(this.junto(pl)).pN}% del espacio` : ""}</div></a>`).join("")}</div>`
+        <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(this.junto(pl)).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(this.junto(pl)).comp ? ` · ${this.espacio(this.junto(pl)).pN}% de la categoría` : ""}</div></a>`).join("")}</div>`
       : `<div class="empty card flat"><div class="ic">${ic("resumen", 34)}</div>Aún no hay planogramas. Crea el primero, por ejemplo "Mozzarella en deli".</div>`;
   },
 
@@ -113,6 +123,7 @@ const PL = {
     // productos disponibles: catálogo + etiquetas propias guardadas en el planograma
     cat.productos.forEach((p, i) => { const k = this.claveProd(p); if (!pl.productos[k] && !Object.values(pl.productos).some((c) => c.nombre === p.nombre)) pl.productos[k] = { nombre: p.nombre, color: this.COLORES[i % this.COLORES.length], fondo: 1, alto: 1, catalogo: true }; });
     pl.productos[this.COMP] = { nombre: "Competencia", color: "#9AA6B8", fondo: 1, alto: 1, catalogo: true, comp: true };
+    pl.productos[this.OTRA] = { nombre: "Otra categoría", color: "#E7ECF2", fondo: 1, alto: 1, catalogo: true, comp: true, otra: true };
     pl.muebles = this.lista(pl).map((m) => ({ mueble: m.mueble, niveles: m.niveles, posiciones: m.posiciones, celdas: m.celdas, porNivel: m.porNivel }));
     let mi = 0; // mueble activo
     const ajustar = () => {
@@ -168,7 +179,7 @@ const PL = {
             <h3 class="sec-t" style="margin-top:16px"><span class="pl-paso">3</span>Productos</h3>
             <div class="tiny muted" style="margin-bottom:6px">Elige un producto y toca los espacios del mueble. Cada espacio es un <b>frente</b>. Marca también <b>Competencia</b> para ver quién está a tu lado y cuánto espacio tienes.</div>
             <div class="list" style="gap:6px">${Object.entries(pl.productos).map(([k, c]) => `<div class="pl-prod ${pincel === k && !borrar ? "on" : ""}" data-pin="${k}">
-              <span class="pl-dot ${c.comp ? "pl-comp" : ""}" style="${c.comp ? "" : `background:${c.color}`}"></span><span class="grow">${esc(c.nombre)}${c.comp ? '<div class="tiny muted">Otras marcas a tu lado</div>' : ""}</span>
+              <span class="pl-dot ${c.otra ? "pl-otra" : c.comp ? "pl-comp" : ""}" style="${c.comp ? "" : `background:${c.color}`}"></span><span class="grow">${esc(c.nombre)}${c.otra ? '<div class="tiny muted">Embutidos u otros: no cuentan</div>' : c.comp ? '<div class="tiny muted">Otras marcas de la categoría</div>' : ""}</span>
               ${c.comp ? "" : `<label class="tiny">Fondo <input class="in pl-num-in" type="number" min="1" max="50" data-fondo="${k}" value="${c.fondo || 1}" title="Unidades hacia atrás en cada frente"></label>
               <label class="tiny">Altura <input class="in pl-num-in" type="number" min="1" max="10" data-alto="${k}" value="${c.alto || 1}" title="Unidades apiladas hacia arriba"></label>`}</div>`).join("")}</div>
             <div class="row" style="gap:6px;margin-top:8px"><button class="btn ghost sm" data-etq>+ Otra presentación</button><button class="btn sm ${borrar ? "" : "sec"}" data-borrar>Borrar posiciones</button></div>

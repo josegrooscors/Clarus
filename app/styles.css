@@ -467,3 +467,16 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .pl-mtab{display:flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid var(--borde);border-radius:999px;background:#fff;color:var(--gris);font:inherit;font-size:13px;cursor:pointer}
 .pl-mtab.on{border-color:var(--azul);background:var(--azul-cl);color:var(--azul-osc);font-weight:600}
 .pl-mtab.mas{border-style:dashed;color:var(--azul)}
+
+/* v0.14.18: otra categoría y auditoría de espacio */
+.pl-celda.otra{border:1.5px solid #C9D2DF;background:radial-gradient(circle,#B8C4D6 1.2px,transparent 1.6px) 0 0/6px 6px,#F3F6FA}
+.pl-otra{background:radial-gradient(circle,#9AA6B8 1.2px,transparent 1.6px) 0 0/5px 5px,#EEF2F7!important;border:1px solid #C9D2DF}
+.aud-card{border:1.5px solid var(--borde)}.aud-card.pend{border-color:#F2B33D;background:#FFFBF2}
+.aud-cab{display:flex;align-items:center;gap:10px}
+.aud-pinceles{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.aud-pin{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1.5px solid var(--borde);border-radius:12px;background:#fff;font:inherit;font-size:14px;cursor:pointer}
+.aud-pin.on{border-color:var(--azul);background:var(--azul-cl);font-weight:600}
+.aud-pin .pl-dot{margin:0}
+.par-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.par-pct{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.par-flecha.sube{color:#1E9E62}.par-flecha.baja{color:#D63B4A}

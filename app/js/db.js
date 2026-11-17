@@ -82,7 +82,7 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob, pm, pls, plt] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
@@ -92,11 +92,13 @@ const DB = {
       sb.from("permisos_rol").select("permiso").eq("rol", this.perfil.rol).eq("permitido", true),
       sb.from("planogramas").select("*").eq("activo", true),
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
+      sb.from("tienda_muebles").select("cliente_id, orden, mueble, niveles, posiciones, celdas, por_nivel"),
+      sb.from("v_ultima_auditoria").select("cliente_id, fecha, pct, nuestro, competencia"),
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
     if (!pm.error) { this.permisos = pm.data.map((x) => x.permiso); LS.set("permisos", this.permisos); }
-    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data };
+    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data };
     LS.set("cat", out);
     return out;
   },
@@ -166,6 +168,11 @@ const DB = {
         const id = await this.idVisita(op.lid);
         ok(await sb.from("visita_alertas").upsert({ visita_id: id, cliente_id: op.cliente_id, alertas: op.alertas, confirmado_at: op.at }, { onConflict: "visita_id" }));
         if (op.comunicados?.length) ok(await sb.from("comunicado_destinos").update({ ok_at: op.at, leido_at: op.at }).in("comunicado_id", op.comunicados).eq("user_id", this.user.id).is("ok_at", null));
+        return;
+      }
+      case "auditoria": {
+        const r = await sb.rpc("guardar_auditoria", { p_cliente: op.cliente_id, p_muebles: op.muebles, p_id_local: op.id_local, p_visita_lid: op.lid });
+        if (r.error) throw r.error;
         return;
       }
       case "planos": {

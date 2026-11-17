@@ -1,0 +1,9 @@
+-- 030 (17-nov-2026): Auditoría de espacio (participación en la categoría / share of shelf) por tienda.
+-- tienda_muebles: muebles REALES de cada tienda con su último estado (la siguiente auditoría sale llena). Solo lectura por RLS; se escribe con guardar_auditoria.
+-- auditorias_espacio: cada auditoría (foto de los muebles + conteos nuestro / competencia / otra / vacío + pct).
+-- Celdas: clave de producto nuestro | "competencia" | "otra" (otra categoría) | null (vacío).
+-- Participación = nuestro / (nuestro + competencia). Otra categoría y vacíos NO cuentan.
+-- guardar_auditoria(p_cliente, p_muebles, p_id_local, p_visita_lid): security definer, valida empresa, idempotente por id_local.
+-- v_ultima_auditoria (security_invoker): última por tienda (fecha y %), para la vendedora.
+-- participacion_espacio(p_desde, p_hasta): última de cada tienda en el rango + la anterior (sube/baja), para el Resumen.
+-- Validado: Guadalupe en Tamek San Miguelito, 8 nuestros / 12 competencia / 10 otra → 40 %. Bloque con rollback.
