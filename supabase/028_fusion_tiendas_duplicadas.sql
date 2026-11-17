@@ -1,0 +1,7 @@
+-- 17-nov-2026 · Auditoría de tiendas duplicadas (pedido de José).
+-- Revisadas las 185 tiendas de Viejo Cántaro por nombre, código, zona y GPS (pares a menos de 220 m).
+-- Duplicado real: "El Fuerte San Miguelito" (id 2, código C0001, tienda de prueba creada a mano) = "Tamek San Miguelito" (id 85, PAN-004-03). El Fuerte = Tamek.
+--   Se movieron 4 visitas y 3 pedidos (anulados, de prueba) a id 85; se borraron su ruta (Guadalupe la tenía lun–sáb), productos y objetivos; se borró id 2.
+--   Respaldo para deshacer: private.respaldo_fusion_clientes (origen 2, destino 85).
+-- Pares cercanos por GPS revisados: todos son cadenas distintas en el mismo centro comercial (no son duplicados).
+-- Por confirmar con José: "Grupo Panama Este la Pagoda" (id 14, PAN-214) y "Grupo Rio Chico la Pagoda" (id 22, PAN-217): ¿misma tienda con dos razones sociales?
