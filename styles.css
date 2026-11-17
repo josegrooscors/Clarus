@@ -307,27 +307,61 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .pl-card{text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:10px}
 .pl-mini{max-width:100%;overflow:hidden}
 .pl-mini .pl-mueble{transform-origin:top left}
-.pl-ed{display:grid;gap:14px}
-@media (min-width:1000px){.pl-ed{grid-template-columns:360px 1fr;align-items:start}}
-.pl-mueble{position:relative;border-radius:14px;padding:10px 10px 6px;display:flex;flex-direction:column;gap:6px;user-select:none;touch-action:none}
-.pl-nevera{background:#1B2638;box-shadow:inset 0 0 0 3px #2B3A52}
-.pl-nevera .pl-nivel{border-bottom:3px solid #93A6C4}
-.pl-deli{background:#F3EFE8;border:2px solid #D9D0C2;padding-top:26px}
-.pl-deli .pl-vidrio{position:absolute;left:8px;right:8px;top:6px;height:16px;border-radius:12px 12px 2px 2px;background:linear-gradient(180deg,rgba(171,205,239,.7),rgba(171,205,239,.15));border:1px solid #B9D3EE}
-.pl-deli .pl-nivel{border-bottom:3px solid #C9BBA5}
-.pl-anaquel{background:#FAF7F2;border:2px solid #C9B79C}
-.pl-anaquel .pl-nivel{border-bottom:5px solid #B59A76}
-.pl-exhibidor{background:#EEF2F8;border:2px dashed #9DB0CF}
-.pl-exhibidor .pl-nivel{border-bottom:3px solid #9DB0CF}
-.pl-nivel{display:flex;gap:4px;align-items:flex-end;padding:4px 2px 4px 18px;position:relative;min-height:46px}
-.pl-num{position:absolute;left:2px;top:50%;transform:translateY(-50%);font-size:10px;color:#93A6C4}
-.pl-deli .pl-num,.pl-anaquel .pl-num,.pl-exhibidor .pl-num{color:#8C95A3}
-.pl-celda{flex:1;min-width:22px;height:40px;border-radius:5px;border:1.5px dashed rgba(147,166,196,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;position:relative;line-height:1.1;text-align:center;overflow:hidden}
+/* Muebles del planograma (v0.14.14): vista de frente, blancos y pulidos, uno por tipo */
+.pl-mueble{position:relative;user-select:none;touch-action:none;--metal:#C9D2DF;--metal2:#AEB9C9}
+.pl-caja{position:relative;background:#fff;border:2px solid var(--metal);border-radius:10px;padding:7px 7px 5px;box-shadow:inset 0 0 0 3px #F3F6FA}
+.pl-interior{position:relative;display:flex;flex-direction:column;gap:3px;background:linear-gradient(180deg,#F5F8FC,#EDF1F6);border-radius:6px;padding:4px 4px 3px}
+.pl-nivel{display:flex;gap:4px;align-items:flex-end;padding:6px 4px 3px 22px;position:relative;min-height:46px;border-bottom:4px solid var(--metal2);border-radius:0 0 2px 2px}
+.pl-nivel.ojos{background:rgba(47,91,234,.07)}
+.pl-num{position:absolute;left:3px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;color:#8C95A3}
+.pl-nivel.ojos .pl-num{background:var(--azul);color:#fff}
+.pl-celda{flex:1;min-width:20px;height:38px;border-radius:5px;border:1.5px dashed #C3CDDB;background:rgba(255,255,255,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;position:relative;line-height:1.1;text-align:center;overflow:hidden}
 .pl-celda[data-n]{cursor:pointer}
 .pl-celda[data-n]:hover{outline:2px solid var(--azul)}
-.pl-celda.llena{border-style:solid;box-shadow:inset 0 -6px 0 rgba(0,0,0,.12)}
+.pl-celda.llena{border-style:solid;box-shadow:inset 0 -5px 0 rgba(0,0,0,.15),inset 0 2px 0 rgba(255,255,255,.3)}
 .pl-celda i{font-style:normal;font-size:9px;opacity:.85}
-.pl-base{height:8px;border-radius:0 0 8px 8px;background:rgba(0,0,0,.12);margin:2px -4px 0}
+.pl-bandeja .pl-nivel{min-height:36px}.pl-bandeja .pl-celda{height:26px;border-radius:4px}
+/* techo con luz (neveras) */
+.pl-techo{height:18px;background:#F3F6FA;border:2px solid var(--metal);border-bottom:0;border-radius:12px 12px 0 0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px}
+.pl-techo i{display:block;width:78%;height:3px;border-radius:2px;background:#FFE3A1;box-shadow:0 2px 7px rgba(255,196,80,.75)}
+.pl-nevera .pl-caja,.pl-puertas .pl-caja{border-radius:0 0 10px 10px;border-left-width:7px;border-right-width:7px}
+.pl-nevera .pl-interior{padding-bottom:12px}
+.pl-nevera .pl-interior::after{content:"";position:absolute;left:4px;right:4px;bottom:3px;height:5px;border-radius:2px;background:repeating-linear-gradient(90deg,#9AA6B8 0 2px,transparent 2px 5px)}
+/* puertas de vidrio */
+.pl-hojas{position:absolute;inset:0 2px 0 24px;display:flex;gap:3px;pointer-events:none}
+.pl-hojas i{flex:1;position:relative;border:3px solid #D5DCE6;border-radius:4px;background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.35) 50%,transparent 58%)}
+.pl-hojas i::after{content:"";position:absolute;right:-3px;top:34%;width:4px;height:22%;border-radius:2px;background:var(--metal2)}
+/* vitrina deli curva y vitrina recta */
+.pl-deli .pl-caja{border-radius:44px 44px 8px 8px;padding-top:24px;background:linear-gradient(180deg,#E8F1FB,#fff 45%)}
+.pl-deli .pl-caja::before{content:"";position:absolute;left:18px;right:18px;top:7px;height:9px;border-radius:12px 12px 0 0;border:2px solid #CFE0F3;border-bottom:0}
+.pl-vitrina .pl-caja{border-radius:4px 4px 8px 8px;padding-top:14px;background:linear-gradient(180deg,#E8F1FB,#fff 35%)}
+.pl-vitrina .pl-caja::before{content:"";position:absolute;inset:6px 6px auto;height:4px;border-radius:2px;background:#DCE8F6}
+.pl-deli .pl-interior,.pl-vitrina .pl-interior{background:transparent}
+.pl-deli .pl-zocalo,.pl-vitrina .pl-zocalo{height:22px;background:linear-gradient(90deg,#EEF2F7 55%,transparent 55%),repeating-linear-gradient(90deg,#9AA6B8 0 2px,#EEF2F7 2px 6px)}
+/* congelador horizontal con tapa corrediza */
+.pl-tapa{display:flex;gap:4px;padding:0 4px;margin-bottom:-2px}
+.pl-tapa i{flex:1;height:10px;border:2px solid var(--metal);border-bottom:0;border-radius:8px 8px 0 0;background:linear-gradient(115deg,#EAF2FB 40%,#fff 50%,#EAF2FB 60%)}
+.pl-cofre .pl-caja{border-radius:4px 4px 10px 10px}
+/* isla / exhibidor de pisos */
+.pl-exhibidor .pl-caja{background:transparent;border:0;box-shadow:none;padding:0}
+.pl-exhibidor .pl-interior{background:transparent;padding:0;gap:5px}
+.pl-exhibidor .pl-nivel{background:#fff;border:2px solid var(--metal);border-bottom-width:5px;border-radius:8px}
+.pl-letrero{display:flex;justify-content:center;margin-bottom:2px}
+.pl-letrero i{width:44px;height:22px;border:2px solid var(--metal);border-radius:4px;background:#fff;position:relative}
+.pl-letrero i::after{content:"";position:absolute;left:50%;bottom:-8px;width:2px;height:6px;background:var(--metal2)}
+/* góndola seca y punta de góndola */
+.pl-anaquel .pl-caja,.pl-punta .pl-caja{border-radius:2px;border-width:0 8px;border-color:var(--metal2);box-shadow:none;padding:6px 4px 2px}
+.pl-anaquel .pl-interior,.pl-punta .pl-interior{background:radial-gradient(circle,#DCE3EC 1px,transparent 1.5px) 0 0/9px 9px,#FAFBFD}
+.pl-anaquel .pl-nivel,.pl-punta .pl-nivel{border-bottom:6px solid var(--metal2);box-shadow:0 2px 0 #E7ECF2}
+.pl-cartel{margin:0 10%;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--azul);color:#fff;font-size:12px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* zócalo: rejilla de ventilación (refrigerados) o liso (secos) */
+.pl-zocalo{height:14px;margin:0 6px;background:repeating-linear-gradient(90deg,#9AA6B8 0 2px,#EEF2F7 2px 6px);border:2px solid var(--metal);border-top:0;border-radius:0 0 8px 8px}
+.pl-zocalo.liso{background:#E7ECF2;margin:0}
+.pl-zocalo.base{background:#E7ECF2;margin:2px 3% 0;height:10px;border-top:2px solid var(--metal);border-radius:4px}
+/* selector de mueble */
+.pl-tipos{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:4px}
+.pl-tipo{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:1.5px solid var(--borde);border-radius:12px;background:#fff;color:var(--gris);font:inherit;font-size:11px;line-height:1.15;text-align:center;cursor:pointer}
+.pl-tipo.on{border-color:var(--azul);background:var(--azul-cl);color:var(--azul-osc);font-weight:600}
 .pl-dot{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px;flex:none}
 .pl-prod{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid var(--borde);border-radius:10px;cursor:pointer;flex-wrap:wrap}
 .pl-prod.on{border-color:var(--azul);background:var(--azul-cl)}
