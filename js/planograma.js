@@ -24,8 +24,15 @@ const PL = {
     const cads = [...new Set(sel.map((c) => c.cadena || ""))];
     return cads.length === 1 && cads[0] ? `${m} · ${cads[0]} (${sel.length} tiendas)` : `${m} · ${sel.length} tiendas`;
   },
+  // Muebles de un planograma (cada uno con sus propios frentes). Compatibilidad: si no hay lista, usa las columnas sueltas.
+  lista(pl) {
+    const ms = Array.isArray(pl.muebles) && pl.muebles.length ? pl.muebles : [{ mueble: pl.mueble, niveles: pl.niveles, posiciones: pl.posiciones, celdas: pl.celdas }];
+    return ms.map((m) => ({ ...pl, ...m, celdas: m.celdas || [] }));
+  },
+  // Todas las celdas de todos los muebles (para totales y participación del planograma completo)
+  junto(pl) { return { ...pl, celdas: this.lista(pl).flatMap((m) => m.celdas || []) }; },
   // Niveles habituales y máximos por mueble (deli y vitrinas: 2; congelador: 1)
-  TIPO: { nevera: { nv: 4, max: 8 }, puertas: { nv: 5, max: 8 }, deli: { nv: 2, max: 3 }, vitrina: { nv: 2, max: 3 }, exhibidor: { nv: 3, max: 5 }, cofre: { nv: 1, max: 2 }, anaquel: { nv: 5, max: 10 }, punta: { nv: 4, max: 8 } },
+  TIPO: { nevera: { nv: 5, max: 8 }, puertas: { nv: 5, max: 8 }, deli: { nv: 2, max: 3 }, vitrina: { nv: 2, max: 3 }, exhibidor: { nv: 3, max: 5 }, cofre: { nv: 1, max: 2 }, anaquel: { nv: 5, max: 10 }, punta: { nv: 4, max: 8 } },
   // Isla: cada piso tiene su propio número de espacios (los de arriba son más chicos). Índice 0 = piso de arriba.
   piramide(niveles, base) { return Array.from({ length: niveles }, (_, n) => Math.max(2, base - 2 * (niveles - 1 - n))); },
   icono(t, s = 34) { return `<svg width="${s}" height="${s}" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${this.ICONOS[t] || this.ICONOS.nevera}</svg>`; },
@@ -86,17 +93,17 @@ const PL = {
     ]);
     if (error) { $("#pll", root).textContent = error.message; return; }
     $("#pll", root).outerHTML = pls.length ? `<div class="pl-grid">${pls.map((pl) => `<a class="card pl-card" href="#planogramas/${pl.id}">
-        <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${esc(this.MUEBLES[pl.mueble])} · ${pl.niveles} ${pl.niveles === 1 ? "nivel" : "niveles"} · ${(pl.celdas || []).flat().length} espacios</div></div>
+        <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${this.lista(pl).map((m) => esc(this.MUEBLES[m.mueble])).join(" + ")}</div></div>
         ${pl.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>
-        <div class="pl-mini">${this.dibujo(pl)}</div>
-        <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(pl).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(pl).comp ? ` · ${this.espacio(pl).pN}% del espacio` : ""}</div></a>`).join("")}</div>`
+        <div class="pl-mini">${this.dibujo(this.lista(pl)[0])}</div>${this.lista(pl).length > 1 ? `<div class="tiny muted">+ ${this.lista(pl).length - 1} mueble(s) más</div>` : ""}
+        <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(this.junto(pl)).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(this.junto(pl)).comp ? ` · ${this.espacio(this.junto(pl)).pN}% del espacio` : ""}</div></a>`).join("")}</div>`
       : `<div class="empty card flat"><div class="ic">${ic("resumen", 34)}</div>Aún no hay planogramas. Crea el primero, por ejemplo "Mozzarella en deli".</div>`;
   },
 
   // ---------- Editor ----------
   async editor(root, id) {
     const cat = await DB.catalogos();
-    let pl = { nombre: "", mueble: "nevera", niveles: 4, posiciones: 8, celdas: [], productos: {}, nota: "", activo: true };
+    let pl = { nombre: "", mueble: "nevera", niveles: 5, posiciones: 16, celdas: [], productos: {}, nota: "", activo: true };
     let tiendas = new Set();
     if (id) {
       const [{ data }, { data: asg }] = await Promise.all([sb.from("planogramas").select("*").eq("id", id).single(), sb.from("planograma_tiendas").select("cliente_id").eq("planograma_id", id)]);
@@ -106,7 +113,8 @@ const PL = {
     // productos disponibles: catálogo + etiquetas propias guardadas en el planograma
     cat.productos.forEach((p, i) => { const k = this.claveProd(p); if (!pl.productos[k] && !Object.values(pl.productos).some((c) => c.nombre === p.nombre)) pl.productos[k] = { nombre: p.nombre, color: this.COLORES[i % this.COLORES.length], fondo: 1, alto: 1, catalogo: true }; });
     pl.productos[this.COMP] = { nombre: "Competencia", color: "#9AA6B8", fondo: 1, alto: 1, catalogo: true, comp: true };
-    if (!id) { pl.posiciones = this.ESPACIOS[pl.mueble]; }
+    pl.muebles = this.lista(pl).map((m) => ({ mueble: m.mueble, niveles: m.niveles, posiciones: m.posiciones, celdas: m.celdas, porNivel: m.porNivel }));
+    let mi = 0; // mueble activo
     const ajustar = () => {
       const c = [];
       const isla = pl.mueble === "exhibidor";
@@ -115,8 +123,16 @@ const PL = {
       if (isla) pl.posiciones = Math.max(...pl.porNivel);
       pl.celdas = c;
     };
-    if (pl.mueble === "exhibidor" && pl.celdas.length === pl.niveles && pl.celdas.every((f) => f && f.length)) pl.porNivel = pl.celdas.map((f) => f.length);
-    ajustar();
+    // cada mueble se edita por separado: se guarda el activo en la lista y se carga el otro
+    const guardarM = () => { pl.muebles[mi] = { mueble: pl.mueble, niveles: pl.niveles, posiciones: pl.posiciones, celdas: pl.celdas, ...(pl.mueble === "exhibidor" ? { porNivel: pl.porNivel } : {}) }; };
+    const cargarM = (i) => {
+      const m = pl.muebles[i]; mi = i;
+      Object.assign(pl, { mueble: m.mueble, niveles: m.niveles, posiciones: m.posiciones, celdas: m.celdas || [], porNivel: m.porNivel || null });
+      if (pl.mueble === "exhibidor" && !pl.porNivel && pl.celdas.length === pl.niveles && pl.celdas.every((f) => f && f.length)) pl.porNivel = pl.celdas.map((f) => f.length);
+      ajustar();
+    };
+    const nuevoM = (t) => ({ mueble: t, niveles: this.TIPO[t].nv, posiciones: this.ESPACIOS[t], celdas: [] });
+    cargarM(0);
     let pincel = Object.keys(pl.productos)[0] || null, borrar = false, filtro = "", cadSel = new Set(), soloSel = false, verN = 10;
     const clientes = cat.clientes.filter((c) => c.modalidad !== "resurtido_auto" || tiendas.has(c.id));
 
@@ -135,8 +151,11 @@ const PL = {
         </div>
         <div class="pl-ed">
           <div class="card">
-            <h3 class="sec-t" style="margin-top:0"><span class="pl-paso">2</span>Mueble</h3>
-            <input type="hidden" id="pm" value="${pl.mueble}"><input type="hidden" id="pm" value="${pl.mueble}">
+            <h3 class="sec-t" style="margin-top:0"><span class="pl-paso">2</span>Muebles de la exhibición</h3>
+            <div class="tiny muted" style="margin-bottom:8px">Cada mueble tiene sus propios niveles y frentes. ¿La tienda tiene nevera y vitrina deli? Agrega los dos.</div>
+            <div class="pl-mtabs">${pl.muebles.map((m, i) => `<button type="button" class="pl-mtab ${i === mi ? "on" : ""}" data-mtab="${i}">${this.icono(i === mi ? pl.mueble : m.mueble, 22)}<span>${esc(this.MUEBLES[i === mi ? pl.mueble : m.mueble])}</span></button>`).join("")}<button type="button" class="pl-mtab mas" data-madd>+ Agregar mueble</button></div>
+            <label class="f">Tipo de este mueble${pl.muebles.length > 1 ? ` <span class="tiny muted">(${mi + 1} de ${pl.muebles.length})</span>` : ""}</label>
+            <input type="hidden" id="pm" value="${pl.mueble}">
             <div class="pl-tipos">${Object.entries(this.MUEBLES).map(([k, t]) => `<button type="button" class="pl-tipo ${k === pl.mueble ? "on" : ""}" data-mueble="${k}">${this.icono(k)}<span>${t}</span></button>`).join("")}</div>
             <div class="grid2c"><div><label class="f">Activo</label><select class="in" id="pa"><option value="1" ${pl.activo ? "selected" : ""}>Sí</option><option value="0" ${pl.activo ? "" : "selected"}>No</option></select></div>
               <div><label class="f">Niveles</label><input class="in" type="number" min="1" max="${this.TIPO[pl.mueble].max}" id="pnv" value="${pl.niveles}"></div></div>
@@ -155,7 +174,7 @@ const PL = {
             <div class="row" style="gap:6px;margin-top:8px"><button class="btn ghost sm" data-etq>+ Otra presentación</button><button class="btn sm ${borrar ? "" : "sec"}" data-borrar>Borrar posiciones</button></div>
           </div>
           <div>
-            <div class="card"><div class="row"><h3 class="grow" style="margin:0">${esc(this.MUEBLES[pl.mueble])}</h3><button class="btn ghost sm" data-limpiar>Vaciar</button></div>
+            <div class="card"><div class="row"><h3 class="grow" style="margin:0">${esc(this.MUEBLES[pl.mueble])}${pl.muebles.length > 1 ? ` <span class="tiny muted">· mueble ${mi + 1} de ${pl.muebles.length}</span>` : ""}</h3><button class="btn ghost sm" data-limpiar>Vaciar</button>${pl.muebles.length > 1 ? `<button class="btn ghost sm" data-mquitar>Quitar mueble</button>` : ""}</div>
               <div style="margin-top:12px">${this.dibujo(pl, true)}</div>
               <div style="margin-top:14px">${this.tablaTotales(pl)}</div>
               <p class="tiny muted" style="margin:8px 0 0">Nivel 1 = el de abajo${["nevera", "puertas", "anaquel", "punta"].includes(pl.mueble) && pl.niveles >= 3 ? " · <b style=\"color:var(--azul)\">número azul</b> = nivel de los ojos, el que más vende" : ""} · Frentes = posiciones ocupadas · Fondo = unidades hacia atrás · Altura = unidades apiladas · Unidades = frentes × fondo × altura.</p></div>
@@ -166,8 +185,13 @@ const PL = {
       $("#pn").oninput = () => (pl.nombre = $("#pn").value);
       $("#pnt").oninput = () => (pl.nota = $("#pnt").value);
       $$("[data-mueble]", root).forEach((b) => (b.onclick = () => {
-        leer(); const antes = pl.mueble; pl.mueble = b.dataset.mueble; $("#pm", root).value = pl.mueble;
-        const tp = this.TIPO[pl.mueble], vacio = !pl.celdas.flat().some(Boolean);
+        leer(); if (b.dataset.mueble === pl.mueble) return;
+        if (pl.celdas.flat().some(Boolean)) {
+          guardarM(); pl.muebles.push(nuevoM(b.dataset.mueble)); cargarM(pl.muebles.length - 1); pintar();
+          return toast(`Se agregó ${this.MUEBLES[b.dataset.mueble]} como otro mueble. El anterior conserva sus frentes.`);
+        }
+        const antes = pl.mueble; pl.mueble = b.dataset.mueble; $("#pm", root).value = pl.mueble;
+        const tp = this.TIPO[pl.mueble], vacio = true;
         if (vacio) { pl.niveles = tp.nv; pl.posiciones = this.ESPACIOS[pl.mueble]; } else if (pl.niveles > tp.max) { pl.niveles = tp.max; toast(`Este mueble lleva hasta ${tp.max} niveles; se quitaron los de arriba.`); }
         if (pl.mueble === "exhibidor" && antes !== "exhibidor") pl.porNivel = this.piramide(pl.niveles, pl.posiciones);
         if (pl.mueble !== "exhibidor" && antes === "exhibidor") pl.posiciones = Math.max(...pl.porNivel);
@@ -188,6 +212,12 @@ const PL = {
       $$("[data-alto]").forEach((el) => (el.onchange = () => { leer(); pl.productos[el.dataset.alto].alto = Math.max(1, Number(el.value) || 1); pintar(); }));
       $("[data-borrar]").onclick = () => { leer(); borrar = !borrar; pintar(); };
       $("[data-limpiar]").onclick = () => { leer(); pl.celdas = []; ajustar(); pintar(); };
+      $$("[data-mtab]", root).forEach((b) => (b.onclick = () => { leer(); guardarM(); cargarM(+b.dataset.mtab); pintar(); }));
+      $("[data-madd]", root).onclick = () => { leer(); guardarM(); pl.muebles.push(nuevoM("nevera")); cargarM(pl.muebles.length - 1); pintar(); toast("Mueble nuevo: elige su tipo y marca sus frentes"); };
+      const mq = $("[data-mquitar]", root); if (mq) mq.onclick = async () => {
+        leer(); if (!(await confirmar(`Se quitará ${this.MUEBLES[pl.mueble]} con sus frentes de este planograma.`, "Quitar mueble"))) return;
+        pl.muebles.splice(mi, 1); cargarM(Math.max(0, mi - 1)); pintar();
+      };
       $("[data-etq]").onclick = () => {
         leer();
         const n = prompt("Nombre de la presentación (ej.: Mozzarella rebanada 200 g)");
@@ -234,11 +264,12 @@ const PL = {
       pintarCadenas(); pintarTiendas();
       // guardar
       const guardar = async (copia = false) => {
-        leer();
-        if (!pl.nombre) pl.nombre = this.nombreAuto(pl.mueble, tiendas, clientes);
-        const usados = new Set(pl.celdas.flat().filter(Boolean));
+        leer(); guardarM();
+        if (!pl.nombre) pl.nombre = this.nombreAuto(pl.muebles[0].mueble, tiendas, clientes);
+        const usados = new Set(pl.muebles.flatMap((m) => (m.celdas || []).flat()).filter(Boolean));
         const prods = Object.fromEntries(Object.entries(pl.productos).filter(([k, c]) => usados.has(k) || !c.catalogo));
-        const datos = { nombre: copia ? pl.nombre + " (copia)" : pl.nombre, mueble: pl.mueble, niveles: pl.niveles, posiciones: pl.posiciones, celdas: pl.celdas, productos: prods, nota: pl.nota || null, activo: pl.activo, actualizado_at: new Date().toISOString() };
+        const m0 = pl.muebles[0];
+        const datos = { nombre: copia ? pl.nombre + " (copia)" : pl.nombre, mueble: m0.mueble, niveles: m0.niveles, posiciones: m0.posiciones, celdas: m0.celdas, muebles: pl.muebles, productos: prods, nota: pl.nota || null, activo: pl.activo, actualizado_at: new Date().toISOString() };
         const r = id && !copia ? await sb.from("planogramas").update(datos).eq("id", id).select("id").single() : await sb.from("planogramas").insert(datos).select("id").single();
         if (r.error) return toast(r.error.message);
         const nid = r.data.id;
@@ -263,9 +294,9 @@ const PL = {
     if (!pls.length) return "";
     v.planos = v.planos || {};
     return `<h3 class="sec-t" style="margin-top:0">Planograma</h3>${pls.map((pl) => `<div class="card pl-visita" data-pl="${pl.id}">
-      <div class="row"><b class="grow">${esc(pl.nombre)}</b><span class="tiny muted">${esc(this.MUEBLES[pl.mueble])}</span></div>
+      <div class="row"><b class="grow">${esc(pl.nombre)}</b><span class="tiny muted">${this.lista(pl).map((m) => esc(this.MUEBLES[m.mueble])).join(" + ")}</span></div>
       ${pl.nota ? `<div class="small" style="margin:6px 0">${esc(pl.nota)}</div>` : ""}
-      <div class="pl-mini" style="margin:8px 0">${this.dibujo(pl)}</div>${this.tablaTotales(pl)}
+      ${this.lista(pl).map((m) => `${this.lista(pl).length > 1 ? `<div class="tiny muted" style="margin-top:10px"><b>${esc(this.MUEBLES[m.mueble])}</b></div>` : ""}<div class="pl-mini" style="margin:8px 0">${this.dibujo(m)}</div>`).join("")}${this.tablaTotales(this.junto(pl))}
       <div class="small" style="margin:12px 0 6px"><b>¿La exhibición cumple el planograma?</b></div>
       <div class="row" style="gap:6px">${[["si", "Cumple"], ["parcial", "Parcial"], ["no", "No cumple"]].map(([k, t]) => `<button class="btn sm sp ${v.planos[pl.id] === k ? "" : "sec"}" data-cumple="${k}">${t}</button>`).join("")}</div></div>`).join("")}`;
   },
