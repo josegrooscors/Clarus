@@ -48,14 +48,14 @@ const V = {
         <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}</div>
         ${h && esHoy ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : esHoy ? `<span class="pill p-azul">Iniciar</span>` : `<span class="pill p-gris">${esc(dSel.etiqueta)}</span>`}</div>`;
     };
-    $("#ruta").insertAdjacentHTML("beforeend", ruta.map((c, i) => fila(c, i)).join(""));
+    $("#ruta", root).insertAdjacentHTML("beforeend", ruta.map((c, i) => fila(c, i)).join(""));
     $$("[data-dia]", root).forEach((el) => (el.onclick = () => { root.innerHTML = ""; const nr = root.cloneNode(false); root.replaceWith(nr); V.hoy(nr, el.dataset.dia); }));
     const pintarOtras = (q) => {
       q = sinAcentos(q.trim());
       const lista = q ? cat.clientes.filter((c) => q.split(/\s+/).every((w) => sinAcentos(c.nombre + " " + (c.cadena || "") + " " + (c.codigo || "") + " " + (c.zona || "")).includes(w))).slice(0, 25) : [];
-      $("#otras").innerHTML = lista.map((c) => fila(c)).join("") || (q ? `<div class="muted small">Sin resultados</div>` : "");
+      $("#otras", root).innerHTML = lista.map((c) => fila(c)).join("") || (q ? `<div class="muted small">Sin resultados</div>` : "");
     };
-    $("#buscar").oninput = (e) => pintarOtras(e.target.value);
+    $("#buscar", root).oninput = (e) => pintarOtras(e.target.value);
     root.addEventListener("click", (e) => {
       const it = e.target.closest("[data-c]"); if (!it) return;
       const c = cat.clientes.find((x) => x.id == it.dataset.c);
@@ -64,10 +64,10 @@ const V = {
     App.syncPill();
     if (navigator.onLine) sb.rpc("mi_desempeno").then(({ data }) => {
       if (!data) return; LS.set("desemp", data);
-      const el = $("#desemp"); if (el) el.innerHTML = V.tarjetaDesempeno(data, cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length);
+      const el = $("#desemp", root); if (el) el.innerHTML = V.tarjetaDesempeno(data, cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length);
     });
     if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
-      const el = $("#porEscanear"); if (!el || !count) return;
+      const el = $("#porEscanear", root); if (!el || !count) return;
       el.innerHTML = `<a class="card" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--azul-cl);border-color:var(--azul-med)">
         <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${count} pedido(s) sin orden escaneada</b><div class="small muted">Escanea la orden de compra cuando la tienda te la entregue</div></div><span class="btn sm">Escanear</span></a>`;
     });
