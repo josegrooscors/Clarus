@@ -449,3 +449,15 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .pl-solo{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--gris);margin:8px 0 2px}.pl-solo input{width:18px;height:18px;accent-color:var(--azul)}
 .pl-tiendas{max-height:none}
 .pl-dd-op .grow{flex:1}
+
+/* v0.14.16: más espacios por repisa, competencia y participación en el espacio */
+.pl-celda{min-width:12px}
+.pl-mueble{overflow-x:auto}
+.pl-celda.comp{border:1.5px solid #9AA6B8;background:repeating-linear-gradient(135deg,#C9D2DF 0 4px,#EEF2F7 4px 8px)}
+.pl-comp{background:repeating-linear-gradient(135deg,#9AA6B8 0 3px,#E7ECF2 3px 6px)!important}
+.pl-share{margin-bottom:12px}
+.pl-share-b{display:flex;height:10px;border-radius:5px;background:#EEF2F7;overflow:hidden;margin-bottom:6px}
+.pl-share-b i{display:block;background:var(--azul)}.pl-share-b i.c{background:repeating-linear-gradient(135deg,#9AA6B8 0 3px,#C9D2DF 3px 6px)}
+.pl-share .pl-dot{display:inline-block;vertical-align:-1px;margin-right:5px}
+.pl-paso{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--azul);color:#fff;font-size:13px;margin-right:8px;vertical-align:2px}
+.pl-tiendas-card{margin-bottom:14px}
