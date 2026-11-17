@@ -1,0 +1,3 @@
+-- 026: planogramas.mueble admite 8 tipos: nevera (abierta), puertas, deli (vitrina curva), vitrina (recta),
+--      exhibidor (isla de pisos), cofre (congelador horizontal), anaquel (góndola seca), punta (punta de góndola).
+-- Los niveles se muestran de abajo hacia arriba (1 = abajo); los datos no cambian (celdas[0] sigue siendo el nivel de arriba).
