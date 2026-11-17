@@ -153,6 +153,8 @@ const R = {
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
+      <div id="r-espacio"></div>
+
       ${asistencia}
 
       <h3 class="sec-t">Por vendedora</h3>
@@ -171,6 +173,7 @@ const R = {
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
     $("#rv", root).onchange = (e) => R.render(root, periodo, e.target.value);
+    const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
   },
 
   // Calendario de asistencia del mes: azul = asistió (tuvo visitas), rojo = falta (tenía ruta y no visitó), gris = sin ruta ese día

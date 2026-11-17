@@ -192,13 +192,14 @@ const V = {
   },
 
   pGestion(box, v, cat, siguiente) {
-    box.innerHTML = `${PL.enVisita(v, cat)}<p class="muted small" style="margin-top:0">Marca lo que hiciste en la tienda.</p>
+    box.innerHTML = `${AUD.enVisita(v, cat)}${PL.enVisita(v, cat)}<p class="muted small" style="margin-top:0">Marca lo que hiciste en la tienda.</p>
       <div class="list">${cat.tareas.map((t) => `<div class="check ${v.gestiones[t.id] ? "on" : ""}" data-t="${t.id}"><div class="box">✓</div><div>${esc(t.nombre)}</div></div>`).join("")}</div>
       <button class="btn block" style="margin-top:16px" data-ok>Guardar y seguir</button>`;
     $$(".check", box).forEach((el) => (el.onclick = () => {
       el.classList.toggle("on"); v.gestiones[el.dataset.t] = el.classList.contains("on"); Visita.set(v);
     }));
     PL.enlazarVisita(box, v);
+    AUD.enlazarVisita(box, v, cat, () => this.pGestion(box, v, cat, siguiente));
     $("[data-ok]", box).onclick = async () => {
       const pls = PL.deTienda(cat, v.cliente_id);
       if (pls.some((p) => !(v.planos || {})[p.id])) return toast("Indica si la exhibición cumple el planograma");
