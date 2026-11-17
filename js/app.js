@@ -35,6 +35,7 @@ const App = {
   async render() {
     if (!DB.user) return this.login();
     if (DB.estado?.vencida) return this.vencido();
+    const gen = (this._gen = (this._gen || 0) + 1); // cada pintado tiene número; si llega otro mientras carga, el viejo no muestra errores
     document.body.classList.remove("en-login");
     let ruta = (location.hash || "").slice(1);
     const menu = this.rutas();
@@ -78,6 +79,7 @@ const App = {
       if ((ruta === "hoy" || ruta === "resumen") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
       console.error(e);
+      if (gen !== this._gen || !root.isConnected) return; // pantalla vieja: ya se está mostrando otra
       root.innerHTML = `<div class="empty card flat"><div class="ic">${ic("alerta", 34)}</div>${esc(e.message || e)}<br><button class="btn sec sm" style="margin-top:12px" onclick="App.render()">Reintentar</button></div>`;
     }
     // Logo de la empresa cliente arriba a la derecha (se vuelve a poner si la pantalla se redibuja)

@@ -41,8 +41,8 @@ const PL = {
       sb.from("planogramas").select("*").order("nombre"),
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
     ]);
-    if (error) { $("#pll").textContent = error.message; return; }
-    $("#pll").outerHTML = pls.length ? `<div class="pl-grid">${pls.map((pl) => `<a class="card pl-card" href="#planogramas/${pl.id}">
+    if (error) { $("#pll", root).textContent = error.message; return; }
+    $("#pll", root).outerHTML = pls.length ? `<div class="pl-grid">${pls.map((pl) => `<a class="card pl-card" href="#planogramas/${pl.id}">
         <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${esc(this.MUEBLES[pl.mueble])} · ${pl.niveles} niveles × ${pl.posiciones} posiciones</div></div>
         ${pl.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>
         <div class="pl-mini">${this.dibujo(pl)}</div>

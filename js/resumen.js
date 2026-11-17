@@ -19,6 +19,7 @@ const R = {
 
   async render(root, periodo = LS.get("res.p", "hoy"), vend = LS.get("res.v", "")) {
     LS.set("res.p", periodo); LS.set("res.v", vend);
+    const gen = (root._resGen = (root._resGen || 0) + 1); // si se vuelve a pintar mientras carga, esta carga se descarta
     const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hasta.slice(0, 8) + "01", finMes = hasta < hoy ? hasta : hoy; // mes del período elegido
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Resumen</h1></div></div>
       <div class="steps">${this.periodos.map(([k, t]) => `<div class="step ${k === periodo ? "on" : ""}" data-per="${k}">${t}</div>`).join("")}</div>
@@ -44,10 +45,11 @@ const R = {
       sb.from("clientes").select("id, modalidad").neq("modalidad", "pedido_tienda"),
       sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
     ]);
+    if (gen !== root._resGen || !$("#rs", root)) return; // la pantalla cambió mientras cargaba
     const err = [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR].find((r) => r.error);
+    if (err) { $("#rs", root).textContent = err.error.message; return; }
     // Clientes que no piden en tienda (El Machetazo: el cliente envía el pedido; Rey: resurtido automático) no cuentan para efectividad ni alertas sin pedido
     const sinPedTienda = new Set(cliR.data.map((c) => c.id)), pideEnTienda = (x) => !sinPedTienda.has(x.cliente_id);
-    if (err) { $("#rs").textContent = err.error.message; return; }
 
     // Vendedoras = perfiles con tiendas asignadas
     const asigTodas = asigR.data;
@@ -108,7 +110,7 @@ const R = {
     const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:4px">${sub}</div>` : ""}</div>`;
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
-    $("#rs").outerHTML = `
+    $("#rs", root).outerHTML = `
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
       ${agotSinPed.length ? `<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--rosa);border-color:#F3C4C0">
@@ -168,7 +170,7 @@ const R = {
         <div class="card"><h3>Clientes programados sin visita</h3>${R.lista(sinVisita.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00")]))}</div>
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
-    $("#rv").onchange = (e) => R.render(root, periodo, e.target.value);
+    $("#rv", root).onchange = (e) => R.render(root, periodo, e.target.value);
   },
 
   // Calendario de asistencia del mes: azul = asistió (tuvo visitas), rojo = falta (tenía ruta y no visitó), gris = sin ruta ese día

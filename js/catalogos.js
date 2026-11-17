@@ -297,7 +297,7 @@ const M = {
     const enRuta = !!(vend && dNum);
     const tiendas = (cl.data || []).filter((c) => (vend || dNum ? ids.has(c.id) : true)).sort((a, b) => (enRuta ? ord(a.id) - ord(b.id) : 0) || a.nombre.localeCompare(b.nombre));
     const conGps = tiendas.filter((t) => t.lat != null);
-    $("#mp").outerHTML = `<div class="row wrap" style="margin-bottom:12px;gap:8px">
+    $("#mp", root).outerHTML = `<div class="row wrap" style="margin-bottom:12px;gap:8px">
         <select class="in" id="mv" style="width:auto"><option value="">Todas las vendedoras</option>${vendedoras.map((v, i) => `<option value="${v.id}" ${v.id === vend ? "selected" : ""}>${esc(v.nombre)}</option>`).join("")}</select>
         <div class="steps" style="margin:0">${[["hoy", "Hoy"], ["todos", "Todos los días"], ...[1, 2, 3, 4, 5, 6].map((d) => [String(d), DIAS[d]])].map(([k, t]) => `<div class="step ${String(k) === String(dia) ? "on" : ""}" data-dia="${k}">${t}</div>`).join("")}</div></div>
       <div class="mapa-grid"><div class="card mapa-lista"><div class="small muted" style="margin-bottom:8px">${tiendas.length} tienda(s) · ${conGps.length} con ubicación${tiendas.length - conGps.length ? ` · <b style="color:var(--durazno-t)">${tiendas.length - conGps.length} sin GPS</b>` : ""}</div>

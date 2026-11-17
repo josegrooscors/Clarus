@@ -16,8 +16,8 @@ const PK = {
         <div class="steps">${[["preparar", "Por preparar"], ["rutas", "Rutas de despacho"], ["facturar", "Por facturar"]].map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div>
         <div id="pkc" class="muted">Cargando…</div>`;
       $$("[data-tab]", root).forEach((el) => (el.onclick = () => { tab = el.dataset.tab; LS.set("pk.tab", tab); pintar(); }));
-      if (tab === "rutas") return this.listaRutas($("#pkc"));
-      if (tab === "facturar") return this.listaRutas($("#pkc"), true);
+      if (tab === "rutas") return this.listaRutas($("#pkc", root));
+      if (tab === "facturar") return this.listaRutas($("#pkc", root), true);
       const desde = new Date(Date.now() - 21 * 864e5).toISOString();
       const [{ data: peds, error }, { data: items }, { data: asig }] = await Promise.all([
         sb.from("v_pedidos").select("id, cliente_id, tienda, cadena, vendedor_id, vendedor, creado_at, estado, numero_orden, documento, nota_vendedor, id_local")
@@ -25,7 +25,7 @@ const PK = {
         sb.from("pedido_items").select("pedido_id, producto_id, propuesto, aprobado, productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").gt("propuesto", 0),
         sb.from("asignacion_tiendas").select("cliente_id, orden, clientes(zona)"),
       ]);
-      if (error) { $("#pkc").textContent = error.message; return; }
+      if (error) { $("#pkc", root).textContent = error.message; return; }
       const it = {}; (items || []).forEach((x) => (it[x.pedido_id] = it[x.pedido_id] || []).push(x));
       const zona = {}, ord = {}; (asig || []).forEach((a) => { zona[a.cliente_id] = a.clientes?.zona || "Sin grupo"; ord[a.cliente_id] = a.orden ?? 999; });
       const lista = peds.filter((p) => it[p.id]);
@@ -33,7 +33,7 @@ const PK = {
       const grupos = {};
       lista.forEach((p) => { const g = agrupar === "vendedor" ? p.vendedor || "Sin vendedora" : zona[p.cliente_id] || "Sin grupo"; (grupos[g] = grupos[g] || []).push(p); });
       const cajas = (p) => it[p.id].map((x) => `${fmtNum(Number(x.aprobado ?? x.propuesto), 1)} ${esc(x.productos.nombre.replace(/^Queso /, ""))}`).join(" · ");
-      $("#pkc").outerHTML = `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="small muted">Agrupar por</span>
+      $("#pkc", root).outerHTML = `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="small muted">Agrupar por</span>
           ${[["vendedor", "Vendedora"], ["zona", "Grupo de ruta"]].map(([k, t]) => `<button class="btn sm ${agrupar === k ? "" : "sec"}" data-agr="${k}">${t}</button>`).join("")}</div>
         ${lista.length ? Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0])).map(([g, ps]) => `<div class="card pk-grupo">
           <div class="check pk-todos ${ps.every((p) => this.sel.has(p.id)) ? "on" : ""}" data-grupo="${esc(g)}"><div class="box">✓</div><b class="grow">${esc(g)}</b><span class="tiny muted">${ps.length} pedido(s)</span></div>

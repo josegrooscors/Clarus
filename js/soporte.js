@@ -53,7 +53,7 @@ const SOP = {
       let q = sb.from("v_soporte").select("*").order("ultimo_at", { ascending: false }).limit(200);
       if (ag) q = tab === "pendientes" ? q.eq("estado", "abierto").order("ultimo_at", { ascending: true }) : tab === "respondidos" ? q.eq("estado", "respondido") : q.eq("estado", "resuelto");
       const { data, error } = await q;
-      if (error) { $("#sl").textContent = error.message; return; }
+      if (error) { $("#sl", root).textContent = error.message; return; }
       if (ag) {
         const { data: mes } = await sb.from("soporte_tickets").select("creado_at, primera_respuesta_at, estado").gte("creado_at", new Date(Date.now() - 30 * 864e5).toISOString());
         const resp = (mes || []).filter((t) => t.primera_respuesta_at).map((t) => (new Date(t.primera_respuesta_at) - new Date(t.creado_at)) / 60000);
@@ -63,7 +63,7 @@ const SOP = {
           <div class="kpi ${pend ? "alerta" : ""}"><div class="v">${tab === "pendientes" ? data.length : pend}</div><div class="l">Por responder</div></div>
           <div class="kpi"><div class="v">${prom == null ? "–" : prom < 60 ? Math.round(prom) + " min" : fmtNum(prom / 60, 1) + " h"}</div><div class="l">Tiempo promedio de primera respuesta</div><div class="tiny muted" style="margin-top:4px">últimos 30 días · ${(mes || []).length} consulta(s)</div></div></div>`;
       }
-      $("#sl").outerHTML = data.length ? `<div class="card list">${data.map((t) => {
+      $("#sl", root).outerHTML = data.length ? `<div class="card list">${data.map((t) => {
           const espera = ag && t.estado === "abierto" ? (Date.now() - new Date(t.ultimo_at)) / 60000 : 0;
           return `<a class="item" href="#soporte/${t.id}"><div class="ava">${ag ? esc(iniciales(t.usuario)) : ic("soporte", 22)}</div>
             <div class="grow"><div class="t" style="${this.sinLeer(t) ? "font-weight:700" : ""}">${ag ? esc(t.usuario) + " · " : ""}${esc(t.asunto)}</div>

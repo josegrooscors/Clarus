@@ -87,13 +87,13 @@ const G = {
       sb.from("v_visitas").select("*").eq("fecha", hoyISO()).order("checkin_at"),
       sb.from("v_pedidos").select("estado, documento"),
     ]);
-    if (error) { $("#eq").textContent = error.message; return; }
+    if (error) { $("#eq", root).textContent = error.message; return; }
     const enTienda = vis.filter((v) => v.estado === "abierta").length;
     const fuera = vis.filter((v) => v.checkin_dentro === false || v.checkout_dentro === false).length;
     const porImprimir = (ped || []).filter((p) => ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado) && p.documento).length;
     const porVend = {};
     vis.forEach((v) => (porVend[v.vendedor] = porVend[v.vendedor] || []).push(v));
-    $("#eq").outerHTML = `<div class="kpis">
+    $("#eq", root).outerHTML = `<div class="kpis">
         <div class="kpi"><div class="v">${vis.length}</div><div class="l">Visitas hoy</div></div>
         <div class="kpi"><div class="v">${enTienda}</div><div class="l">En tienda ahora</div></div>
         <div class="kpi"><div class="v" style="color:${fuera ? "var(--rosa-t)" : "inherit"}">${fuera}</div><div class="l">Fuera de la tienda (GPS)</div></div>
@@ -123,7 +123,7 @@ const G = {
       sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd").eq("mes", mesActual()),
       dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
     ]);
-    if (error) { $("#pg").textContent = error.message; return; }
+    if (error) { $("#pg", root).textContent = error.message; return; }
     const vendedoras = [...new Map(asig.map((a) => [a.vendedor_id, a.perfiles?.nombre || "—"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
     const O = {}; (obj || []).forEach((o) => { const x = (O[o.cliente_id] = O[o.cliente_id] || { o: 0, v: 0 }); x.o += Number(o.objetivo_usd || 0); x.v += Number(o.venta_usd || 0); });
     // Semana: tiendas por vendedora y día
@@ -138,7 +138,7 @@ const G = {
       return dSel.iso < hoyISO() ? `<span class="pill p-rosa">No visitada</span>` : `<span class="pill p-durazno">Pendiente</span>`;
     };
     const tit = dSel.etiqueta === "Hoy" || dSel.etiqueta === "Mañana" ? `${dSel.etiqueta} · ${DIAS[dSel.dia].toLowerCase()} ${new Date(dSel.iso + "T12:00:00").getDate()}` : DIAS[dSel.dia] + " " + new Date(dSel.iso + "T12:00:00").getDate();
-    $("#pg").outerHTML = `
+    $("#pg", root).outerHTML = `
       <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-d="${d.iso}">${d.etiqueta}</div>`).join("")}</div>
       <select class="in" id="fv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map(([id, n]) => `<option value="${id}" ${id === vend ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
       <div class="kpis">
@@ -166,8 +166,8 @@ const G = {
       sb.from("v_objetivos").select("*").eq("mes", mesActual()).limit(5000),
       sb.from("productos").select("*").order("nombre"),
     ]);
-    if (error) { $("#ob").textContent = error.message; return; }
-    if (!data.length) { $("#ob").outerHTML = `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>Todavía no hay objetivos cargados para este mes.</div>`; return; }
+    if (error) { $("#ob", root).textContent = error.message; return; }
+    if (!data.length) { $("#ob", root).outerHTML = `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>Todavía no hay objetivos cargados para este mes.</div>`; return; }
     const P = Object.fromEntries(prods.map((p) => [p.id, p]));
     const grupo = (o) => o.vendedora || "Sin vendedora · " + (o.zona || "—");
     const sum = (xs, k) => xs.reduce((a, o) => a + Number(o[k] || 0), 0);
@@ -181,7 +181,7 @@ const G = {
       const xs = G[sel], tiendas = [...new Set(xs.map((o) => o.cliente_id))];
       const filas = tiendas.map((id) => { const t = xs.filter((o) => o.cliente_id === id); return { t, n: t[0].tienda, obj: sum(t, "objetivo_usd"), ven: sum(t, "venta_usd") }; })
         .sort((a, b) => (pct(a.ven, a.obj) ?? 0) - (pct(b.ven, b.obj) ?? 0));
-      $("#ob").outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
+      $("#ob", root).outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
         <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · facturado al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}" style="font-size:14px">${pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")) ?? 0}%</span></div>
         <div style="margin-top:6px"><b>${fmtUsd(sum(xs, "venta_usd"))}</b> <span class="muted">de ${fmtUsd(sum(xs, "objetivo_usd"))}</span></div>${barra(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}</div>
         <div class="card scroll-x"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th></tr>
@@ -190,7 +190,7 @@ const G = {
       return;
     }
     const lista = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, "objetivo_usd"), ven: sum(xs, "venta_usd") })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
-    $("#ob").outerHTML = `<div class="kpis">
+    $("#ob", root).outerHTML = `<div class="kpis">
         <div class="kpi"><div class="v">${fmtUsd(tot.ven)}</div><div class="l">Facturado al ${fmtFecha(corte + "T12:00:00")}</div></div>
         <div class="kpi"><div class="v">${fmtUsd(tot.obj)}</div><div class="l">Objetivo del mes</div></div>
         <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>

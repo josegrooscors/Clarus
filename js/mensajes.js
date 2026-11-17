@@ -120,7 +120,7 @@ const MSG = {
       const nb = $("[data-nuevo]", root); if (nb) nb.onclick = () => this.nuevo(() => pintar());
       if (tab === "recibidos") {
         await this.cargarMios();
-        $("#ml").outerHTML = this.mios.length ? `<div class="card list">${this.mios.map((m) => `<a class="item" href="#mensajes/${m.id}">
+        $("#ml", root).outerHTML = this.mios.length ? `<div class="card list">${this.mios.map((m) => `<a class="item" href="#mensajes/${m.id}">
             <div class="ava" style="color:var(--azul)">${ic("msg", 22)}</div>
             <div class="grow"><div class="t" style="${this.pendiente(m) ? "font-weight:700" : ""}">${esc(m.titulo)}</div><div class="small muted">${esc(m.autor || "")} · ${fmtFecha(m.programado_at)}</div></div>
             ${this.porConfirmar(m) ? `<span class="pill p-rosa">Por confirmar</span>` : !m.leido_at ? `<span class="pill p-azul">Nuevo</span>` : m.requiere_ok ? `<span class="pill p-menta">Entendido ✓</span>` : ""}</a>`).join("")}</div>`
@@ -131,8 +131,8 @@ const MSG = {
       let q = sb.from("v_comunicados").select("*").eq("anulado", false).order("programado_at", { ascending: tab === "programados" }).limit(100);
       q = tab === "programados" ? q.gt("programado_at", ahora) : q.lte("programado_at", ahora);
       const { data, error } = await q;
-      if (error) { $("#ml").textContent = error.message; return; }
-      $("#ml").outerHTML = data.length ? `<div class="card list">${data.map((c) => {
+      if (error) { $("#ml", root).textContent = error.message; return; }
+      $("#ml", root).outerHTML = data.length ? `<div class="card list">${data.map((c) => {
           const pc = c.requiere_ok ? pct(c.confirmados, c.destinatarios) : pct(c.leidos, c.destinatarios);
           return `<a class="item" href="#mensajes/${c.id}"><div class="ava" style="color:var(--azul)">${ic("msg", 22)}</div>
             <div class="grow"><div class="t">${esc(c.titulo)}</div><div class="small muted">${tab === "programados" ? "Sale el " : ""}${fmtFecha(c.programado_at)} ${fmtHora(c.programado_at)} · ${c.destinatarios} destinatario(s)</div>
