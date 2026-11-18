@@ -534,3 +534,13 @@ table.perm td:first-child{min-width:200px}
 .lim5-n{font-size:12px;color:var(--gris);margin:6px 2px 12px}
 .card>.lim5-n{margin-bottom:0}
 .lim5-n b{color:var(--tinta);font-weight:600}
+
+/* v0.14.34: filas de reporte delgadas y parejas. El nombre va en una sola línea (si no cabe, termina en …) y los datos no se parten. */
+.scroll-x>table.t th:first-child,.scroll-x>table.t td:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scroll-x>table.t td{white-space:nowrap;vertical-align:middle}
+.scroll-x>table.t td .pill{vertical-align:middle}
+table.perm td:first-child,.scroll-x>table.t.perm td:first-child{white-space:normal;overflow:visible}
+/* Inicio de sesión: Chrome pintaba un rectángulo de color al autocompletar usuario y contraseña. Se deja transparente. */
+.foco-campo input:-webkit-autofill,.foco-campo input:-webkit-autofill:hover,.foco-campo input:-webkit-autofill:focus,.foco-campo input:-webkit-autofill:active{
+  -webkit-text-fill-color:#0B1B33;caret-color:#0B1B33;transition:background-color 600000s 0s,color 600000s 0s;-webkit-box-shadow:0 0 0 1000px transparent inset;box-shadow:0 0 0 1000px transparent inset;background-clip:text}
+.foco-campo input:autofill{background-clip:text}
