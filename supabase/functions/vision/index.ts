@@ -8,23 +8,35 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 const MODELO = Deno.env.get("VISION_MODELO") || "claude-sonnet-5-5";
 
-const PROMPT = (ctx: { tienda: string; cadena: string; tipo: string; productos: string[] }) => `Eres un auditor de ejecución en punto de venta (como Trax o Nielsen). Analiza la foto de una exhibición de quesos.
-Tienda: ${ctx.tienda} (${ctx.cadena}). Tipo de foto: ${ctx.tipo === "exhibicion_deli" ? "vitrina de deli (quesos en barra/bloque)" : "exhibición de producto empacado (nevera)"}.
-Nuestra marca es VIEJO CÁNTARO. Nuestros productos: ${ctx.productos.join(", ")}. Todo queso de otra marca es COMPETENCIA. Embutidos, jamones u otras categorías son OTRA CATEGORÍA.
-Un "frente" es cada unidad visible de cara al cliente en la primera fila.
-Responde SOLO con un JSON válido, sin texto adicional, con esta forma:
+type Config = { marca: string; productos: { producto: string; presentaciones: { presentacion: string; donde: string; aspecto: string }[] }[]; competencia: string[]; reglas: { id: string; texto: string }[] };
+
+// El prompt se arma con la configuración de visión de cada empresa (marca, presentaciones, competencia y reglas): sirve para cualquier cliente.
+const PROMPT = (ctx: { tienda: string; cadena: string; tipo: string; mueble?: string; cfg: Config }) => {
+  const c = ctx.cfg;
+  const pres = c.productos.flatMap((p) => p.presentaciones.map((x) => `- ${p.producto} · ${x.presentacion} (${x.donde}): ${x.aspecto}`)).join("\n");
+  return `Eres un auditor de ejecución en punto de venta (como Trax o Nielsen). Analiza esta foto de exhibición.
+Tienda: ${ctx.tienda} (${ctx.cadena}). Mueble fotografiado: ${ctx.mueble || ctx.tipo.replace("exhibicion_", "")} (${["exhibicion_deli", "exhibicion_vitrina"].includes(ctx.tipo) ? "vitrina de deli: quesos en barra" : "producto empacado: rebanados y rallados"}).
+NUESTRA MARCA: ${c.marca}. Así se ven nuestras presentaciones:
+${pres}
+COMPETENCIA conocida (puede haber otras): ${c.competencia.join(", ")}. Todo producto de la misma categoría de otra marca es competencia (incluye sucedáneos e imitaciones).
+OTRA CATEGORÍA: embutidos, pepperoni, jamones, etc.
+REGLAS de exhibición a evaluar:
+${c.reglas.map((r) => `- [${r.id}] ${r.texto}`).join("\n")}
+Un "frente" es cada unidad visible de cara al cliente en la primera fila (no cuentes las de atrás).
+Responde SOLO con un JSON válido, sin texto adicional:
 {"calidad":{"ok":true,"problema":null},
  "mueble":"nevera|puertas|deli|vitrina|exhibidor|cofre|anaquel|punta|otro",
- "nuestros":[{"producto":"<uno de nuestros productos>","frentes":0}],
+ "nuestros":[{"producto":"<producto>","presentacion":"<presentación>","frentes":0,"precio":null}],
+ "competencia":[{"marca":"<marca>","frentes":0}],
  "competencia_frentes":0,
- "competencia_marcas":["<marcas que reconozcas>"],
  "otra_categoria_frentes":0,
  "huecos_vacios":0,
- "agotados_nuestros":["<nuestros productos que no aparecen>"],
- "precios":[{"producto":"<texto de la etiqueta>","precio":0}],
+ "agotados_nuestros":["<producto · presentación esperada que no aparece>"],
+ "reglas":[{"id":"<id>","cumple":true,"detalle":"<por qué, corto>"}],
  "observaciones":"<una o dos frases útiles para un supervisor>",
  "confianza":0.0}
-"calidad.problema" puede ser "borrosa", "oscura", "lejos", "cortada" o "no_es_exhibicion" (entonces ok=false). Si no estás seguro de un número, da tu mejor estimación y baja "confianza". No inventes marcas ni precios que no se lean.`;
+"calidad.problema": "borrosa", "oscura", "lejos", "cortada" o "no_es_exhibicion" (ok=false). Evalúa solo las reglas que apliquen al tipo de foto. Si no estás seguro de un número, estímalo y baja "confianza". No inventes marcas ni precios que no se lean.`;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -45,7 +57,12 @@ Deno.serve(async (req) => {
   const out: unknown[] = [];
   for (const f of pend) {
     try {
-      const { data: prods } = await db.from("productos").select("nombre").eq("empresa_id", f.empresa_id).eq("activo", true);
+      const { data: emp } = await db.from("empresas").select("nombre, vision_config").eq("id", f.empresa_id).single();
+      let cfg = emp?.vision_config as Config | null;
+      if (!cfg) { // empresa sin configuración de visión: lo mínimo con su catálogo
+        const { data: prods } = await db.from("productos").select("nombre").eq("empresa_id", f.empresa_id).eq("activo", true);
+        cfg = { marca: emp?.nombre || "nuestra marca", productos: (prods || []).map((p: { nombre: string }) => ({ producto: p.nombre, presentaciones: [{ presentacion: "única", donde: "exhibición", aspecto: "producto con la marca " + (emp?.nombre || "") }] })), competencia: [], reglas: [] };
+      }
       const dl = await db.storage.from("fotos").download(f.storage_path);
       if (dl.error || !dl.data) throw new Error("No se pudo bajar la foto: " + (dl.error?.message || ""));
       const bytes = new Uint8Array(await dl.data.arrayBuffer());
@@ -54,10 +71,10 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "x-api-key": clave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
-          model: MODELO, max_tokens: 1200,
+          model: MODELO, max_tokens: 2000,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: btoa(bin) } },
-            { type: "text", text: PROMPT({ tienda: f.cliente, cadena: f.cadena || "", tipo: f.tipo, productos: (prods || []).map((p: { nombre: string }) => p.nombre) }) },
+            { type: "text", text: PROMPT({ tienda: f.cliente, cadena: f.cadena || "", tipo: f.tipo, mueble: f.mueble, cfg }) },
           ] }],
         }),
       });

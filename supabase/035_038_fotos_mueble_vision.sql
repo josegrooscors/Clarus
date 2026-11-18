@@ -1,0 +1,6 @@
+-- 035: empresas.vision_config (marca, presentaciones con su aspecto, competencia, reglas de exhibición). Viejo Cántaro cargado con las fotos de José (18-nov).
+-- 036: fotos.mueble (nombre visible del mueble); función borrar_foto(id_local) solo propia y con visita abierta; política sto_borrar (carpeta propia en bucket fotos).
+-- 037: vision_pendientes devuelve también el mueble.
+-- 038: fotos_tipo_check admite exhibicion_<mueble> para los 8 muebles (sin esto las fotos nuevas se habrían trabado en la cola).
+-- App v0.14.27: paso Fotos por mueble (bodega + ≥1 foto por mueble; agregar/quitar muebles; recuerda los muebles de cada tienda en el teléfono),
+--   borrar foto antes del check-out, aviso al instante si la foto sale borrosa o muy oscura (calibrado: nítidas 3500–5000, borrosa 34, umbral 120).

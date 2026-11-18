@@ -95,9 +95,31 @@ const Camara = {
   },
 
   // Foto de evidencia: reduce tamaño y estampa fecha, hora y tienda
+  // Calidad de la foto en el teléfono (al instante, sin internet): muy oscura o movida/desenfocada.
+  calidad(c) {
+    const W = 320, H = Math.max(1, Math.round((c.height * W) / c.width));
+    const t = document.createElement("canvas"); t.width = W; t.height = H;
+    const g = t.getContext("2d", { willReadFrequently: true }); g.drawImage(c, 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H).data, gr = new Float32Array(W * H); let suma = 0;
+    for (let i = 0; i < W * H; i++) { gr[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114; suma += gr[i]; }
+    if (suma / (W * H) < 40) return "muy oscura";
+    // nitidez: varianza del laplaciano (bordes marcados = foto nítida)
+    let n = 0, m = 0, m2 = 0;
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; const l = 4 * gr[i] - gr[i - 1] - gr[i + 1] - gr[i - W] - gr[i + W]; n++; m += l; m2 += l * l; }
+    const varianza = m2 / n - (m / n) ** 2;
+    return varianza < 120 ? "borrosa (movida o desenfocada)" : null; // calibrado con fotos reales: nítidas 3500–5000, borrosa 34
+  },
+
   async evidencia(opts) {
-    const r = await this.abrir(opts);
-    if (!r) return null;
+    let r;
+    for (;;) {
+      r = await this.abrir(opts);
+      if (!r) return null;
+      const q = this.calidad(r.canvas);
+      if (!q) break;
+      // No bloquea: avisa al instante y deja elegir (las grandes apps hacen lo mismo)
+      if (!(await confirmar(`La foto salió ${q}. Una foto clara sirve como evidencia y para el análisis automático.`, "Repetir foto", "Usar así", "Revisa la foto"))) break;
+    }
     const max = 1600, s = Math.min(1, max / Math.max(r.canvas.width, r.canvas.height));
     const c = document.createElement("canvas");
     c.width = Math.round(r.canvas.width * s); c.height = Math.round(r.canvas.height * s);

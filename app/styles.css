@@ -495,3 +495,8 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .nm-estado{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .inv .pill{white-space:normal;line-height:1.35;max-width:100%}
 .card,.inv{min-width:0;overflow-wrap:anywhere}
+
+/* v0.14.27: fotos por mueble y borrar foto */
+.foto-ic{display:inline-flex;color:var(--azul);margin-right:10px}
+.thumb-b{position:relative;display:inline-block}
+.thumb-x{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;border:2px solid #fff;background:#D63B4A;color:#fff;font-size:13px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)}

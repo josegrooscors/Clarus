@@ -206,8 +206,14 @@ const DB = {
       case "foto": {
         const id = await this.idVisita(op.lid);
         const path = await this.subir("fotos", op.blob, op.lid, "jpg", "image/jpeg");
-        ok(await sb.from("fotos").insert({ id_local: op.blob, visita_id: id, tipo: d.tipo, storage_path: path, tomada_at: d.at, lat: d.lat, lng: d.lng }));
+        ok(await sb.from("fotos").insert({ id_local: op.blob, visita_id: id, tipo: d.tipo, mueble: d.mueble || null, storage_path: path, tomada_at: d.at, lat: d.lat, lng: d.lng }));
         await IDB.delBlob(op.blob);
+        return;
+      }
+      case "foto_borrar": {
+        const r = await sb.rpc("borrar_foto", { p_id_local: op.key });
+        if (r.error) { if (r.error.code === "P0001") { r.error.permanente = true; } throw r.error; }
+        if (r.data) await sb.storage.from("fotos").remove([r.data]);
         return;
       }
       case "promo": {
