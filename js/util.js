@@ -135,3 +135,17 @@ function proximosDias(n = 7) {
     return { iso, dia: w, etiqueta: et };
   });
 }
+
+// Franjas de pasos/pestañas (.steps): la pestaña activa se centra sola cuando aparece o cambia
+// (ej.: al pasar de Promociones a Pedido en la visita). Si la persona desliza con el dedo, se respeta hasta el próximo cambio.
+const centrarPasos = () => $$(".steps").forEach((s) => {
+  const on = $(".step.on", s); if (!on) return;
+  const clave = on.textContent; if (s.dataset.centrado === clave) return;
+  s.dataset.centrado = clave;
+  if (s.scrollWidth <= s.clientWidth) return;
+  const d = on.getBoundingClientRect().left - s.getBoundingClientRect().left - (s.clientWidth - on.offsetWidth) / 2;
+  s.scrollTo({ left: s.scrollLeft + d, behavior: "smooth" });
+});
+let _cpPend = false;
+new MutationObserver(() => { if (_cpPend) return; _cpPend = true; requestAnimationFrame(() => { _cpPend = false; centrarPasos(); }); })
+  .observe(document.documentElement, { childList: true, subtree: true });
