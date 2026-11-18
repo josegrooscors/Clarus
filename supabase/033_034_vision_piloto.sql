@@ -1,0 +1,10 @@
+-- 033/034 (18-nov-2026): Piloto de visión artificial.
+-- foto_analisis: un análisis por foto de exhibición (resultado jsonb: calidad, nuestros[{producto,frentes}], competencia_frentes,
+--   competencia_marcas, otra_categoria_frentes, huecos_vacios, agotados_nuestros, precios, observaciones, confianza).
+--   Solo lectura para gestores (RLS). confirmado/correccion quedan para la etapa en que la vendedora confirme.
+-- vision_pendientes(limite): fotos exhibicion_* de visitas de Clarus (no Handy) sin análisis listo/error. Solo service role.
+-- Función Edge "vision" (verify_jwt=false, valida x-clarus-token como "avisos"): baja la foto del Storage y la manda al modelo
+--   (secreto ANTHROPIC_API_KEY; modelo por defecto claude-sonnet-5-5, cambiable con el secreto VISION_MODELO).
+--   Sin clave: marca "sin_clave" y se reintenta cuando exista.
+-- pg_cron "clarus-vision": cada 10 min de 7:00 a 20:59 hora de Panamá.
+-- Piloto INVISIBLE para la vendedora; el resumen diario de Yerenis compara IA vs. lo que ella registró.
