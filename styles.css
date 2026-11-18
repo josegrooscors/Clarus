@@ -506,7 +506,7 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 table.t th,.asis th{white-space:nowrap}
 table.t td{overflow-wrap:normal}
 .scroll-x{-webkit-overflow-scrolling:touch}
-.scroll-x>table.t th:first-child,.scroll-x>table.t td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:112px;max-width:46vw;white-space:normal}
+.scroll-x>table.t th:first-child,.scroll-x>table.t td:first-child{position:sticky;left:0;background:#fff;z-index:1;box-shadow:-18px 0 0 #fff;min-width:112px;max-width:46vw;white-space:normal}
 table.perm td:first-child{min-width:200px}
 @media (max-width:759px){table.t{font-size:13.5px}table.t th,table.t td{padding-left:8px;padding-right:8px}}
 
