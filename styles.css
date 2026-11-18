@@ -597,3 +597,8 @@ details.acord>summary .grow{flex:1;min-width:0}
 .asi-ley{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px}
 .asi-ley .asi{width:18px;height:18px;border-radius:5px;font-size:10px;margin-right:4px}
 .asi.hoy.es-hoy{box-shadow:none}
+
+/* v0.14.40: alerta de inventario. El motivo va con las demás etiquetas y, si es largo, baja de línea en vez de salirse de la pantalla */
+.al-m{white-space:normal;border-radius:12px;max-width:100%;text-align:left;line-height:1.3;padding-top:4px;padding-bottom:4px}
+.pill{max-width:100%}
+@media (max-width:700px){.al-t b{white-space:normal}}
