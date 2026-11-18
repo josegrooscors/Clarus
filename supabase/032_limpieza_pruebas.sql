@@ -1,0 +1,5 @@
+-- 17-nov-2026 (pedido de José): se borraron TODAS las visitas y pedidos capturados en Clarus (18 visitas, 12 pedidos, 1 ruta de despacho
+-- y sus fotos, inventarios, gestiones, alertas, ítems, documentos, eventos y pesos) porque eran pruebas. El historial importado de Handy
+-- (id_local 'handy-*': 1,038 visitas y 323 pedidos) NO se tocó. Respaldo completo: private.respaldo_pruebas (273 filas).
+-- Quedan 55 archivos huérfanos en Storage (42 fotos, 13 PDF, 7.5 MB, privados): no se pueden borrar por SQL.
+-- App v0.14.26: si un teléfono tiene en cola datos de una visita borrada, se descartan (no traban la cola).
