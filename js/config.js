@@ -109,6 +109,7 @@ const C = {
         <span class="tiny muted sp">En Google Maps: mantén presionada la tienda y copia las coordenadas.</span></div>` : ""}
       <div class="grid2c"><div><label class="f">Radio permitido (m)</label><input class="in" name="radio" type="number" inputmode="numeric" value="${t.radio_m || 100}" ${dis}></div>
         <div><label class="f">Estado</label><select class="in" name="activo" ${dis}><option value="1">Activa</option><option value="0" ${t.activo ? "" : "selected"}>Inactiva</option></select></div></div>
+      <label class="f">Fotos de la categoría (visión IA)</label><select class="in" name="fotos_categoria" ${dis}><option value="0">No autorizada</option><option value="1" ${t.fotos_categoria ? "selected" : ""}>La tienda autorizó fotos de toda la categoría</option></select>
       ${rutas ? `<h3 style="margin:20px 0 8px">Ruta: quién la visita y qué días</h3><div id="rf" class="list"></div>
         <button class="btn ghost sm" style="margin-top:8px" data-mas>+ Agregar vendedora</button>` : ""}
       <button class="btn block" style="margin-top:20px" data-ok>${t.id ? "Guardar cambios" : "Crear tienda"}</button>`, (m, close) => {
@@ -145,7 +146,7 @@ const C = {
             if (!gps) return toast("No entiendo la ubicación. Escribe: 9.0293, -79.5064", 4000);
             const datos = { nombre: f("nombre"), codigo: f("codigo") || null, cadena: f("cadena") || null, zona: f("zona") || null,
               tipo_id: Number(f("tipo_id")) || null, zona_id: Number(f("zona_id")) || null, lista_id: Number(f("lista_id")) || null, modalidad: f("modalidad") || "pedido_tienda",
-              direccion: f("direccion") || null, lat: gps.lat, lng: gps.lng, radio_m: Math.max(20, Number(f("radio")) || 100), activo: f("activo") === "1" };
+              direccion: f("direccion") || null, lat: gps.lat, lng: gps.lng, radio_m: Math.max(20, Number(f("radio")) || 100), activo: f("activo") === "1", fotos_categoria: f("fotos_categoria") === "1" };
             btn.disabled = true;
             const r = id ? await sb.from("clientes").update(datos).eq("id", id).select("id").single() : await sb.from("clientes").insert(datos).select("id").single();
             if (r.error) throw new Error(r.error.code === "23505" ? "Ya existe una tienda con ese código" : r.error.message);
@@ -299,6 +300,7 @@ const C = {
         <label class="f">Nombre completo</label><input class="in" name="nombre" value="${esc(u.nombre)}">
         <div class="grid2c"><div><label class="f">Rol</label><select class="in" name="rol" ${yo ? "disabled" : ""}>${opciones(u.rol)}</select></div>
           <div><label class="f">Teléfono</label><input class="in" name="telefono" inputmode="tel" value="${esc(u.telefono || "")}"></div></div>
+        ${u.rol === "vendedor" ? `<label class="f">Fotos de la categoría (visión IA)</label><select class="in" name="fcat"><option value="0">No habilitada</option><option value="1" ${u.fotos_categoria ? "selected" : ""}>Habilitada: ya está capacitada</option></select>` : ""}
         <label class="f">Nueva contraseña <span class="muted">(déjala vacía si no la cambias)</span></label><input class="in" name="pw" placeholder="mínimo 6 caracteres" autocomplete="new-password">
         <button class="btn block" style="margin-top:16px" data-ed>Guardar cambios</button>
         ${!yo ? `<button class="btn ${u.activo ? "peligro" : "ok"} block" style="margin-top:10px" data-act>${u.activo ? "Desactivar usuario" : "Activar usuario"}</button>` : ""}`, (m, close) => {
@@ -309,6 +311,8 @@ const C = {
           e.target.disabled = true;
           try {
             await DB.funcion("usuarios", { accion: "editar", id: u.id, nombre: $("[name=nombre]", m).value, telefono: $("[name=telefono]", m).value.trim(), rol: $("[name=rol]", m).value });
+            const fc = $("[name=fcat]", m);
+            if (fc && (fc.value === "1") !== !!u.fotos_categoria) { const r = await sb.rpc("habilitar_fotos_categoria", { p_perfil: u.id, p_on: fc.value === "1" }); if (r.error) throw r.error; }
             const rpw = pw ? await DB.funcion("usuarios", { accion: "password", id: u.id, password: pw }) : null;
             close(); this.usuarios(box);
             if (pw) this.entregarClave({ ...u, usuario: rpw?.usuario || "", ticket: !!rpw?.tickets, nombre: $("[name=nombre]", m)?.value || u.nombre, telefono: $("[name=telefono]", m)?.value.trim() || u.telefono }, pw);
