@@ -1,0 +1,16 @@
+-- 039 (18-nov-2026): Fotos de la categoría con visión IA (share of shelf por foto, como Nielsen/Trax). Piloto.
+-- Se activa con DOS llaves (como las grandes plataformas): clientes.fotos_categoria (la tienda autorizó fotos de toda la categoría)
+--   y perfiles.fotos_categoria (la vendedora ya está capacitada). Sin las dos, la vendedora no ve la cámara. Por defecto, apagado.
+--   Tienda: Configuración › Tiendas › «Fotos de la categoría (visión IA)». Vendedora: Configuración › Usuarios (rpc habilitar_fotos_categoria, solo gestores).
+-- App v0.14.28: en Gestión › tarjeta Auditoría de espacio aparece «Fotos de la categoría · IA piloto»: una o más fotos, un tramo por foto,
+--   de izquierda a derecha y sin repetir. Opcional: no bloquea el paso ni el check-out. Se pueden borrar antes del check-out.
+--   La foto se guarda en fotos con tipo 'categoria' y mueble 'Tramo N'. El conteo a mano sigue disponible («Contar a mano»).
+-- fotos_tipo_check admite 'categoria'. vision_pendientes incluye 'categoria' (con prioridad).
+-- Función vision v4: prompt de categoría (todos los frentes, todos los niveles, marca por marca; sin reglas).
+-- participacion_ia(desde, hasta) (security invoker; foto_analisis solo la ven gestores): última visita con fotos de categoría por tienda,
+--   suma de frentes de las fotos analizadas, % = nuestros ÷ (nuestros + competencia), confianza, competencia por marca
+--   y pct_manual = auditoría a mano de la MISMA visita, para medir la precisión del piloto.
+-- Resumen › «Participación por foto · IA piloto» con la diferencia promedio contra el conteo a mano.
+-- Validado (rollback): 3 fotos / 2 analizadas → 9 nuestros vs 10 competencia = 47 % (a mano 45 %), marcas Lucerna 7 · Bonlac 3;
+--   la vendedora no puede habilitarse sola; la vendedora no ve los números de la IA.
+-- Pendiente para medir de verdad: secreto ANTHROPIC_API_KEY (sin él las fotos quedan «sin_clave» y se reintentan).

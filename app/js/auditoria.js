@@ -1,4 +1,5 @@
 // Clarus · Auditoría de espacio (share of shelf) por tienda.
+// Con fotos de categoría habilitadas (tienda autorizada + vendedora capacitada), la IA cuenta los frentes y la participación sale en el Resumen.
 // La vendedora registra los muebles REALES de la tienda y marca cada espacio: nuestro producto, competencia, otra categoría o vacío.
 // Participación en la categoría = nuestros frentes ÷ (nuestros + competencia). La siguiente auditoría sale llena con la anterior.
 const AUD = {
@@ -21,19 +22,54 @@ const AUD = {
     return out;
   },
 
+  // Fotos de la categoría (visión IA): solo si la tienda lo autorizó y la vendedora está habilitada (capacitada). Opcional, no bloquea.
+  conFotos(v, cat) {
+    const c = (cat.clientes || []).find((x) => x.id === v.cliente_id);
+    return !!(DB.perfil?.fotos_categoria && c?.fotos_categoria);
+  },
+  bloqueFotos(v) {
+    const fs = v.fotosCat || [];
+    return `<div class="aud-fotos"><div class="row"><b class="grow">Fotos de la categoría</b><span class="pill p-azul">IA · piloto</span></div>
+      <div class="tiny muted" style="margin:4px 0 8px">Toma toda la categoría de quesos, nuestra marca y la competencia: de izquierda a derecha, un tramo por foto, sin repetir. Clarus cuenta los espacios. Es opcional.</div>
+      ${fs.length ? `<div class="thumbs" style="margin-bottom:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}"><button type="button" class="thumb-x" data-aborrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
+      <button class="btn sec sm block" data-afoto>${ic("camara", 18)} ${fs.length ? `Foto del tramo ${(v.tramoCat || fs.length) + 1}` : "Tomar foto de la categoría"}</button></div>`;
+  },
+
   // Tarjeta dentro del paso Gestión de la visita
   enVisita(v, cat) {
-    const u = this.ultima(cat, v.cliente_id), toca = this.toca(cat, v.cliente_id), hecha = v.auditoria;
+    const u = this.ultima(cat, v.cliente_id), toca = this.toca(cat, v.cliente_id), hecha = v.auditoria, fotos = this.conFotos(v, cat), nf = (v.fotosCat || []).length;
     const estado = hecha ? `<span class="pill p-menta">Hecha hoy · ${hecha.pct == null ? "–" : hecha.pct + "%"}</span>`
+      : nf ? `<span class="pill p-menta">${nf} foto${nf === 1 ? "" : "s"} enviada${nf === 1 ? "" : "s"}</span>`
       : toca ? `<span class="pill p-durazno">Toca este mes</span>` : `<span class="pill p-gris">Al día</span>`;
-    return `<div class="card aud-card ${toca && !hecha ? "pend" : ""}" style="margin-bottom:14px">
+    return `<div class="card aud-card ${toca && !hecha && !nf ? "pend" : ""}" style="margin-bottom:14px">
       <div class="aud-cab"><div class="grow"><b>Auditoría de espacio</b>
         <div class="tiny muted">${u ? `Última: ${fmtFecha(u.fecha + "T12:00:00")} · ${u.pct == null ? "sin categoría" : u.pct + "% de la categoría"}` : "Esta tienda aún no tiene auditoría."}</div></div>${estado}</div>
-      <div class="tiny muted" style="margin:8px 0">Cuenta los espacios de cada mueble y marca los nuestros y los de la competencia. ${u ? "Sale llena con la anterior: solo corrige lo que cambió." : ""}</div>
-      <button class="btn ${hecha || !toca ? "ghost" : ""} block" data-aud>${hecha ? "Revisar auditoría" : u ? "Actualizar auditoría" : "Hacer auditoría"}</button></div>`;
+      ${fotos ? "" : `<div class="tiny muted" style="margin:8px 0">Cuenta los espacios de cada mueble y marca los nuestros y los de la competencia. ${u ? "Sale llena con la anterior: solo corrige lo que cambió." : ""}</div>`}
+      ${fotos ? this.bloqueFotos(v) : ""}
+      <button class="btn ${hecha || !toca || fotos ? "ghost" : ""} block" data-aud>${hecha ? "Revisar auditoría" : fotos ? "Contar a mano" : u ? "Actualizar auditoría" : "Hacer auditoría"}</button></div>`;
   },
   enlazarVisita(box, v, cat, volver) {
     const b = $("[data-aud]", box); if (b) b.onclick = () => this.editor(box, v, cat, volver);
+    const f = $("[data-afoto]", box);
+    if (f) f.onclick = async () => {
+      try {
+        const n = (v.tramoCat || (v.fotosCat || []).length) + 1;
+        const r = await Camara.evidencia({ titulo: `Categoría de quesos · tramo ${n}`, marca: v.tienda });
+        if (!r) return;
+        const key = uid(); await IDB.putBlob(key, r.blob);
+        v.fotosCat = [...(v.fotosCat || []), { key, at: r.at, thumb: r.thumb }]; v.tramoCat = n; Visita.set(v);
+        await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "categoria", mueble: `Tramo ${n}`, at: r.at, lat: v.lat, lng: v.lng } });
+        toast("Foto guardada ✓ · si la categoría sigue, toma el siguiente tramo"); volver();
+      } catch (e) { toast(e.message, 4000); }
+    };
+    $$("[data-aborrar]", box).forEach((x) => (x.onclick = async () => {
+      if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
+      const key = x.dataset.aborrar;
+      v.fotosCat = (v.fotosCat || []).filter((y) => y.key !== key); Visita.set(v);
+      const op = (await IDB.ops()).find((o) => o.t === "foto" && o.blob === key);
+      if (op) { await IDB.delOp(op.k); await IDB.delBlob(key); } else await DB.encolar({ t: "foto_borrar", key });
+      toast("Foto borrada"); volver();
+    }));
   },
 
   // Editor de la auditoría (pantalla completa dentro del paso)
@@ -152,6 +188,26 @@ const AUD = {
         <div class="card"><h3>Por tienda <span class="tiny muted">(de menor a mayor participación)</span></h3>
           ${R.paginar(rows.sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999)).map((r) => `<div class="al-fila"><div class="al-t"><b>${esc(r.tienda)}</b><span class="tiny muted">${esc(r.vendedor || "")} · ${fmtFecha(r.fecha + "T12:00:00")} · ${r.nuestro} nuestros / ${r.competencia} competencia</span></div>
             <div class="row" style="gap:8px"><span class="pill ${colorPct(r.pct)}">${r.pct == null ? "–" : Math.round(r.pct) + "%"}</span>${flecha(r)}</div></div>`), "par")}</div>`
-      : `<div class="card"><div class="empty"><div class="ic">${ic("resumen", 30)}</div>Aún no hay auditorías de espacio. Las vendedoras las hacen en el paso Gestión de la visita, una vez al mes por tienda.</div></div>`}`;
+      : `<div class="card"><div class="empty"><div class="ic">${ic("resumen", 30)}</div>Aún no hay auditorías de espacio. Las vendedoras las hacen en el paso Gestión de la visita, una vez al mes por tienda.</div></div>`}
+      <div id="r-ia"></div>`;
+    this.iaResumen($("#r-ia", box), desde, hasta, vend);
+  },
+  // Participación por foto (piloto IA). Al lado, la auditoría manual de la misma visita para medir la precisión antes de confiar en la IA.
+  async iaResumen(box, desde, hasta, vend) {
+    const { data, error } = await sb.rpc("participacion_ia", { p_desde: desde, p_hasta: hasta });
+    if (!box || !box.isConnected || error) return;
+    const vn = vend ? (await sb.from("perfiles").select("nombre").eq("id", vend).maybeSingle()).data?.nombre : null;
+    const rows = (data || []).filter((r) => !vn || r.vendedor === vn);
+    if (!rows.length) return;
+    const n = rows.reduce((t, r) => t + r.nuestro, 0), c = rows.reduce((t, r) => t + r.competencia, 0);
+    const marcas = {}; rows.forEach((r) => Object.entries(r.marcas || {}).forEach(([k, x]) => (marcas[k] = (marcas[k] || 0) + x)));
+    const comp = rows.filter((r) => r.pct != null && r.pct_manual != null), dif = comp.length ? Math.round(comp.reduce((t, r) => t + Math.abs(r.pct - r.pct_manual), 0) / comp.length) : null;
+    box.innerHTML = `<div class="card"><div class="row"><h3 class="grow" style="margin:0">Participación por foto</h3><span class="pill p-azul">IA · piloto</span></div>
+      <div class="par-top" style="margin-top:8px"><span class="par-pct">${n + c ? Math.round((100 * n) / (n + c)) + "%" : "–"}</span><span class="muted">según las fotos de la categoría</span></div>
+      <div class="small muted" style="margin:6px 0 10px">${n} frentes nuestros · ${c} de la competencia · ${rows.length} tienda(s)${dif != null ? ` · diferencia con el conteo a mano: <b>${dif} puntos</b> en ${comp.length} tienda(s)` : ""}</div>
+      ${Object.keys(marcas).length ? `<div class="small" style="margin-bottom:10px"><b>Competencia por marca:</b> ${Object.entries(marcas).sort((a, b) => b[1] - a[1]).map(([k, x]) => `${esc(k)} ${x}`).join(" · ")}</div>` : ""}
+      ${R.paginar(rows.sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999)).map((r) => `<div class="al-fila"><div class="al-t"><b>${esc(r.tienda)}</b><span class="tiny muted">${esc(r.vendedor || "")} · ${fmtFecha(r.fecha + "T12:00:00")} · ${r.analizadas} de ${r.fotos} foto(s) leídas · ${r.nuestro} nuestros / ${r.competencia} competencia${r.confianza != null ? ` · confianza ${Math.round(r.confianza * 100)}%` : ""}</span></div>
+        <div class="row" style="gap:8px">${r.pct_manual != null ? `<span class="tiny muted">a mano ${Math.round(r.pct_manual)}%</span>` : ""}<span class="pill ${r.analizadas ? colorPct(r.pct) : "p-gris"}">${r.analizadas ? (r.pct ?? "–") + (r.pct == null ? "" : "%") : "Leyendo…"}</span></div></div>`), "ia")}
+      <div class="tiny muted" style="margin-top:8px">Mientras sea piloto, compáralo con el conteo a mano. Cuando la diferencia sea baja de forma constante, la foto puede reemplazar el conteo.</div></div>`;
   },
 };

@@ -1,4 +1,4 @@
-// Clarus · Piloto de visión artificial (fotos de exhibición).
+// Clarus · Piloto de visión artificial (fotos de exhibición y fotos de categoría).
 // Lo llama pg_cron cada 10 min con x-clarus-token. Toma fotos de exhibición de visitas hechas en Clarus que aún no tienen análisis,
 // las baja del Storage (service role), se las muestra a un modelo de visión y guarda el resultado en foto_analisis.
 // Si no existe el secreto ANTHROPIC_API_KEY, no llama a nadie: marca la foto como "sin_clave".
@@ -14,8 +14,16 @@ type Config = { marca: string; productos: { producto: string; presentaciones: { 
 const PROMPT = (ctx: { tienda: string; cadena: string; tipo: string; mueble?: string; cfg: Config }) => {
   const c = ctx.cfg;
   const pres = c.productos.flatMap((p) => p.presentaciones.map((x) => `- ${p.producto} · ${x.presentacion} (${x.donde}): ${x.aspecto}`)).join("\n");
-  return `Eres un auditor de ejecución en punto de venta (como Trax o Nielsen). Analiza esta foto de exhibición.
-Tienda: ${ctx.tienda} (${ctx.cadena}). Mueble fotografiado: ${ctx.mueble || ctx.tipo.replace("exhibicion_", "")} (${["exhibicion_deli", "exhibicion_vitrina"].includes(ctx.tipo) ? "vitrina de deli: quesos en barra" : "producto empacado: rebanados y rallados"}).
+  const cat = ctx.tipo === "categoria";
+  const que = cat
+    ? `FOTO DE CATEGORÍA (share of shelf, como Nielsen): muestra toda la categoría de quesos o un tramo de ella, con nuestra marca y la competencia.
+Cuenta TODOS los frentes de quesos de TODOS los niveles visibles, marca por marca. Es la parte más importante: cuenta con cuidado, nivel por nivel, de izquierda a derecha.
+Si un producto está cortado en el borde de la foto, cuéntalo solo si se ve más de la mitad (la vendedora toma tramos seguidos sin repetir).
+No evalúes reglas de exhibición: deja "reglas" vacío.`
+    : `Analiza esta foto de exhibición. Mueble fotografiado: ${ctx.mueble || ctx.tipo.replace("exhibicion_", "")} (${["exhibicion_deli", "exhibicion_vitrina"].includes(ctx.tipo) ? "vitrina de deli: quesos en barra" : "producto empacado: rebanados y rallados"}).`;
+  return `Eres un auditor de ejecución en punto de venta (como Trax o Nielsen).
+Tienda: ${ctx.tienda} (${ctx.cadena}).
+${que}
 NUESTRA MARCA: ${c.marca}. Así se ven nuestras presentaciones:
 ${pres}
 COMPETENCIA conocida (puede haber otras): ${c.competencia.join(", ")}. Todo producto de la misma categoría de otra marca es competencia (incluye sucedáneos e imitaciones).
@@ -35,6 +43,7 @@ Responde SOLO con un JSON válido, sin texto adicional:
  "reglas":[{"id":"<id>","cumple":true,"detalle":"<por qué, corto>"}],
  "observaciones":"<una o dos frases útiles para un supervisor>",
  "confianza":0.0}
+En "competencia" pon cada marca por separado con sus frentes; "competencia_frentes" es la suma. Si no lees la marca, usa "Sin identificar".
 "calidad.problema": "borrosa", "oscura", "lejos", "cortada" o "no_es_exhibicion" (ok=false). Evalúa solo las reglas que apliquen al tipo de foto. Si no estás seguro de un número, estímalo y baja "confianza". No inventes marcas ni precios que no se lean.`;
 };
 
@@ -71,7 +80,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "x-api-key": clave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
-          model: MODELO, max_tokens: 2000,
+          model: MODELO, max_tokens: 2500,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: btoa(bin) } },
             { type: "text", text: PROMPT({ tienda: f.cliente, cadena: f.cadena || "", tipo: f.tipo, mueble: f.mueble, cfg }) },
