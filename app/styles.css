@@ -647,5 +647,5 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 
 /* v0.14.46: las pestañas del Resumen quedan fijas con un fondo que tapa la franja entre el encabezado y las pestañas (antes se asomaba lo de atrás) */
 .rtabs{isolation:isolate;background:none}
-.rtabs::before{content:"";position:absolute;left:-24px;right:-24px;top:-16px;bottom:-8px;background:var(--fondo);z-index:-2}
+.rtabs::before{content:"";position:absolute;left:-16px;right:-16px;top:-16px;bottom:-8px;background:var(--fondo);z-index:-2}
 .rtabs::after{content:"";position:absolute;inset:0;background:#E9EDF5;border-radius:14px;z-index:-1}
