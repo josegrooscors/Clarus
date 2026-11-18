@@ -3,6 +3,25 @@ const App = {
   rutas() {
     const r = DB.perfil.rol;
     const m = [];
+    if (r !== "admin") {
+      // Cada pantalla aparece solo si el rol tiene el permiso (Configuración → Permisos).
+      const p = (k) => DB.puede(k), ops = r === "operaciones" || r === "administracion";
+      if (p("picking")) m.push(["picking", "caja", "Picking"]);
+      if (ops && p("ver_pedidos")) m.push(["pedidos", "pedidos", "Pedidos"]);
+      if (p("ver_resumen")) m.push(["resumen", "resumen", "Resumen"]);
+      if (p("visitar")) m.push(["hoy", "ruta", "Ruta"]);
+      if (r === "vendedor" && p("visitar")) m.push(["mis-pedidos", "pedidos", "Pedidos"]);
+      if (p("ver_equipo")) m.push(["equipo", "equipo", "Equipo"]);
+      if (p("ver_agenda")) m.push(["programacion", "reloj", "Programación"]);
+      if (p("ver_metas")) m.push(["objetivos", "ok", "Objetivos"]);
+      if (!ops && p("ver_pedidos")) m.push(["pedidos", "pedidos", "Pedidos"]);
+      if (p("ver_mapa")) m.push(["mapa", "pin", "Mapa", true]);
+      if (p("planogramas")) m.push(["planogramas", "planograma", "Planogramas", true]);
+      if (r !== "vendedor" && p("visitar")) m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
+      if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
+      m.push(["mensajes", "msg", "Mensajes"], ["yo", "menu", "Más"]);
+      return m;
+    }
     if (r === "operaciones") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a preparar pedidos
     if (r === "administracion") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Administración factura dentro de Picking
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
