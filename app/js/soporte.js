@@ -67,10 +67,10 @@ const SOP = {
           const espera = ag && t.estado === "abierto" ? (Date.now() - new Date(t.ultimo_at)) / 60000 : 0;
           return `<a class="item" href="#soporte/${t.id}"><div class="ava">${ag ? esc(iniciales(t.usuario)) : ic("soporte", 22)}</div>
             <div class="grow"><div class="t" style="${this.sinLeer(t) ? "font-weight:700" : ""}">${ag ? esc(t.usuario) + " · " : ""}${esc(t.asunto)}</div>
-              <div class="small muted">${esc(this.CATS.find((c) => c[0] === t.categoria)?.[1] || "")} · ${this.hace(t.ultimo_at)}</div></div>
-            ${this.sinLeer(t) ? `<span class="dot-n"></span>` : ""}
-            ${ag && t.estado === "abierto" ? `<span class="pill ${espera > 60 ? "p-rosa" : espera > 15 ? "p-durazno" : "p-azul"}">Esperando ${this.hace(t.ultimo_at).replace("hace ", "")}</span>`
-              : `<span class="pill ${t.estado === "resuelto" ? "p-menta" : t.estado === "respondido" ? "p-azul" : "p-durazno"}">${t.estado === "resuelto" ? "Resuelto" : t.estado === "respondido" ? "Respondido" : "Enviado"}</span>`}</a>`;
+              <div class="small muted">${esc(this.CATS.find((c) => c[0] === t.categoria)?.[1] || "")} · ${this.hace(t.ultimo_at)}</div>
+              <div style="margin-top:6px">${ag && t.estado === "abierto" ? `<span class="pill ${espera > 60 ? "p-rosa" : espera > 15 ? "p-durazno" : "p-azul"}">Esperando ${this.hace(t.ultimo_at).replace("hace ", "")}</span>`
+              : `<span class="pill ${t.estado === "resuelto" ? "p-menta" : t.estado === "respondido" ? "p-azul" : "p-durazno"}">${t.estado === "resuelto" ? "Resuelto" : t.estado === "respondido" ? "Respondido" : "Enviado"}</span>`}</div></div>
+            ${this.sinLeer(t) ? `<span class="dot-n"></span>` : ""}</a>`;
         }).join("")}</div>`
         : `<div class="empty card flat"><div class="ic">${ic("soporte", 34)}</div>${ag ? (tab === "pendientes" ? "No hay consultas por responder ✓" : "No hay consultas aquí.") : "Aún no tienes consultas."}</div>`;
     };
