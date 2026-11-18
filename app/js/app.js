@@ -64,6 +64,9 @@ const App = {
     document.body.classList.toggle("side-min", !!LS.get("sideMin", false));
     $("#sideTog").onclick = () => { const v = !document.body.classList.contains("side-min"); document.body.classList.toggle("side-min", v); LS.set("sideMin", v); };
     const root = $("#main");
+    // Al cambiar de pantalla se empieza arriba: sin esto, al venir de "Más" deslizado, Configuración abría ya bajada y no se veían ni el título ni las pestañas.
+    const claveRuta = ruta + "/" + (sub || "");
+    if (this._rutaAnt !== claveRuta) { this._rutaAnt = claveRuta; window.scrollTo(0, 0); }
     try {
       if (ruta === "resumen") await R.render(root);
       else if (ruta === "hoy") await V.hoy(root);
