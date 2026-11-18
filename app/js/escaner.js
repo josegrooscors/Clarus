@@ -23,7 +23,8 @@ const Escaner = {
   // Pantalla para ajustar las 4 esquinas
   recortar(src, guia) {
     return new Promise((resolve) => {
-      const quad = this.detectar(src, guia);
+      let quad = this.detectar(src, guia);
+      if (!quad.every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))) quad = [[src.width * 0.07, src.height * 0.07], [src.width * 0.93, src.height * 0.07], [src.width * 0.93, src.height * 0.93], [src.width * 0.07, src.height * 0.93]];
       const el = document.createElement("div");
       el.className = "full";
       el.innerHTML = `<div class="head"><button class="txtbtn" data-x>Repetir</button><b>Ajusta el recorte</b><button class="txtbtn" data-ok>Usar</button></div>
@@ -105,7 +106,7 @@ const Escaner = {
   // la hoja de papeles que la tocan. Si el resultado no es creíble (o no calza con el marco), el recorte es el marco guía.
   detectar(src, guia) {
     const W = 360, s = W / src.width, H = Math.round(src.height * s);
-    const gq = guia || [0.07, 0.07, 0.93, 0.93];
+    const gq = guia && guia.length === 4 && guia.every(Number.isFinite) && guia[2] - guia[0] > 0.2 && guia[3] - guia[1] > 0.2 ? guia : [0.07, 0.07, 0.93, 0.93];
     const def = [[gq[0] * src.width, gq[1] * src.height], [gq[2] * src.width, gq[1] * src.height], [gq[2] * src.width, gq[3] * src.height], [gq[0] * src.width, gq[3] * src.height]];
     try {
       const c = document.createElement("canvas"); c.width = W; c.height = H;
