@@ -6,8 +6,9 @@ const App = {
     if (r === "operaciones") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a preparar pedidos
     if (r === "administracion") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Administración factura dentro de Picking
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
-    // Ruta y Mis pedidos son de quien visita tiendas: la vendedora siempre; gerencia o supervisión solo si tienen tiendas asignadas (o una visita abierta).
-    const conRuta = r === "vendedor" || (LS.get("cat")?.ruta || []).length > 0 || !!Visita.get();
+    // Ruta y Mis pedidos son de quien visita tiendas: la vendedora y la supervisora siempre (la supervisora también ejecuta en tienda);
+    // gerencia solo si tiene tiendas asignadas o una visita abierta.
+    const conRuta = r === "vendedor" || r === "supervisor" || (LS.get("cat")?.ruta || []).length > 0 || !!Visita.get();
     if (conRuta && (r === "vendedor" || r === "admin" || r === "supervisor")) m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r === "operaciones" || r === "administracion") m.push(["objetivos", "ok", "Objetivos"]);
