@@ -484,7 +484,9 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 /* v0.14.20: escáner — vista previa con marco guía y asas en los lados */
 .cam-vista{flex:1;position:relative;min-height:0;display:flex}
 .cam-vista video{flex:1;width:100%;min-height:0;object-fit:contain;background:#000}
-.cam-guia{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
-.cam-guia i{width:min(84%,calc((100% - 70px) * 0.773));aspect-ratio:8.5/11;max-height:calc(100% - 70px);border:3px solid rgba(255,255,255,.95);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.38)}
-.cam-guia span{margin-top:12px;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.cam-vista{overflow:hidden}
+.cam-guia{position:absolute;inset:0;pointer-events:none}
+.cam-guia i{position:absolute;border:3px solid rgba(255,255,255,.95);border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.38)}
+.cam-guia span{position:absolute;left:0;right:0;text-align:center;color:#fff;font-size:14px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .handle.lado{width:30px;height:30px;margin:-15px 0 0 -15px;background:rgba(255,255,255,.92);border-color:#2F5BEA}
+.full{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}

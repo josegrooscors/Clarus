@@ -18,13 +18,24 @@ const Camara = {
         <div class="bar"><span style="width:70px"></span><button class="shutter" data-shot aria-label="Tomar foto"></button><span style="width:70px"></span></div>`;
       document.body.appendChild(el);
       const v = $("video", el); v.srcObject = stream;
-      const cerrar = (r) => { stream.getTracks().forEach((t) => t.stop()); el.remove(); resolve(r); };
+      // El marco guía se dibuja SIEMPRE dentro de la imagen de la cámara (sea vertical u horizontal), con forma de hoja carta
+      const ubicarGuia = () => {
+        const g = $(".cam-guia i", el), t = $(".cam-guia span", el); if (!g || !v.videoWidth) return;
+        const vr = v.getBoundingClientRect(), pr = v.parentElement.getBoundingClientRect(), s = Math.min(vr.width / v.videoWidth, vr.height / v.videoHeight);
+        const iw = v.videoWidth * s, ih = v.videoHeight * s, ix = vr.left - pr.left + (vr.width - iw) / 2, iy = vr.top - pr.top + (vr.height - ih) / 2;
+        let h = ih * 0.86, w = h * (8.5 / 11); if (w > iw * 0.88) { w = iw * 0.88; h = w * (11 / 8.5); }
+        Object.assign(g.style, { width: w + "px", height: h + "px", left: ix + (iw - w) / 2 + "px", top: iy + (ih - h) / 2 + "px" });
+        if (t) Object.assign(t.style, { top: Math.min(pr.height - 28, iy + (ih + h) / 2 + 10) + "px" });
+      };
+      v.addEventListener("loadedmetadata", ubicarGuia); v.addEventListener("resize", ubicarGuia); window.addEventListener("resize", ubicarGuia);
+      const cerrar = (r) => { window.removeEventListener("resize", ubicarGuia); stream.getTracks().forEach((t) => t.stop()); el.remove(); resolve(r); };
       $("[data-x]", el).onclick = () => cerrar(null);
       const btn = $("[data-shot]", el);
       btn.onclick = async () => {
         if (!v.videoWidth || btn.disabled) return;
         btn.disabled = true;
         const tomadaEn = new Date().toISOString();
+        const rGuia = guia ? Camara.rectGuia(el, v) : null; // se mide ANTES de cerrar la cámara (después la pantalla ya no existe)
         let c = null;
         // 1) Foto real del sensor (mejor calidad y exposición), si el navegador lo permite
         try {
@@ -44,9 +55,10 @@ const Camara = {
         // La foto del sensor suele abarcar más que la vista previa (por eso "salía más lejos"): se recorta a lo que se veía
         c = Camara.comoVista(c, v.videoWidth, v.videoHeight);
         if (Camara.oscura(c)) { btn.disabled = false; toast("La foto salió negra. Apunta a la zona con luz e inténtalo de nuevo.", 3500); return; }
+        window.removeEventListener("resize", ubicarGuia);
         stream.getTracks().forEach((t) => t.stop());
         el.remove();
-        resolve({ canvas: c, at: tomadaEn, marca, guia: guia ? Camara.rectGuia(el, v) : null });
+        resolve({ canvas: c, at: tomadaEn, marca, guia: rGuia });
       };
     });
   },
@@ -67,8 +79,10 @@ const Camara = {
     const g = $(".cam-guia i", el); if (!g) return null;
     const vr = v.getBoundingClientRect(), s = Math.min(vr.width / v.videoWidth, vr.height / v.videoHeight);
     const iw = v.videoWidth * s, ih = v.videoHeight * s, ix = vr.left + (vr.width - iw) / 2, iy = vr.top + (vr.height - ih) / 2, r = g.getBoundingClientRect();
+    if (!iw || !ih || !r.width || !r.height) return null;
     const cl = (x) => Math.max(0, Math.min(1, x));
-    return [cl((r.left - ix) / iw), cl((r.top - iy) / ih), cl((r.right - ix) / iw), cl((r.bottom - iy) / ih)];
+    const q = [cl((r.left - ix) / iw), cl((r.top - iy) / ih), cl((r.right - ix) / iw), cl((r.bottom - iy) / ih)];
+    return q.every(Number.isFinite) && q[2] - q[0] > 0.2 && q[3] - q[1] > 0.2 ? q : null;
   },
 
   // ¿La imagen salió negra? (promedio de brillo muy bajo)
