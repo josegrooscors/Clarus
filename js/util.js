@@ -120,6 +120,9 @@ const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
 const colorPct = (p) => (p == null ? "p-gris" : p >= 100 ? "p-menta" : p >= 60 ? "p-azul" : p >= 30 ? "p-durazno" : "p-rosa");
 const barra = (p) => `<div class="barra"><i class="${(p || 0) >= 100 ? "ok" : ""}" style="width:${Math.min(100, p || 0)}%"></i></div>`;
 // Logo de Clarus: un lente abierto con el punto de enfoque
+// Clarus Vision: la lente del logo con un destello (la tecnología de visión artificial de Clarus).
+const visionIc = (s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32" aria-hidden="true"><circle cx="14.5" cy="17.5" r="10" fill="none" stroke="#2F5BEA" stroke-width="3.4" stroke-dasharray="52 11" stroke-linecap="round" transform="rotate(35 14.5 17.5)"/><circle cx="17" cy="15" r="2.9" fill="#0B1B33"/><path d="M26 1.5c.5 3.4 1.6 4.5 5 5-3.4.5-4.5 1.6-5 5-.5-3.4-1.6-4.5-5-5 3.4-.5 4.5-1.6 5-5z" fill="#2F5BEA"/></svg>`;
+const visionSello = (txt = "Visión artificial para el punto de venta") => `<span class="cv-sello">${visionIc(20)}<b>Clarus Vision</b>${txt ? `<i>${txt}</i>` : ""}</span>`;
 const logo = (s = 30) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" fill="none" stroke="#2F5BEA" stroke-width="3.5" stroke-dasharray="62 14" stroke-linecap="round" transform="rotate(35 16 16)"/><circle cx="19" cy="13" r="3.2" fill="#0B1B33"/></svg>`;
 // Cajas a partir de kg (para mostrar objetivos)
 const cajas = (kg, p) => (p?.kg_por_pedido ? kg / Number(p.kg_por_pedido) : kg);
