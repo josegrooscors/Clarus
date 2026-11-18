@@ -6,13 +6,15 @@ const App = {
     if (r === "operaciones") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a preparar pedidos
     if (r === "administracion") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Administración factura dentro de Picking
     if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
-    if (r === "vendedor" || r === "admin" || r === "supervisor") m.push(["hoy", "ruta", "Ruta"]);
+    // Ruta y Mis pedidos son de quien visita tiendas: la vendedora siempre; gerencia o supervisión solo si tienen tiendas asignadas (o una visita abierta).
+    const conRuta = r === "vendedor" || (LS.get("cat")?.ruta || []).length > 0 || !!Visita.get();
+    if (conRuta && (r === "vendedor" || r === "admin" || r === "supervisor")) m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r === "operaciones" || r === "administracion") m.push(["objetivos", "ok", "Objetivos"]);
     else if (r !== "vendedor" && r !== "administracion") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["planogramas", "planograma", "Planogramas", true]);
     if (r === "admin") m.push(["picking", "caja", "Picking", true]);
-    if (r === "admin" || r === "supervisor") m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
+    if (conRuta && (r === "admin" || r === "supervisor")) m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);
     if (C.visible()) m.push(["config", "ajustes", "Configuración", true]);
     m.push(["mensajes", "msg", "Mensajes"], ["yo", "menu", "Más"]); // "☰ Más" igual en celular y computadora
     return m;
@@ -24,6 +26,7 @@ const App = {
     // Celular: máximo 5 botones (los principales + Yo). Avisos, Equipo, Agenda y lo demás quedan dentro de "Yo".
     const m = this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, k === "yo" ? "menu" : i, corto[k] || t, d]);
     const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos", "objetivos", "facturacion"];
+    if (!m.some((x) => x[0] === "hoy") && m.some((x) => x[0] === "equipo")) prio.splice(2, 0, "equipo"); // sin ruta propia, ese lugar lo ocupa Equipo
     const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 4);
     const yo = m.filter((x) => x[0] === "yo");
     const nav = m.filter((x) => prim.includes(x)).concat(yo);
@@ -37,6 +40,7 @@ const App = {
     if (DB.estado?.vencida) return this.vencido();
     const gen = (this._gen = (this._gen || 0) + 1); // cada pintado tiene número; si llega otro mientras carga, el viejo no muestra errores
     document.body.classList.remove("en-login");
+    if (!LS.get("cat") && navigator.onLine && DB.perfil?.rol !== "vendedor") await DB.catalogos().catch(() => {}); // para saber si tiene tiendas asignadas antes de armar el menú
     let ruta = (location.hash || "").slice(1);
     const menu = this.rutas();
     if (Visita.get() && !ruta) ruta = "visita";
