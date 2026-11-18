@@ -166,7 +166,7 @@ const R = {
       ${asistencia}
 
       <h3 class="sec-t">Por vendedora</h3>
-      <div class="card scroll-x"><table class="t"><tr><th>Vendedora</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
+      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
         ${filasV.map((r) => `<tr><td><b>${esc(r.u.nombre)}</b>${!r.vis && r.prog ? ` <span class="pill p-rosa">Sin visitas</span>` : r.vis && !r.ped ? ` <span class="pill p-durazno">Sin pedidos</span>` : ""}</td>
           <td>${r.prog}</td><td><span class="pill ${colorPct(pct(r.ok, r.prog))}">${pct(r.ok, r.prog) ?? "–"}${r.prog ? "%" : ""}</span> <span class="tiny muted">${r.ok}/${r.prog}</span></td>
           <td>${r.vis}</td><td>${r.visPT ? pct(r.conPed, r.visPT) + "%" : "–"}</td><td>${fmtNum(r.kg, 0)}</td><td>${r.alertas ? `<span class="pill p-rosa">${r.alertas}</span>` : "–"}</td></tr>`).join("")}</table></div>
@@ -279,7 +279,9 @@ const R = {
   },
 
   // Lista que muestra de 10 en 10 con botón "Ver 10 más"
+  // En celular no hay botón: la lista queda en un cuadro de 5 filas que se desliza con el dedo (ver LIM5 en util.js).
   paginar(items, id = "p" + Math.random().toString(36).slice(2, 8), n = 10) {
+    if (esCel() && items.length > 5) return `<div class="list pag lim5" data-pag="${id}" style="gap:0">${items.map((h) => `<div class="pag-i">${h}</div>`).join("")}</div>`;
     return `<div class="list pag" data-pag="${id}" style="gap:0">${items.map((h, i) => `<div class="pag-i" ${i >= n ? "hidden" : ""}>${h}</div>`).join("")}</div>
       ${items.length > n ? `<button class="btn ghost sm block" style="margin-top:10px" onclick="R.mas(this, ${n})">Ver ${Math.min(n, items.length - n)} más · quedan ${items.length - n}</button>` : ""}
       <div class="tiny muted" style="margin-top:6px">${items.length} en total</div>`;

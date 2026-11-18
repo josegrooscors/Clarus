@@ -152,7 +152,7 @@ const G = {
           return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ""}</div></div>
             ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
       <h3 style="margin:22px 0 10px">Semana por vendedora</h3>
-      <div class="card scroll-x"><table class="t"><tr><th>Vendedora</th>${[1, 2, 3, 4, 5, 6].map((w) => `<th style="text-align:center">${DIAS_C[w]}</th>`).join("")}<th style="text-align:center">Total</th><th>Sin día</th></tr>
+      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th>${[1, 2, 3, 4, 5, 6].map((w) => `<th style="text-align:center">${DIAS_C[w]}</th>`).join("")}<th style="text-align:center">Total</th><th>Sin día</th></tr>
         ${semana.map((r) => `<tr><td>${esc(r.n)}</td>${r.d.map((c, i) => `<td style="text-align:center;${i + 1 === dSel.dia ? "background:var(--azul-cl);font-weight:600" : ""}">${c || "–"}</td>`).join("")}<td style="text-align:center"><b>${r.d.reduce((a, b) => a + b, 0)}</b></td><td>${r.sin ? `<span class="pill p-durazno">${r.sin}</span>` : "–"}</td></tr>`).join("")}</table></div>
       <p class="tiny muted">"Sin día" son tiendas asignadas a la vendedora que no tienen día de visita definido.</p>`;
     $$("[data-d]", root).forEach((el) => (el.onclick = () => G.programacion(root, el.dataset.d, vend)));
@@ -184,7 +184,7 @@ const G = {
       $("#ob", root).outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
         <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · facturado al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}" style="font-size:14px">${pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")) ?? 0}%</span></div>
         <div style="margin-top:6px"><b>${fmtUsd(sum(xs, "venta_usd"))}</b> <span class="muted">de ${fmtUsd(sum(xs, "objetivo_usd"))}</span></div>${barra(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}</div>
-        <div class="card scroll-x"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th></tr>
+        <div class="card scroll-x lim5"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th></tr>
         ${filas.map((f) => `<tr><td>${esc(f.n)}</td>${prodCols.map((p) => celdaProd(f.t, p)).join("")}<td>${fmtUsd(f.ven)} / ${fmtUsd(f.obj)}</td></tr>`).join("")}</table></div>`;
       $("[data-volver]", root).onclick = () => G.objetivos(root);
       return;
@@ -195,7 +195,7 @@ const G = {
         <div class="kpi"><div class="v">${fmtUsd(tot.obj)}</div><div class="l">Objetivo del mes</div></div>
         <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>
         <div class="kpi"><div class="v">${new Set(data.map((o) => o.cliente_id)).size}</div><div class="l">Tiendas con objetivo</div></div></div>
-      <div class="card scroll-x"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th><th>Avance</th></tr>
+      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th><th>Avance</th></tr>
       ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${new Set(r.xs.map((o) => o.cliente_id)).size} tiendas</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}
         <td>${fmtUsd(r.ven)} / ${fmtUsd(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
       <p class="tiny muted">Toca una vendedora para ver sus tiendas, de menor a mayor avance.</p>`;

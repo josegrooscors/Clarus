@@ -152,3 +152,38 @@ const centrarPasos = () => $$(".steps").forEach((s) => {
 let _cpPend = false;
 new MutationObserver(() => { if (_cpPend) return; _cpPend = true; requestAnimationFrame(() => { _cpPend = false; centrarPasos(); }); })
   .observe(document.documentElement, { childList: true, subtree: true });
+
+// ── Reportes en celular: cuadro de 5 filas que se desliza con el dedo ──────────────────────────────────────────
+// Regla (18-nov-2026): en celular, todo reporte con más de 5 filas se muestra en un cuadro de 5; el resto se ve deslizando dentro del cuadro.
+// Se marca el contenedor con la clase "lim5" (una lista, o el .scroll-x que envuelve una tabla). En computadora no cambia nada.
+const esCel = () => matchMedia("(max-width:759px)").matches;
+const LIM5 = {
+  N: 5,
+  aplicar() {
+    if (!esCel()) return;
+    $$(".lim5:not([data-lim5])").forEach((box) => {
+      if (!box.offsetParent) return; // aún no se ve (pestaña oculta): se intenta en el próximo cambio
+      const tabla = box.querySelector(":scope>table");
+      const filas = tabla ? [...tabla.querySelectorAll("tr")].filter((tr) => tr.querySelector("td")) : [...box.children];
+      box.dataset.lim5 = "1";
+      if (filas.length <= LIM5.N) return;
+      const y = (el) => el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      // alto = hasta el inicio de la 6.ª fila + un 45 % de ella, para que se vea cortada y se note que hay más
+      const alto = Math.round(y(filas[LIM5.N]) + filas[LIM5.N].getBoundingClientRect().height * 0.45);
+      box.style.maxHeight = alto + "px";
+      box.classList.add("lim5-on");
+      const pie = document.createElement("div");
+      pie.className = "lim5-n";
+      const pinta = () => {
+        const fin = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+        box.classList.toggle("lim5-fin", fin);
+        const tope = box.getBoundingClientRect().bottom, vistas = filas.filter((f) => f.getBoundingClientRect().bottom <= tope + 6).length;
+        pie.innerHTML = `<b>${Math.min(vistas, filas.length)} de ${filas.length}</b>${fin ? "" : " · desliza dentro del cuadro para ver más"}`;
+      };
+      box.after(pie); box.addEventListener("scroll", pinta, { passive: true }); pinta();
+    });
+  },
+};
+let _l5Pend = false;
+new MutationObserver(() => { if (_l5Pend) return; _l5Pend = true; requestAnimationFrame(() => { _l5Pend = false; LIM5.aplicar(); }); })
+  .observe(document.documentElement, { childList: true, subtree: true });
