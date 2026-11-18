@@ -580,3 +580,20 @@ details.acord>summary::-webkit-details-marker{display:none}
 .acord-f{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;color:var(--gris);transform:rotate(-90deg);transition:transform .15s;flex:none}
 details.acord[open] .acord-f{transform:rotate(90deg)}
 details.acord>summary .grow{flex:1;min-width:0}
+
+/* Asistencia: un cuadro por día con el número de visitas (verde cumplió · ámbar parcial · rojo falta · F feriado) */
+.asis{border-spacing:4px}
+.asis th{min-width:38px;padding-bottom:2px}
+.asi{display:inline-grid;place-items:center;grid-auto-flow:column;gap:1px;width:38px;height:34px;border-radius:10px;font:700 13px var(--font);vertical-align:middle;box-sizing:border-box}
+.asi i{font-style:normal;font-weight:600;font-size:11px;opacity:.85}
+.asi.ok{background:#DCE6FD;color:var(--azul-osc)}
+.asi.parcial{background:#FDEBCB;color:var(--durazno-t)}
+.asi.falta{background:var(--rosa);color:var(--rosa-t)}
+.asi.libre{background:#EEF1F5;color:#8A93A3;font-weight:600}
+.asi.hoy{border:2px solid var(--azul);background:#fff;color:var(--azul)}
+.asi.es-hoy{box-shadow:0 0 0 2px var(--azul)}
+.asi.fut{border:1px dashed #D3D9E2;background:#fff;color:#B4BCC9;font-weight:500}
+.asis .asi-n{padding-right:12px;font-size:13.5px}
+.asi-ley{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px}
+.asi-ley .asi{width:18px;height:18px;border-radius:5px;font-size:10px;margin-right:4px}
+.asi.hoy.es-hoy{box-shadow:none}
