@@ -19,6 +19,27 @@ const PASOS = [
   ["pedido", "Pedido"], ["gestion", "Gestión"], ["cierre", "Cierre"],
 ];
 // Evidencias obligatorias: sin ellas no se puede hacer check-out
+// Fotos por mueble: la tienda tiene sus muebles (nevera abierta, vitrina deli...) y cada uno lleva al menos 1 foto. Bodega siempre.
+// Los muebles salen de lo último usado en esa tienda, o de la auditoría de espacio, o por defecto vitrina deli + nevera abierta.
+const FOTOS = {
+  slots(v) {
+    if (!v.mueblesFoto) {
+      const cat = LS.get("cat") || {};
+      const tipos = LS.get("mf:" + v.cliente_id) || [...new Set((cat.tiendaMuebles || []).filter((m) => m.cliente_id === v.cliente_id).sort((a, b) => a.orden - b.orden).map((m) => m.mueble))];
+      v.mueblesFoto = FOTOS.armar(tipos.length ? tipos : ["deli", "nevera"]);
+    }
+    return v.mueblesFoto;
+  },
+  armar(tipos) {
+    const n = {};
+    return tipos.map((t) => { n[t] = (n[t] || 0) + 1; return { k: t + "-" + n[t], mueble: t }; })
+      .map((x) => ({ ...x, nombre: PL.MUEBLES[x.mueble] + (tipos.filter((t) => t === x.mueble).length > 1 ? " " + x.k.split("-")[1] : "") }));
+  },
+  guardar(v) { LS.set("mf:" + v.cliente_id, v.mueblesFoto.map((m) => m.mueble)); Visita.set(v); },
+  // lista de evidencias obligatorias: [clave, texto]
+  req(v) { return [["bodega", "Bodega"], ...FOTOS.slots(v).map((m) => [m.k, m.nombre])]; },
+  de(v, k) { return v.fotos.filter((f) => (f.slot || (f.tipo === "bodega" ? "bodega" : null)) === k); },
+};
 const FOTOS_REQ = [["bodega", "Bodega"], ["exhibicion_deli", "Exhibición deli"], ["exhibicion_empacado", "Exhibición empacado"]];
 
 const V = {
@@ -187,7 +208,7 @@ const V = {
 
   // Qué está completo en la visita
   estado(v) {
-    const fotosOk = FOTOS_REQ.every(([k]) => v.fotos.some((f) => f.tipo === k));
+    const fotosOk = FOTOS.req(v).every(([k]) => FOTOS.de(v, k).length);
     // Gestión ya no es una lista para marcar: solo pide respuesta si la tienda tiene planograma que revisar
     const pls = PL.deTienda(LS.get("cat") || {}, v.cliente_id) || [];
     const gestion = !!v.guardado.gestion || pls.every((p) => (v.planos || {})[p.id]);
@@ -195,7 +216,7 @@ const V = {
   },
   pendientes(v) {
     const e = this.estado(v), out = [];
-    FOTOS_REQ.forEach(([k, t]) => { if (!v.fotos.some((f) => f.tipo === k)) out.push(["fotos", "Foto de " + t.toLowerCase()]); });
+    FOTOS.req(v).forEach(([k, t]) => { if (!FOTOS.de(v, k).length) out.push(["fotos", "Foto de " + t.toLowerCase()]); });
     if (!e.inventario) out.push(["inventario", "Inventario"]);
     if (!e.promos) out.push(["promos", "Promociones"]);
     if (!e.pedido) out.push(["pedido", "Pedido"]);
@@ -220,27 +241,52 @@ const V = {
 
 
   pFotos(box, v, siguiente) {
-    const tipos = FOTOS_REQ;
-    const completo = this.estado(v).fotos;
-    box.innerHTML = `<p class="muted small" style="margin-top:0">Las 3 evidencias son obligatorias y se toman en el momento con la cámara (no desde la galería).</p>
-      <div class="list">${tipos.map(([k, t]) => {
-        const fs = v.fotos.filter((f) => f.tipo === k);
-        return `<div class="inv"><div class="row"><div class="sp"><div class="nm">${t}</div>
-          <div class="tiny muted">${fs.length ? fs.length + " foto(s) · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria"}</div></div>
+    box.onclick = null; box.oninput = null;
+    const slots = FOTOS.slots(v), completo = this.estado(v).fotos;
+    const tarjeta = (k, nombre, icono, quitar) => {
+      const fs = FOTOS.de(v, k);
+      return `<div class="inv"><div class="row"><span class="foto-ic">${icono}</span><div class="sp"><div class="nm">${esc(nombre)}</div>
+          <div class="tiny muted">${fs.length ? fs.length + " foto(s) · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
           ${fs.length ? `<span class="pill p-menta">✓ Lista</span>` : `<span class="pill p-durazno">Falta</span>`}</div>
-          ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<img src="${f.thumb}">`).join("")}</div>` : ""}
-          <button class="btn ${fs.length ? "ghost" : "sec"} block sm" style="margin-top:10px" data-f="${k}">${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button></div>`;
-      }).join("")}</div>
-      <button class="btn block" style="margin-top:16px" data-ok ${completo ? "" : "disabled"}>${completo ? "Seguir" : "Toma las 3 fotos para seguir"}</button>`;
+        ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
+        <div class="row" style="gap:8px;margin-top:10px"><button class="btn ${fs.length ? "ghost" : "sec"} sm sp" data-f="${k}">${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button>
+          ${quitar && !fs.length ? `<button class="btn ghost sm" data-quitar="${k}">Quitar mueble</button>` : ""}</div></div>`;
+    };
+    box.innerHTML = `<p class="muted small" style="margin-top:0">Toma la bodega y <b>al menos 1 foto de cada mueble</b> de la tienda. Puedes tomar varias y borrar las que salgan mal antes del check-out.</p>
+      <div class="list">${tarjeta("bodega", "Bodega", ic("caja", 22), false)}</div>
+      <h3 class="sec-t" style="margin-top:16px">Muebles de la tienda</h3>
+      <div class="list">${slots.map((m) => tarjeta(m.k, m.nombre, PL.icono(m.mueble, 24), slots.length > 1)).join("")}</div>
+      <button class="btn ghost block" style="margin-top:10px" data-add>+ Agregar mueble</button>
+      <div id="addm" hidden><div class="pl-tipos" style="margin-top:10px">${Object.entries(PL.MUEBLES).map(([t, n]) => `<button type="button" class="pl-tipo" data-tipo="${t}">${PL.icono(t)}<span>${n}</span></button>`).join("")}</div></div>
+      <button class="btn block" style="margin-top:16px" data-ok ${completo ? "" : "disabled"}>${completo ? "Seguir" : "Toma las fotos que faltan para seguir"}</button>`;
+    const redibujar = () => this.pFotos(box, v, siguiente);
+    $("[data-add]", box).onclick = () => { $("#addm", box).hidden = !$("#addm", box).hidden; };
+    $$("[data-tipo]", box).forEach((b) => (b.onclick = () => {
+      const tipos = v.mueblesFoto.map((m) => m.mueble).concat(b.dataset.tipo);
+      const viejos = Object.fromEntries(v.mueblesFoto.map((m) => [m.k, m]));
+      v.mueblesFoto = FOTOS.armar(tipos).map((m) => viejos[m.k] ? { ...viejos[m.k], nombre: m.nombre } : m);
+      FOTOS.guardar(v); toast(`${PL.MUEBLES[b.dataset.tipo]} agregado`); redibujar();
+    }));
+    $$("[data-quitar]", box).forEach((b) => (b.onclick = () => { v.mueblesFoto = v.mueblesFoto.filter((m) => m.k !== b.dataset.quitar); FOTOS.guardar(v); redibujar(); }));
+    $$("[data-borrar]", box).forEach((b) => (b.onclick = async () => {
+      if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
+      const key = b.dataset.borrar;
+      v.fotos = v.fotos.filter((f) => f.key !== key); Visita.set(v);
+      // si todavía no se subió, se quita de la cola; si ya se subió, se borra en el servidor
+      const op = (await IDB.ops()).find((o) => o.t === "foto" && o.blob === key);
+      if (op) { await IDB.delOp(op.k); await IDB.delBlob(key); } else await DB.encolar({ t: "foto_borrar", key });
+      toast("Foto borrada"); redibujar();
+    }));
     $$("[data-f]", box).forEach((b) => (b.onclick = async () => {
       try {
-        const tipoTxt = tipos.find((t) => t[0] === b.dataset.f)[1];
-        const r = await Camara.evidencia({ titulo: tipoTxt, marca: v.tienda });
+        const k = b.dataset.f, m = v.mueblesFoto.find((x) => x.k === k);
+        const nombre = k === "bodega" ? "Bodega" : m.nombre, tipo = k === "bodega" ? "bodega" : "exhibicion_" + m.mueble;
+        const r = await Camara.evidencia({ titulo: nombre, marca: v.tienda });
         if (!r) return;
         const key = uid(); await IDB.putBlob(key, r.blob);
-        v.fotos.push({ key, tipo: b.dataset.f, tipoTxt, at: r.at, thumb: r.thumb }); Visita.set(v);
-        await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: b.dataset.f, at: r.at, lat: v.lat, lng: v.lng } });
-        this.pFotos(box, v, siguiente);
+        v.fotos.push({ key, tipo, slot: k, tipoTxt: nombre, at: r.at, thumb: r.thumb }); Visita.set(v);
+        await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo, mueble: k === "bodega" ? null : nombre, at: r.at, lat: v.lat, lng: v.lng } });
+        redibujar();
       } catch (e) { toast(e.message, 4000); }
     }));
     $("[data-ok]", box).onclick = siguiente;
@@ -473,11 +519,11 @@ const V = {
     const ok = !pend.length;
     // Lo que hizo la vendedora sale solo de los pasos y las evidencias (sin casillas para marcar)
     const e = this.estado(v), cat0 = LS.get("cat") || {}, pls = PL.deTienda(cat0, v.cliente_id) || [];
-    const nFotos = FOTOS_REQ.filter(([k]) => v.fotos.some((f) => f.tipo === k)).length;
+    const req = FOTOS.req(v), nFotos = req.filter(([k]) => FOTOS.de(v, k).length).length;
     const agot = Object.keys(v.agot || {}).filter((k) => v.agot[k]).length;
     const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
-      ["fotos", `Fotos de evidencia · ${nFotos} de ${FOTOS_REQ.length}`, e.fotos],
+      ["fotos", `Fotos de evidencia · ${nFotos} de ${req.length} (${v.fotos.length} foto${v.fotos.length === 1 ? "" : "s"})`, e.fotos],
       ["inventario", `Inventario contado${agot ? ` · ${agot} agotado(s)` : ""}`, e.inventario],
       ["promos", "Promociones revisadas", e.promos],
       ["pedido", v.pedido?.ninguno ? `Sin pedido${v.pedido.motivo ? " · " + (MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") : ""}` : v.pedido?.items?.length ? `Pedido enviado · ${fmtKg(kgPed)}` : "Pedido", e.pedido],

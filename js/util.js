@@ -26,10 +26,10 @@ function modal(html, onMount) {
   return m;
 }
 
-function confirmar(texto, okTxt = "Confirmar") {
+function confirmar(texto, okTxt = "Confirmar", noTxt = "Cancelar", titulo = "¿Seguro?") {
   return new Promise((res) => {
-    modal(`<h2 style="margin-bottom:8px">¿Seguro?</h2><p class="muted">${esc(texto)}</p>
-      <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>Cancelar</button><button class="btn sp" data-si>${esc(okTxt)}</button></div>`,
+    modal(`<h2 style="margin-bottom:8px">${esc(titulo)}</h2><p class="muted">${esc(texto)}</p>
+      <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>${esc(noTxt)}</button><button class="btn sp" data-si>${esc(okTxt)}</button></div>`,
       (m, close) => {
         $("[data-no]", m).onclick = () => { close(); res(false); };
         $("[data-si]", m).onclick = () => { close(); res(true); };
