@@ -112,55 +112,77 @@ const Escaner = {
       const c = document.createElement("canvas"); c.width = W; c.height = H;
       const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(src, 0, 0, W, H);
       const d = g.getImageData(0, 0, W, H).data, n = W * H, gray = new Uint8Array(n);
-      // "blancura": el canal más bajo (el papel blanco es alto en los 3; una carpeta beige o amarilla tiene poco azul)
-      for (let i = 0; i < n; i++) gray[i] = Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
-      // bordes fuertes (sombra o canto de la hoja) funcionan como barrera entre la hoja y lo que tiene detrás
-      const borde = new Uint8Array(n);
-      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; const gx = gray[i + 1] - gray[i - 1], gy = gray[i + W] - gray[i - W]; if (gx * gx + gy * gy > 22 * 22) borde[i] = 1; }
-      // zona de búsqueda: el marco guía con 18% de holgura
       const mx = (gq[2] - gq[0]) * 0.1, my = (gq[3] - gq[1]) * 0.1;
       const X0 = Math.max(0, ((gq[0] - mx) * W) | 0), X1 = Math.min(W - 1, ((gq[2] + mx) * W) | 0), Y0 = Math.max(0, ((gq[1] - my) * H) | 0), Y1 = Math.min(H - 1, ((gq[3] + my) * H) | 0);
-      const hist = new Array(256).fill(0); let tot = 0;
-      for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { hist[gray[y * W + x]]++; tot++; }
-      let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
-      let sB = 0, wB = 0, best = 0, th = 160;
-      for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sB += t * hist[t]; const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > best) { best = v; th = t; } }
-      let m = new Uint8Array(n);
-      for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) m[y * W + x] = gray[y * W + x] > th && !borde[y * W + x] ? 1 : 0;
-      // erosión 3×3 (2 pasadas): corta puentes finos entre la hoja y otros papeles
-      const E = 3;
-      for (let k = 0; k < E; k++) {
-        const o = new Uint8Array(n);
-        for (let y = Y0 + 1; y < Y1; y++) for (let x = X0 + 1; x < X1; x++) { const i = y * W + x; o[i] = m[i] && m[i - 1] && m[i + 1] && m[i - W] && m[i + W] && m[i - W - 1] && m[i - W + 1] && m[i + W - 1] && m[i + W + 1] ? 1 : 0; }
-        m = o;
-      }
-      // semilla: el píxel claro más cercano al centro del marco
-      const cx = (((gq[0] + gq[2]) / 2) * W) | 0, cy = (((gq[1] + gq[3]) / 2) * H) | 0;
-      let seed = -1;
-      for (let r = 0; r < Math.max(W, H) / 3 && seed < 0; r += 2) for (let a = 0; a < 16 && seed < 0; a++) {
-        const x = Math.round(cx + r * Math.cos((a * Math.PI) / 8)), y = Math.round(cy + r * Math.sin((a * Math.PI) / 8));
-        if (x >= 0 && y >= 0 && x < W && y < H && m[y * W + x]) seed = y * W + x;
-      }
-      if (seed < 0) return def;
-      const lab = new Uint8Array(n), pila = new Int32Array(n); let sp = 0, tam = 0; pila[sp++] = seed; lab[seed] = 1;
-      let tl = [0, 0, 1e9], tr = [0, 0, -1e9], br = [0, 0, -1e9], bl = [0, 0, 1e9];
-      while (sp) {
-        const p = pila[--sp]; tam++; const x = p % W, y = (p / W) | 0, sm = x + y, df = x - y;
-        if (sm < tl[2]) tl = [x, y, sm]; if (sm > br[2]) br = [x, y, sm]; if (df > tr[2]) tr = [x, y, df]; if (df < bl[2]) bl = [x, y, df];
-        for (const q of [p - 1, p + 1, p - W, p + W]) if (q >= 0 && q < n && !lab[q] && m[q] && Math.abs((q % W) - x) <= 1) { lab[q] = 1; pila[sp++] = q; }
-      }
-      const areaGuia = (gq[2] - gq[0]) * W * (gq[3] - gq[1]) * H;
-      if (tam < areaGuia * 0.25 || tam > areaGuia * 1.9) return def; // demasiado chico o se pegó al fondo
-      // compensar la erosión: abrir las esquinas desde el centro
-      let pts = [tl, tr, br, bl].map((p) => [p[0], p[1]]);
-      const ccx = pts.reduce((t, p) => t + p[0], 0) / 4, ccy = pts.reduce((t, p) => t + p[1], 0) / 4;
-      pts = pts.map(([x, y]) => { const L = Math.hypot(x - ccx, y - ccy) || 1; return [x + ((x - ccx) / L) * (E + 1), y + ((y - ccy) / L) * (E + 1)]; });
-      const quad = pts.map(([x, y]) => [Math.max(0, Math.min(src.width, x / s)), Math.max(0, Math.min(src.height, y / s))]);
-      // que sea un cuadrilátero creíble (lados no degenerados)
+      const areaGuia = (gq[2] - gq[0]) * W * (gq[3] - gq[1]) * H, E = 3;
       const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-      const lados = [0, 1, 2, 3].map((i) => len(quad[i], quad[(i + 1) % 4]));
-      if (Math.min(...lados) < Math.max(...lados) * 0.35) return def;
-      // confianza: con marco guía, cada esquina detectada debe quedar cerca de la esquina del marco (la persona encuadró la hoja ahí)
+      // Busca la hoja con una medida de "qué tan hoja es cada píxel" (0–255). Devuelve el cuadrilátero y qué tan rectangular salió la mancha.
+      const intento = (gray, minArea) => {
+        const hist = new Array(256).fill(0); let tot = 0;
+        for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { hist[gray[y * W + x]]++; tot++; }
+        let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+        let sB = 0, wB = 0, best = 0, th = 160;
+        for (let t = 0; t < 256; t++) { wB += hist[t]; if (!wB) continue; const wF = tot - wB; if (!wF) break; sB += t * hist[t]; const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) ** 2; if (v > best) { best = v; th = t; } }
+        let m = new Uint8Array(n);
+        for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) m[y * W + x] = gray[y * W + x] > th ? 1 : 0;
+        // Crecer y encoger la mancha (r píxeles, por filas y luego por columnas). Crecer primero tapa el texto y las líneas impresas,
+        // que si no partirían la hoja en tiras; encoger de más después corta los puentes finos con otros papeles.
+        const pasada = (a, r, crecer) => {
+          const t = new Uint8Array(n), o = new Uint8Array(n);
+          for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { let v = crecer ? 0 : 1; for (let k = -r; k <= r; k++) { const xx = x + k, q = xx < X0 || xx > X1 ? 0 : a[y * W + xx]; if (crecer ? q : !q) { v = crecer ? 1 : 0; break; } } t[y * W + x] = v; }
+          for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { let v = crecer ? 0 : 1; for (let k = -r; k <= r; k++) { const yy = y + k, q = yy < Y0 || yy > Y1 ? 0 : t[yy * W + x]; if (crecer ? q : !q) { v = crecer ? 1 : 0; break; } } o[y * W + x] = v; }
+          return o;
+        };
+        m = pasada(pasada(m, 5, true), 5 + E, false);
+        // semilla: el píxel de hoja más cercano al centro del marco
+        const cx = (((gq[0] + gq[2]) / 2) * W) | 0, cy = (((gq[1] + gq[3]) / 2) * H) | 0;
+        let seed = -1;
+        for (let r = 0; r < Math.max(W, H) / 3 && seed < 0; r += 2) for (let a = 0; a < 16 && seed < 0; a++) {
+          const x = Math.round(cx + r * Math.cos((a * Math.PI) / 8)), y = Math.round(cy + r * Math.sin((a * Math.PI) / 8));
+          if (x >= 0 && y >= 0 && x < W && y < H && m[y * W + x]) seed = y * W + x;
+        }
+        if (seed < 0) return null;
+        const lab = new Uint8Array(n), pila = new Int32Array(n); let sp = 0, tam = 0; pila[sp++] = seed; lab[seed] = 1;
+        let tl = [0, 0, 1e9], tr = [0, 0, -1e9], br = [0, 0, -1e9], bl = [0, 0, 1e9];
+        while (sp) {
+          const p = pila[--sp]; tam++; const x = p % W, y = (p / W) | 0, sm = x + y, df = x - y;
+          if (sm < tl[2]) tl = [x, y, sm]; if (sm > br[2]) br = [x, y, sm]; if (df > tr[2]) tr = [x, y, df]; if (df < bl[2]) bl = [x, y, df];
+          for (const q of [p - 1, p + 1, p - W, p + W]) if (q >= 0 && q < n && !lab[q] && m[q] && Math.abs((q % W) - x) <= 1) { lab[q] = 1; pila[sp++] = q; }
+        }
+        if (tam < areaGuia * minArea || tam > areaGuia * 1.9) return null; // demasiado chico o se pegó al fondo
+        let pts = [tl, tr, br, bl].map((p) => [p[0], p[1]]);
+        const ccx = pts.reduce((t, p) => t + p[0], 0) / 4, ccy = pts.reduce((t, p) => t + p[1], 0) / 4;
+        const aQ = Math.abs(pts.reduce((t, p, k) => { const q = pts[(k + 1) % 4]; return t + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2 || 1;
+        // compensar la erosión: abrir las esquinas desde el centro
+        pts = pts.map(([x, y]) => { const L = Math.hypot(x - ccx, y - ccy) || 1; return [x + ((x - ccx) / L) * (E + 1), y + ((y - ccy) / L) * (E + 1)]; });
+        const quad = pts.map(([x, y]) => [Math.max(0, Math.min(src.width, x / s)), Math.max(0, Math.min(src.height, y / s))]);
+        // que sea un cuadrilátero creíble (lados no degenerados)
+        const lados = [0, 1, 2, 3].map((i) => len(quad[i], quad[(i + 1) % 4]));
+        if (Math.min(...lados) < Math.max(...lados) * 0.35) return null;
+        // si dos o más esquinas tocan el borde de la foto, la mancha no es la hoja: se regó por la mesa
+        const mxB = src.width * 0.03, myB = src.height * 0.03;
+        if (quad.filter(([x, y]) => x < mxB || y < myB || x > src.width - mxB || y > src.height - myB).length >= 2) return null;
+        return { quad, rect: Math.min(1, tam / aQ), tam };
+      };
+      // Medida 1, "blancura": el canal más bajo (el papel blanco es alto en los 3).
+      for (let i = 0; i < n; i++) gray[i] = Math.min(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]);
+      // Medida 2, "distinto del fondo": qué tanto se aleja cada píxel del color de la mesa (sirve para papel de color: amarillo, rosado, kraft…).
+      // El color del fondo se toma del contorno de la zona de búsqueda, donde casi nunca hay hoja.
+      const anillo = [[], [], []], bw = Math.max(2, ((X1 - X0) * 0.05) | 0), bh = Math.max(2, ((Y1 - Y0) * 0.05) | 0);
+      for (let y = Y0; y <= Y1; y += 2) for (let x = X0; x <= X1; x += 2) if (x < X0 + bw || x > X1 - bw || y < Y0 + bh || y > Y1 - bh) { const i = (y * W + x) * 4; anillo[0].push(d[i]); anillo[1].push(d[i + 1]); anillo[2].push(d[i + 2]); }
+      const med = (a) => { a.sort((p, q) => p - q); return a[a.length >> 1] || 0; }, fondo = anillo.map(med);
+      const dist = new Uint8Array(n);
+      for (let i = 0; i < n; i++) dist[i] = Math.min(255, (Math.abs(d[i * 4] - fondo[0]) + Math.abs(d[i * 4 + 1] - fondo[1]) + Math.abs(d[i * 4 + 2] - fondo[2])) * 0.9);
+      // Medida 3, "color vivo": diferencia entre el canal más alto y el más bajo (un papel de color resalta sobre una mesa gris, blanca o de madera).
+      const sat = new Uint8Array(n);
+      for (let i = 0; i < n; i++) { const r = d[i * 4], g2 = d[i * 4 + 1], b2 = d[i * 4 + 2]; sat[i] = Math.min(255, (Math.max(r, g2, b2) - Math.min(r, g2, b2)) * 1.6); }
+      const a1 = intento(gray, 0.08), a2 = intento(dist, 0.05), a3 = intento(sat, 0.05);
+      // Se queda con la mancha más rectangular. Una hoja bien separada del fondo llena su cuadrilátero casi por completo.
+      const mejor = [a1, a3, a2].filter(Boolean).sort((p, q) => q.rect - p.rect)[0];
+      if (!mejor) return def;
+      if (mejor.rect >= 0.82) return mejor.quad; // detección confiable: se recorta por la hoja aunque no llene el marco guía
+      const quad = mejor.quad;
+      // confianza media: con marco guía, cada esquina detectada debe quedar cerca de la esquina del marco (la persona encuadró la hoja ahí)
       if (guia) {
         // esquina por esquina: si la detectada se aleja más de 8% del marco, se usa la esquina del marco
         const tolX = (gq[2] - gq[0]) * src.width * 0.08, tolY = (gq[3] - gq[1]) * src.height * 0.08;
@@ -218,13 +240,22 @@ const Escaner = {
     const big = document.createElement("canvas"); big.width = W; big.height = H;
     const bigc = big.getContext("2d", { willReadFrequently: true }); bigc.imageSmoothingQuality = "high"; bigc.filter = "blur(6px)"; bigc.drawImage(bg, 0, 0, W, H);
     const img = g.getImageData(0, 0, W, H), d = img.data, b = bigc.getImageData(0, 0, W, H).data;
+    const rel = new Float32Array(W * H), hist = new Uint32Array(256);
     for (let i = 0; i < d.length; i += 4) {
       const v = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114, f = b[i] * 0.299 + b[i + 1] * 0.587 + b[i + 2] * 0.114 || 1;
-      let r = Math.min(255, (v / f) * 255);
-      r = r > 215 ? 255 : Math.max(0, (r - 70) * 1.75); // contraste
-      d[i] = d[i + 1] = d[i + 2] = r;
+      rel[i >> 2] = Math.min(255, (v / f) * 255); hist[rel[i >> 2] | 0]++;
+    }
+    // Contraste según lo que haya escrito: tinta de impresora llega casi a negro; un lápiz o un sello tenue apenas oscurece el papel.
+    // "lo" es el tono del trazo más oscuro que de verdad existe (el 0.4 % más oscuro de la hoja); desde ahí se estira hasta blanco.
+    let acc = 0, lo = 0; const corte = (W * H) * 0.004;
+    for (let t = 0; t < 256; t++) { acc += hist[t]; if (acc >= corte) { lo = t; break; } }
+    const hi = 232; lo = Math.max(30, Math.min(lo, hi - 45));
+    for (let i = 0; i < d.length; i += 4) {
+      const t = Math.max(0, Math.min(1, (rel[i >> 2] - lo) / (hi - lo)));
+      d[i] = d[i + 1] = d[i + 2] = 255 * Math.pow(t, 1.35);
     }
     g.putImageData(img, 0, 0);
+
     return c;
   },
 
