@@ -1,0 +1,6 @@
+-- 041 · Usuario y tienda de pruebas para capacitación (aplicado 18-nov-2026, a pedido de José).
+-- Usuario "demo" (rol vendedor, nombre "Demo (pruebas)") y tienda "Tienda Demo (pruebas)", código DEMO-01, cadena "Pruebas", sin GPS,
+-- asignada a demo de lunes a sábado con los productos activos. La contraseña se entregó por chat (no va en documentos).
+-- Se creó directo en auth.users + auth.identities + perfiles (mismo resultado que la función "usuarios", que exige la sesión de un administrador).
+-- Al terminar la capacitación: desactivar el usuario en Configuración → Usuarios y la tienda en Configuración → Tiendas,
+-- para que no cuenten en Asistencia, Agenda ni «Clientes programados sin visita». Sus visitas de prueba se pueden borrar por vendedor_id.
