@@ -516,3 +516,9 @@ table.perm td:first-child{min-width:200px}
 .cv-sello b{font-family:var(--font-t);font-weight:700;font-size:15px;letter-spacing:-.01em;color:#0B1B33;white-space:nowrap}
 .cv-sello i{font-style:normal;font-weight:600;color:var(--azul);padding-left:10px;border-left:2px solid var(--azul-med)}
 .foco-lema .cv-sello{margin-top:6px}
+
+/* v0.14.32: en tarjetas que se deslizan, la tabla ocupa todo el ancho de la tarjeta (sin margen a los lados) y la columna fija se pega al borde:
+   así no queda ninguna franja por donde se asome el dato de atrás. */
+.card.scroll-x:not([style*="padding:0"])>table.t{margin-left:-16px;margin-right:-16px;width:calc(100% + 32px)}
+.card.scroll-x:not([style*="padding:0"])>table.t th:first-child,.card.scroll-x:not([style*="padding:0"])>table.t td:first-child{left:-16px;padding-left:20px;box-shadow:none}
+.card.scroll-x:not([style*="padding:0"])>table.t th:last-child,.card.scroll-x:not([style*="padding:0"])>table.t td:last-child{padding-right:20px}
