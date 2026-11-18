@@ -275,7 +275,8 @@ const V = {
       });
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
-    box.addEventListener("click", (e) => {
+    // una sola acción por pantalla (onclick reemplaza; addEventListener se acumulaba al volver a dibujar y sumaba de a 2)
+    box.onclick = (e) => {
       const ag = e.target.closest("[data-agot]");
       if (ag) {
         const pid = ag.dataset.agot, card = ag.closest(".inv"); v.agot = v.agot || {};
@@ -287,11 +288,11 @@ const V = {
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
       const u = b.dataset.m || b.dataset.s, inp = $(`[data-u=${u}]`, b.closest(".inv"));
       inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (b.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    box.addEventListener("input", (e) => {
+    };
+    box.oninput = (e) => {
       const i = e.target.closest("[data-u]"); if (!i) return;
       v.inv[i.closest(".inv").dataset.p + ":" + i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
-    });
+    };
     calc();
     $("[data-ok]", box).onclick = async () => {
       const rows = [];
@@ -411,11 +412,11 @@ const V = {
       });
       $("#totkgp").textContent = fmtKg(tot);
     };
-    box.addEventListener("click", (e) => {
+    box.onclick = (e) => {
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
       const inp = $("input", b.parentElement); inp.value = Math.max(0, (parseInt(inp.value) || 0) + (b.dataset.s !== undefined ? 1 : -1)) || ""; calcKg();
-    });
-    box.addEventListener("input", calcKg);
+    };
+    box.oninput = calcKg;
     calcKg();
     const no = $("[data-no]", box); if (no) no.onclick = () => this.pSinPedido(box, v, cat, siguiente, bajos > 0 || filas.some((f) => v.agot?.[f.p.id]));
     const cn = $("[data-cancel]", box); if (cn) cn.onclick = () => { v.editandoPedido = false; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
@@ -444,6 +445,7 @@ const V = {
 
   // Sin pedido: se elige el motivo (obligatorio si hay productos bajos o agotados)
   pSinPedido(box, v, cat, siguiente, requerido) {
+    box.onclick = null; box.oninput = null; // no heredar las acciones de la pantalla de pedido
     let sel = v.motivoSinPedido || (requerido ? "" : "no_hace_falta");
     const pintar = () => {
       box.innerHTML = `<div class="card"><h3 style="margin:0 0 4px">¿Por qué no hay pedido?</h3>
