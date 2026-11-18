@@ -182,6 +182,29 @@ const R = {
       </div>`;
     $("#rv", root).onchange = (e) => R.render(root, periodo, e.target.value);
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
+    R.pestanas(root);
+  },
+
+  // En celular el Resumen se ve por partes: Ventas · Visitas · Inventario · Espacio (en computadora sigue completo).
+  // Cada bloque pertenece a la pestaña del título de sección que tiene encima.
+  pestanas(root) {
+    if (!esCel()) return;
+    const rv = $("#rv", root); if (!rv || $("#rtabs", root)) return;
+    const grupo = (t) => /pedidos y objetivo/i.test(t) ? "ventas" : /alertas/i.test(t) ? "inventario" : /participaci/i.test(t) ? "espacio" : "visitas";
+    let g = "inventario"; // lo que va antes del primer título es el aviso de agotados sin pedido
+    let hayAlerta = false;
+    for (let el = rv.nextElementSibling; el; el = el.nextElementSibling) {
+      const tit = el.matches("h3.sec-t") ? el : el.id === "r-espacio" ? el : null;
+      if (tit) g = el.id === "r-espacio" ? "espacio" : grupo(tit.textContent);
+      else if (g === "inventario" && el.matches(".card") && !el.previousElementSibling?.matches("h3.sec-t")) hayAlerta = true;
+      el.dataset.rt = g;
+    }
+    const tabs = [["ventas", "Ventas"], ["visitas", "Visitas"], ["inventario", "Inventario"], ["espacio", "Espacio"]];
+    let act = LS.get("res.tab", "ventas"); if (!tabs.some((t) => t[0] === act)) act = "ventas";
+    rv.insertAdjacentHTML("afterend", `<div class="rtabs" id="rtabs">${tabs.map(([k, t]) => `<button data-rt-b="${k}">${t}${k === "inventario" && hayAlerta ? `<i class="dot-n"></i>` : ""}</button>`).join("")}</div>`);
+    const ver = (k) => { LS.set("res.tab", k); $$("[data-rt]", root).forEach((el) => (el.hidden = el.dataset.rt !== k)); $$("[data-rt-b]", root).forEach((b) => b.classList.toggle("on", b.dataset.rtB === k)); LIM5.aplicar(); };
+    $$("[data-rt-b]", root).forEach((b) => (b.onclick = () => ver(b.dataset.rtB)));
+    ver(act);
   },
 
   // Calendario de asistencia del mes: azul = asistió (tuvo visitas), rojo = falta (tenía ruta y no visitó), gris = sin ruta ese día

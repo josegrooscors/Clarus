@@ -566,3 +566,17 @@ table.perm td:first-child,.scroll-x>table.t.perm td:first-child{white-space:norm
 /* Tarjetas de lista: el estado va debajo del texto, así el nombre no se corta y todas quedan de la misma altura */
 .item-pie{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
 .item .grow>.small.muted{overflow-wrap:break-word}
+
+/* v0.14.37 · pulido (tanda 2) */
+/* Resumen en celular: pestañas Ventas · Visitas · Inventario · Espacio */
+.rtabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:#E9EDF5;border-radius:14px;padding:4px;margin:0 0 12px;position:sticky;top:62px;z-index:5}
+.rtabs button{position:relative;border:0;background:none;border-radius:10px;min-height:40px;font:600 13px var(--font);color:var(--gris);cursor:pointer;padding:0 2px}
+.rtabs button.on{background:#fff;color:var(--azul-osc);box-shadow:0 1px 3px rgba(20,40,90,.14)}
+.rtabs .dot-n{position:absolute;top:6px;right:6px;width:8px;height:8px}
+[data-rt][hidden]{display:none!important}
+/* Agenda: cada vendedora se abre y se cierra con un toque */
+details.acord>summary{list-style:none;cursor:pointer;margin:0}
+details.acord>summary::-webkit-details-marker{display:none}
+.acord-f{display:grid;place-items:center;width:32px;height:32px;border-radius:10px;color:var(--gris);transform:rotate(-90deg);transition:transform .15s;flex:none}
+details.acord[open] .acord-f{transform:rotate(90deg)}
+details.acord>summary .grow{flex:1;min-width:0}
