@@ -88,7 +88,16 @@ Deno.serve(async (req) => {
         }),
       });
       const body = await r.json();
-      if (!r.ok) throw new Error(body?.error?.message || "Error del modelo " + r.status);
+      if (!r.ok) {
+        const msg = body?.error?.message || "Error del modelo " + r.status;
+        // Sin saldo, clave inválida, límite o servicio saturado: la foto queda en espera y se reintenta, no se marca como error.
+        if ([401, 402, 403, 429, 500, 502, 503, 529].includes(r.status) || /credit|balance|billing/i.test(msg)) {
+          await db.from("foto_analisis").upsert({ foto_id: f.foto_id, empresa_id: f.empresa_id, visita_id: f.visita_id, estado: "sin_saldo", modelo: MODELO, error: msg }, { onConflict: "foto_id" });
+          out.push({ foto: f.foto_id, ok: false, espera: msg });
+          break; // si una falla por saldo, las demás también: no gastar llamadas
+        }
+        throw new Error(msg);
+      }
       const texto = (body.content || []).map((c: { text?: string }) => c.text || "").join("");
       const m = texto.match(/\{[\s\S]*\}/);
       const resultado = m ? JSON.parse(m[0]) : null;
