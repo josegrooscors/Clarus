@@ -509,3 +509,10 @@ table.t td{overflow-wrap:normal}
 .scroll-x>table.t th:first-child,.scroll-x>table.t td:first-child{position:sticky;left:0;background:#fff;z-index:1;min-width:112px;max-width:46vw;white-space:normal}
 table.perm td:first-child{min-width:200px}
 @media (max-width:759px){table.t{font-size:13.5px}table.t th,table.t td{padding-left:8px;padding-right:8px}}
+
+/* Clarus Vision: sello de la tecnología de visión artificial (sin marco; la línea va en el azul de la marca) */
+.cv-sello{display:inline-flex;align-items:center;gap:9px;align-self:flex-start;max-width:100%;font-size:14px;line-height:1.25}
+.cv-sello svg{flex:none}
+.cv-sello b{font-family:var(--font-t);font-weight:700;font-size:15px;letter-spacing:-.01em;color:#0B1B33;white-space:nowrap}
+.cv-sello i{font-style:normal;font-weight:600;color:var(--azul);padding-left:10px;border-left:2px solid var(--azul-med)}
+.foco-lema .cv-sello{margin-top:6px}

@@ -152,7 +152,7 @@ const App = {
       <div class="foco-agua">${lente(520, "#EAF0FE", "#EAF0FE")}</div>
       <div class="foco-in">
         <div class="foco-marca">${lente(30, "#2F5BEA", "#0B1B33")}<span>clarus</span></div>
-        <div class="foco-lema"><span class="foco-eti">Ejecución en punto de venta</span><h1>Te hago ver lo que tú <b>no puedes ver.</b></h1></div>
+        <div class="foco-lema"><span class="foco-eti">Ejecución en punto de venta</span><h1>Te hago ver lo que tú <b>no puedes ver.</b></h1>${visionSello()}</div>
         <form class="foco-form" id="lf" autocomplete="on" novalidate>
           <div class="foco-campo"><label for="lu">Usuario o correo</label>
             <input id="lu" name="username" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" value="${esc(usuario)}"></div>
