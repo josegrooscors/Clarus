@@ -99,7 +99,7 @@ const V = {
     if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
       const el = $("#porEscanear", root); if (!el || !count) return;
       el.innerHTML = `<a class="card" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--azul-cl);border-color:var(--azul-med)">
-        <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${count} pedido(s) sin orden escaneada</b><div class="small muted">Escanea la orden de compra cuando la tienda te la entregue</div></div><span class="btn sm">Escanear</span></a>`;
+        <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${plur(count, "pedido")} sin orden escaneada</b><div class="small muted">Escanea la orden de compra cuando la tienda te la entregue</div></div><span class="btn sm">Escanear</span></a>`;
     });
     // Actualiza tiendas y productos en segundo plano; si hay cambios, vuelve a pintar
     if (navigator.onLine && !V._refrescando) {
@@ -246,7 +246,7 @@ const V = {
     const tarjeta = (k, nombre, icono, quitar) => {
       const fs = FOTOS.de(v, k);
       return `<div class="inv"><div class="row"><span class="foto-ic">${icono}</span><div class="sp"><div class="nm">${esc(nombre)}</div>
-          <div class="tiny muted">${fs.length ? fs.length + " foto(s) · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
+          <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
           ${fs.length ? `<span class="pill p-menta">✓ Lista</span>` : `<span class="pill p-durazno">Falta</span>`}</div>
         ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
         <div class="row" style="gap:8px;margin-top:10px"><button class="btn ${fs.length ? "ghost" : "sec"} sm sp" data-f="${k}">${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button>
@@ -406,7 +406,7 @@ const V = {
         <p class="small muted">Ya le llegó a operaciones. Puedes editarlo o anularlo mientras no lo impriman.</p>
         <div class="row"><button class="btn ghost sm sp" data-edit>Editar pedido</button><button class="btn peligro sm sp" data-anul>Anular</button></div></div>
       <div class="card" style="border-color:var(--azul-med)"><div class="row"><span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><h3>Orden de compra de la tienda</h3>
-        <div class="small muted">${v.pedido.orden ? `Escaneada ✓ · ${v.pedido.orden.paginas} página(s) · ${fmtHora(v.pedido.orden.at)}` : "Escanea la hoja física que te entrega la tienda. En la oficina la descargan e imprimen."}</div></div></div>
+        <div class="small muted">${v.pedido.orden ? `Escaneada ✓ · ${plur(v.pedido.orden.paginas, "página")} · ${fmtHora(v.pedido.orden.at)}` : "Escanea la hoja física que te entrega la tienda. En la oficina la descargan e imprimen."}</div></div></div>
         <button class="btn ${v.pedido.orden ? "ghost" : ""} block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${v.pedido.orden ? "Volver a escanear" : "Escanear orden de compra"}</button></div>
         <button class="btn sec block" data-ok>Seguir</button>`;
       $("[data-scan]", box).onclick = async () => {
@@ -440,7 +440,7 @@ const V = {
     const bajos = filas.filter((f) => f.bajo).length;
     box.innerHTML = `${!v.guardado.inventario ? `<div class="card flat" style="background:var(--durazno);border-color:#F6DDBB"><b>Primero guarda el inventario</b><div class="small">Así la app calcula el pedido sugerido.</div></div>` : ""}
       ${previo ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med)"><b>Editando el pedido</b><div class="small">Cambia las cantidades y guarda.</div></div>` : ""}
-      <p class="muted small" style="margin-top:0">${bajos ? `${bajos} producto(s) con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
+      <p class="muted small" style="margin-top:0">${bajos ? `${plur(bajos, "producto")} con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
       <div class="list">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
           <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div></div>
@@ -524,7 +524,7 @@ const V = {
     const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
       ["fotos", `Fotos de evidencia · ${nFotos} de ${req.length} (${v.fotos.length} foto${v.fotos.length === 1 ? "" : "s"})`, e.fotos],
-      ["inventario", `Inventario contado${agot ? ` · ${agot} agotado(s)` : ""}`, e.inventario],
+      ["inventario", `Inventario contado${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.inventario],
       ["promos", "Promociones revisadas", e.promos],
       ["pedido", v.pedido?.ninguno ? `Sin pedido${v.pedido.motivo ? " · " + (MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") : ""}` : v.pedido?.items?.length ? `Pedido enviado · ${fmtKg(kgPed)}` : "Pedido", e.pedido],
       ...(pls.length ? [["gestion", `Planograma revisado${pls.length > 1 ? " (" + pls.length + ")" : ""}`, e.gestion]] : []),
@@ -650,7 +650,7 @@ const V = {
 
   // ---------------- PEDIDOS (vendedor) ----------------
   async pedidos(root) {
-    root.innerHTML = `<div class="top"><h1>Mis pedidos</h1><span id="syncpill"></span></div><div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
+    root.innerHTML = `<div class="top"><div><div class="muted small">Tus pedidos y su estado</div><h1>Mis pedidos</h1></div><span id="syncpill"></span></div><div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
     App.syncPill();
     if (!navigator.onLine) { $("#lp").innerHTML = `<div class="empty card flat"><div class="ic">${ic("senal", 34)}</div>Sin señal. Los pedidos se verán cuando vuelva la conexión.</div>`; return; }
     const { data, error } = await sb.from("v_pedidos").select("*").eq("vendedor_id", DB.user.id).order("creado_at", { ascending: false }).limit(60);
@@ -658,8 +658,8 @@ const V = {
     const orden = { propuesto: 0, aprobado: 1, orden_escaneada: 2, rechazado: 3, impreso: 4, anulado: 5 };
     data.sort((a, b) => orden[a.estado] - orden[b.estado] || new Date(b.creado_at) - new Date(a.creado_at));
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${ic("pedidos", 20)}</div><div class="grow"><div class="t">${esc(p.tienda)}</div>
-        <div class="small muted">${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas · ${fmtKg(p.total_kg)}</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}</div>
-        ${["propuesto", "aprobado"].includes(p.estado) && !p.documento ? `<span class="btn sm">${ic("camara", 16)} Escanear</span>` : pillPedido(p.estado) + (p.documento && p.estado === "propuesto" ? ` <span class="pill p-lila">Orden ✓</span>` : "")}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
+        <div class="small muted">${fmtFechaHora(p.creado_at)} · ${plur(fmtNum(p.total_cajas), "caja")}${p.total_kg != null ? " · " + fmtKg(p.total_kg) : ""}</div>${p.estado === "rechazado" && p.nota_revision ? `<div class="small" style="color:var(--rosa-t)">${esc(p.nota_revision)}</div>` : ""}
+        <div class="item-pie">${pillPedido(p.estado)}${p.documento && p.estado === "propuesto" ? ` <span class="pill p-lila">Orden ✓</span>` : ""}${["propuesto", "aprobado"].includes(p.estado) && !p.documento ? `<span class="btn sm" style="margin-left:auto">${ic("camara", 16)} Escanear orden</span>` : ""}</div></div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("pedidos", 34)}</div>Todavía no tienes pedidos.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detallePedido(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root))));
   },
 

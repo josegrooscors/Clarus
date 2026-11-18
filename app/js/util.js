@@ -8,6 +8,8 @@ const fmtHora = (t) => (t ? new Date(t).toLocaleTimeString("es-PA", { hour: "2-d
 const fmtFecha = (t) => (t ? new Date(t).toLocaleDateString("es-PA", { weekday: "short", day: "numeric", month: "short" }) : "–");
 const fmtFechaHora = (t) => (t ? fmtFecha(t) + " · " + fmtHora(t) : "–");
 const minutos = (a, b) => (a && b ? Math.round((new Date(b) - new Date(a)) / 60000) : null);
+// Singular o plural según la cantidad: plur(1, "tienda") → "1 tienda", plur(4, "tienda") → "4 tiendas".
+const plur = (n, palabra) => `${n} ${palabra}${Number(n) === 1 ? "" : "s"}`;
 const iniciales = (s) => String(s || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 const hoyISO = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Panama" });
 const diaSemana = () => { const d = new Date().getDay(); return d === 0 ? 7 : d; }; // 1=lunes

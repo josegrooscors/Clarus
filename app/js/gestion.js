@@ -5,7 +5,7 @@ const G = {
     const rol = DB.perfil.rol;
     const tabs = [["imprimir", "Por imprimir"], ["sinorden", "Sin orden escaneada"], ["impreso", "Impresos"], ["anulado", "Anulados"]];
     filtro = filtro || "imprimir";
-    root.innerHTML = `<div class="top"><h1>Pedidos</h1></div>
+    root.innerHTML = `<div class="top"><div><div class="muted small">Pedidos de las vendedoras</div><h1>Pedidos</h1></div></div>
       <div class="steps">${tabs.map(([k, t]) => `<div class="step ${k === filtro ? "on" : ""}" data-f="${k}">${t} <span data-n="${k}"></span></div>`).join("")}</div>
       <div class="list" id="lp"><div class="muted">Cargando…</div></div>`;
     $$("[data-f]", root).forEach((el) => (el.onclick = () => this.pedidos(root, el.dataset.f)));
@@ -24,8 +24,8 @@ const G = {
     const { data, error } = await q.order("creado_at", { ascending: filtro === "imprimir" }).limit(100);
     if (error) { $("#lp").innerHTML = esc(error.message); return; }
     $("#lp").innerHTML = data.map((p) => `<div class="item" data-id="${p.id}"><div class="ava">${esc(iniciales(p.vendedor))}</div>
-      <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${fmtNum(p.total_cajas)} cajas · ${fmtKg(p.total_kg)}${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div></div>
-      ${pillPedido(p.estado)}${p.documento && filtro !== "imprimir" && p.estado !== "impreso" ? ` <span class="pill p-lila">Orden ✓</span>` : ""}</div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
+      <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="small muted">${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)} · ${plur(fmtNum(p.total_cajas), "caja")}${p.total_kg != null ? " · " + fmtKg(p.total_kg) : ""}${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</div>
+      <div class="item-pie">${pillPedido(p.estado)}${p.documento && filtro !== "imprimir" && p.estado !== "impreso" ? ` <span class="pill p-lila">Orden ✓</span>` : ""}</div></div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>No hay pedidos en esta lista.</div>`;
     $$("[data-id]", root).forEach((el) => (el.onclick = () => this.detalle(data.find((p) => p.id == el.dataset.id), () => this.pedidos(root, filtro))));
   },
 
@@ -101,7 +101,7 @@ const G = {
       ${Object.entries(porVend).map(([n, vs]) => {
         const ini = vs[0].checkin_at, fin = vs.filter((v) => v.checkout_at).slice(-1)[0]?.checkout_at;
         return `<div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(n))}</div><div class="grow"><h3>${esc(n)}</h3>
-          <div class="small muted">Inicio ${fmtHora(ini)} · ${fin ? "último cierre " + fmtHora(fin) : "sin cierres"} · ${vs.length} visita(s)</div></div></div>
+          <div class="small muted">Inicio ${fmtHora(ini)} · ${fin ? "último cierre " + fmtHora(fin) : "sin cierres"} · ${plur(vs.length, "visita")}</div></div></div>
           <div class="list solo-movil">${vs.map((v) => `<div class="inv"><div class="row"><b class="sp">${esc(v.tienda)}</b>${G.gps(v)}</div>
             <div class="small muted" style="margin-top:4px">${fmtHora(v.checkin_at)} → ${v.checkout_at ? fmtHora(v.checkout_at) : "<b style='color:var(--azul-osc)'>abierta</b>"}${v.minutos_en_tienda != null ? " · " + fmtNum(v.minutos_en_tienda, 0) + " min" : ""} · ${v.num_fotos} fotos · inventario ${v.con_inventario ? "✓" : "—"}</div></div>`).join("")}</div>
           <div class="scroll-x solo-escritorio"><table class="t"><tr><th>Tienda</th><th>Entrada</th><th>Salida</th><th>Min</th><th>GPS</th><th>Fotos</th><th>Inv.</th></tr>
@@ -147,7 +147,7 @@ const G = {
         ${dSel.iso <= hoyISO() ? `<div class="kpi"><div class="v">${delDia.filter((a) => (vis || []).some((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id)).length}</div><div class="l">Visitadas</div></div>` : ""}
       </div>
       ${Object.entries(porV).sort((a, b) => (a[1][0].perfiles?.nombre || "").localeCompare(b[1][0].perfiles?.nombre || "")).map(([vid, xs]) => `
-        <div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${xs.length} tienda(s) · ${esc(tit)}</div></div></div>
+        <div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${plur(xs.length, "tienda")} · ${esc(tit)}</div></div></div>
         <div class="list">${xs.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
           return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ""}</div></div>
             ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></div>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
@@ -196,7 +196,7 @@ const G = {
         <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>
         <div class="kpi"><div class="v">${new Set(data.map((o) => o.cliente_id)).size}</div><div class="l">Tiendas con objetivo</div></div></div>
       <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th><th>Avance</th></tr>
-      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${new Set(r.xs.map((o) => o.cliente_id)).size} tiendas</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}
+      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${plur(new Set(r.xs.map((o) => o.cliente_id)).size, "tienda")}</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}
         <td>${fmtUsd(r.ven)} / ${fmtUsd(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
       <p class="tiny muted">Toca una vendedora para ver sus tiendas, de menor a mayor avance.</p>`;
     $$("[data-g]", root).forEach((tr) => (tr.onclick = () => this.objetivos(root, tr.dataset.g)));

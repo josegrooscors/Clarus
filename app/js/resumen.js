@@ -123,12 +123,12 @@ const R = {
       ${agotSinPed.length ? `<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--rosa);border-color:#F3C4C0">
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
-        <div class="small">${new Set(agotSinPed.map((a) => a.cliente_id)).size} tienda(s) en total · ${agotSinPed.length} conteo(s) en ${new Set(agotSinPed.map((a) => a.visita_id)).size} visita(s). <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
+        <div class="small">${plur(new Set(agotSinPed.map((a) => a.cliente_id)).size, "tienda")} en total · ${plur(agotSinPed.length, "conteo")} en ${plur(new Set(agotSinPed.map((a) => a.visita_id)).size, "visita")}. <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
         <button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button></div>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       <div class="kpis">
-        ${kpi(fmtNum(kgPer, 0) + " kg", "Pedidos capturados · " + esc(etPer), "", `${ped.length} pedido(s)`)}
+        ${kpi(fmtNum(kgPer, 0) + " kg", "Pedidos capturados · " + esc(etPer), "", `${plur(ped.length, "pedido")}`)}
         ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
         ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
       </div>
@@ -248,8 +248,8 @@ const R = {
     (m, close) => {
       const pintar = () => {
         const msgs = armar();
-        $("#avp", m).innerHTML = msgs.length ? `<div class="small"><b>${msgs.length} vendedora(s)</b> recibirán un mensaje:</div>
-          ${R.paginar(msgs.map((x) => `<details style="padding:6px 0;border-top:1px solid var(--borde)"><summary><b>${esc(x.nombre)}</b> · ${x.n} tienda(s)</summary><div class="small" style="white-space:pre-wrap;margin-top:6px"><b>${esc(x.titulo)}</b>\n${esc(x.cuerpo)}</div></details>`))}`
+        $("#avp", m).innerHTML = msgs.length ? `<div class="small"><b>${plur(msgs.length, "vendedora")}</b> recibirán un mensaje:</div>
+          ${R.paginar(msgs.map((x) => `<details style="padding:6px 0;border-top:1px solid var(--borde)"><summary><b>${esc(x.nombre)}</b> · ${plur(x.n, "tienda")}</summary><div class="small" style="white-space:pre-wrap;margin-top:6px"><b>${esc(x.titulo)}</b>\n${esc(x.cuerpo)}</div></details>`))}`
           : `<div class="small muted">Con los productos elegidos no hay nada que avisar.</div>`;
         $("[data-env]", m).disabled = !msgs.length;
       };
@@ -267,7 +267,7 @@ const R = {
             if (r2.error) throw r2.error;
           }
           DB.funcion("avisos", {}).catch(() => {});
-          close(); toast(`Aviso enviado a ${msgs.length} vendedora(s) ✓`);
+          close(); toast(`Aviso enviado a ${plur(msgs.length, "vendedora")} ✓`);
         } catch (err) { e.target.disabled = false; e.target.textContent = "Enviar"; toast(err.message || String(err)); }
       };
     });

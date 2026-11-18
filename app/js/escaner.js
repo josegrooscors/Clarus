@@ -87,7 +87,7 @@ const Escaner = {
     return new Promise((resolve) => {
       const el = document.createElement("div");
       el.className = "full";
-      el.innerHTML = `<div class="head"><button class="txtbtn" data-c>Cancelar</button><b>${paginas.length} página(s)</b><span style="width:70px"></span></div>
+      el.innerHTML = `<div class="head"><button class="txtbtn" data-c>Cancelar</button><b>${plur(paginas.length, "página")}</b><span style="width:70px"></span></div>
         <div class="cropwrap"><img style="max-width:92%;max-height:100%;background:#fff;border-radius:4px"></div>
         <div class="pages"></div>
         <div class="bar"><button class="btn sec" data-mas>+ Otra página</button><button class="btn" data-fin>Listo</button></div>`;

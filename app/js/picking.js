@@ -12,7 +12,7 @@ const PK = {
     if (id) return this.despacho(root, Number(id));
     let tab = LS.get("pk.tab", DB.perfil?.rol === "administracion" ? "facturar" : "preparar"), agrupar = LS.get("pk.agrupar", "vendedor");
     const pintar = async () => {
-      root.innerHTML = `<div class="top"><div><div class="muted small">Pedidos de las vendedoras → bodega → administración</div><h1>Picking</h1></div></div>
+      root.innerHTML = `<div class="top"><div><div class="muted small">Preparación, despacho y facturación</div><h1>Picking</h1></div></div>
         <div class="steps">${[["preparar", "Por preparar"], ["rutas", "Rutas de despacho"], ["facturar", "Por facturar"]].map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div>
         <div id="pkc" class="muted">Cargando…</div>`;
       $$("[data-tab]", root).forEach((el) => (el.onclick = () => { tab = el.dataset.tab; LS.set("pk.tab", tab); pintar(); }));
@@ -36,7 +36,7 @@ const PK = {
       $("#pkc", root).outerHTML = `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="small muted">Agrupar por</span>
           ${[["vendedor", "Vendedora"], ["zona", "Grupo de ruta"]].map(([k, t]) => `<button class="btn sm ${agrupar === k ? "" : "sec"}" data-agr="${k}">${t}</button>`).join("")}</div>
         ${lista.length ? Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0])).map(([g, ps]) => `<div class="card pk-grupo">
-          <div class="check pk-todos ${ps.every((p) => this.sel.has(p.id)) ? "on" : ""}" data-grupo="${esc(g)}"><div class="box">✓</div><b class="grow">${esc(g)}</b><span class="tiny muted">${ps.length} pedido(s)</span></div>
+          <div class="check pk-todos ${ps.every((p) => this.sel.has(p.id)) ? "on" : ""}" data-grupo="${esc(g)}"><div class="box">✓</div><b class="grow">${esc(g)}</b><span class="tiny muted">${plur(ps.length, "pedido")}</span></div>
           ${R.paginar(ps.sort((a, b) => (ord[a.cliente_id] ?? 999) - (ord[b.cliente_id] ?? 999)).map((p) => `<div class="check pk-ped ${this.sel.has(p.id) ? "on" : ""}" data-ped="${p.id}"><div class="box">✓</div>
             <div class="grow"><div class="t">${esc(p.tienda)}</div><div class="tiny muted">${esc(p.vendedor || "")} · ${fmtFecha(p.creado_at)} ${fmtHora(p.creado_at)}${p.documento ? " · orden escaneada" : ""}</div></div>
             <span class="small"><b>${cajas(p)}</b></span></div>`))}</div>`).join("")
@@ -45,7 +45,7 @@ const PK = {
       const barra = () => {
         const ps = lista.filter((p) => this.sel.has(p.id));
         const kg = ps.reduce((a, p) => a + it[p.id].reduce((b, x) => b + kgLinea(x.aprobado ?? x.propuesto, x.productos), 0), 0);
-        $("#pkb").innerHTML = ps.length ? `<div class="grow"><b>${ps.length} pedido(s)</b> · ${new Set(ps.map((p) => p.cliente_id)).size} tienda(s) · ≈ ${fmtKg(kg)}</div><button class="btn" data-crear>Crear ruta de despacho</button>` : "";
+        $("#pkb").innerHTML = ps.length ? `<div class="grow"><b>${plur(ps.length, "pedido")}</b> · ${plur(new Set(ps.map((p) => p.cliente_id)).size, "tienda")} · ≈ ${fmtKg(kg)}</div><button class="btn" data-crear>Crear ruta de despacho</button>` : "";
         $("#pkb").hidden = !ps.length;
         const b = $("[data-crear]"); if (b) b.onclick = () => this.crear(ps, ord, agrupar === "vendedor" ? null : zona);
       };
@@ -71,7 +71,7 @@ const PK = {
       <div id="dtn" class="row" style="gap:6px;margin-top:6px;display:${transportes.length ? "none" : "flex"}"><input class="in sp" id="dtnn" placeholder="Nombre de la empresa de transporte"><button class="btn sm" id="dtna">Agregar</button></div>
       <label class="f">Nombre de la ruta</label><input class="in" id="dn" value="${esc(nombres || "Ruta")}">
       <label class="f">Fecha de entrega</label><input class="in" type="date" id="df" value="${manana}">
-      <p class="small muted">${ps.length} pedido(s) en ${new Set(ps.map((p) => p.cliente_id)).size} tienda(s). El orden sigue la ruta de cada vendedora.</p>
+      <p class="small muted">${plur(ps.length, "pedido")} en ${plur(new Set(ps.map((p) => p.cliente_id)).size, "tienda")}. El orden sigue la ruta de cada vendedora.</p>
       <button class="btn block" data-ok>Crear y empezar a pesar</button>`, (m, close) => {
       const sel = $("#dt", m);
       sel.onchange = () => { $("#dtn", m).style.display = sel.value === "nuevo" ? "flex" : "none"; if (sel.value === "nuevo") $("#dtnn", m).focus(); };
@@ -111,7 +111,7 @@ const PK = {
       const pesadas = peds.reduce((a, p) => a + p.pedido_pesos.length, 0), fact = peds.filter((p) => p.facturado_at).length;
       const [et, cl] = this.ESTADOS[d.estado];
       return `<a class="item" href="${base}${d.id}" style="text-decoration:none;color:inherit"><div class="ava" style="color:var(--azul)">${ic("caja", 22)}</div>
-        <div class="grow"><div class="t">${esc(d.nombre)}</div><div class="small muted">${d.transportes ? `<b>${esc(d.transportes.nombre)}</b> · ` : ""}Entrega ${this.fCorta(d.fecha)} · ${peds.length} pedido(s) · ${facturacion ? `${fact}/${peds.length} facturados` : `${pesadas}/${cajas} cajas pesadas`}</div></div>
+        <div class="grow"><div class="t">${esc(d.nombre)}</div><div class="small muted">${d.transportes ? `<b>${esc(d.transportes.nombre)}</b> · ` : ""}Entrega ${this.fCorta(d.fecha)} · ${plur(peds.length, "pedido")} · ${facturacion ? `${fact}/${peds.length} facturados` : `${pesadas}/${cajas} cajas pesadas`}</div></div>
         <span class="pill ${cl}">${et}</span></a>`;
     }))}</div>` : `<div class="empty card flat"><div class="ic">${ic(facturacion ? "factura" : "caja", 34)}</div>${facturacion ? "No hay rutas pendientes de facturar." : "Aún no hay rutas de despacho."}</div>`;
   },
@@ -148,10 +148,10 @@ const PK = {
         ${p.nota_vendedor ? `<div class="small muted" style="margin-top:4px">Nota: ${esc(p.nota_vendedor)}</div>` : ""}
         ${p.pedido_items.map((x) => {
           const pesos = p.pedido_pesos.filter((w) => w.producto_id === x.producto_id), cj = Math.round(Number(x.aprobado ?? x.propuesto));
-          return `<div class="pk-prod"><div class="row"><b class="grow">${esc(x.productos.nombre)}</b><span class="small">Pedido: <b>${fmtNum(Number(x.aprobado ?? x.propuesto), 1)} caja(s)</b></span></div>
+          return `<div class="pk-prod"><div class="row"><b class="grow">${esc(x.productos.nombre)}</b><span class="small">Pedido: <b>${plur(fmtNum(Number(x.aprobado ?? x.propuesto), 1), "caja")}</b></span></div>
             <div class="pk-pesos">${pesos.map((w, j) => `<span class="pk-peso">Caja ${j + 1}: <b>${fmtNum(Number(w.kg), 2)} kg</b>${editable ? `<button class="no-print" data-borrar="${w.id}" aria-label="Borrar">×</button>` : ""}</span>`).join("")}
               ${editable ? `<span class="pk-in no-print"><input class="in" type="text" inputmode="decimal" placeholder="Peso caja ${pesos.length + 1} (kg)" data-peso="${p.id}:${x.producto_id}"><button class="btn sm" data-add="${p.id}:${x.producto_id}">+ Caja</button></span>` : ""}</div>
-            <div class="tiny ${pesos.length === cj ? "" : "muted"}" style="margin-top:4px">${pesos.length}/${cj} caja(s) · ${fmtNum(pesos.reduce((a, w) => a + Number(w.kg), 0), 2)} kg</div></div>`;
+            <div class="tiny ${pesos.length === cj ? "" : "muted"}" style="margin-top:4px">${pesos.length}/${plur(cj, "caja")} · ${fmtNum(pesos.reduce((a, w) => a + Number(w.kg), 0), 2)} kg</div></div>`;
         }).join("")}</div>`).join("")}
       <div class="row no-print" style="gap:8px;flex-wrap:wrap;margin-top:8px">
         <button class="btn ghost" onclick="window.print()">Imprimir hoja de picking</button>
@@ -178,7 +178,7 @@ const PK = {
     }));
     const env = $("[data-enviar]", root);
     if (env) env.onclick = async () => {
-      if (pesadas < totalCajas && !(await confirmar(`Faltan ${totalCajas - pesadas} caja(s) por pesar. ¿Enviar igual?`, "Enviar"))) return;
+      if (pesadas < totalCajas && !(await confirmar(`Faltan ${plur(totalCajas - pesadas, "caja")} por pesar. ¿Enviar igual?`, "Enviar"))) return;
       const { error } = await sb.from("despachos").update({ estado: "enviado", enviado_at: new Date().toISOString() }).eq("id", id);
       if (error) return toast(error.message);
       toast("Enviado a administración ✓"); this.despacho(root, id);

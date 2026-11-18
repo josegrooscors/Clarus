@@ -97,7 +97,10 @@ const MSG = {
   b64(s) { const p = "=".repeat((4 - (s.length % 4)) % 4), r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from([...r].map((c) => c.charCodeAt(0))); },
   bannerPush() {
     if (!this.pushPosible() || Notification.permission === "granted") return "";
-    if (Notification.permission === "denied") return `<div class="card flat small" style="background:var(--durazno);border-color:#F6DDBB">Las notificaciones están bloqueadas. Actívalas en Chrome: ⋮ › Configuración › Notificaciones › Clarus.</div>`;
+    if (Notification.permission === "denied") {
+      if (Date.now() - (LS.get("pushAvisoCerrado", 0) || 0) < 14 * 864e5) return "";
+      return `<div class="card flat small aviso-x" style="background:var(--durazno);border-color:#F6DDBB"><div class="grow">Las notificaciones están bloqueadas. Actívalas en Chrome: ⋮ › Configuración › Notificaciones › Clarus.</div><button class="x-btn" aria-label="Cerrar aviso" onclick="LS.set('pushAvisoCerrado', Date.now()); this.closest('.aviso-x').remove()">✕</button></div>`;
+    }
     return `<div class="card flat row" style="background:var(--azul-cl);border-color:var(--azul-med)"><span style="color:var(--azul)">${ic("msg", 24)}</span><div class="grow small"><b>Activa las notificaciones</b><br>Para que te avise cuando llegue un comunicado o un mensaje de soporte.</div><button class="btn sm" data-push>Activar</button></div>`;
   },
   enlazarBanner(root, re) {
@@ -135,9 +138,9 @@ const MSG = {
       $("#ml", root).outerHTML = data.length ? `<div class="card list">${data.map((c) => {
           const pc = c.requiere_ok ? pct(c.confirmados, c.destinatarios) : pct(c.leidos, c.destinatarios);
           return `<a class="item" href="#mensajes/${c.id}"><div class="ava" style="color:var(--azul)">${ic("msg", 22)}</div>
-            <div class="grow"><div class="t">${esc(c.titulo)}</div><div class="small muted">${tab === "programados" ? "Sale el " : ""}${fmtFecha(c.programado_at)} ${fmtHora(c.programado_at)} · ${c.destinatarios} destinatario(s)</div>
-            ${tab === "enviados" ? `<div style="margin-top:6px">${barra(pc)}</div>` : ""}</div>
-            ${tab === "enviados" ? `<span class="pill ${colorPct(pc)}">${c.requiere_ok ? c.confirmados : c.leidos}/${c.destinatarios} ${c.requiere_ok ? "confirmaron" : "leyeron"}</span>` : `<span class="pill p-azul">Programado</span>`}</a>`;
+            <div class="grow"><div class="t">${esc(c.titulo)}</div><div class="small muted">${tab === "programados" ? "Sale el " : ""}${fmtFecha(c.programado_at)} ${fmtHora(c.programado_at)} · ${plur(c.destinatarios, "destinatario")}</div>
+            <div class="item-pie">${tab === "enviados" ? `<span class="pill ${colorPct(pc)}">${c.requiere_ok ? c.confirmados : c.leidos}/${c.destinatarios} ${c.requiere_ok ? "confirmaron" : "leyeron"}</span>` : `<span class="pill p-azul">Programado</span>`}</div>
+            ${tab === "enviados" ? `<div style="margin-top:8px">${barra(pc)}</div>` : ""}</div></a>`;
         }).join("")}</div>`
         : `<div class="empty card flat"><div class="ic">${ic("msg", 34)}</div>${tab === "programados" ? "No hay comunicados programados." : "Aún no has enviado comunicados."}</div>`;
     };
@@ -163,7 +166,7 @@ const MSG = {
         <h1 style="margin:6px 0 12px">${esc(c.titulo)}</h1><div class="msg-cuerpo">${esc(c.cuerpo)}</div>
         ${mio && mio.requiere_ok ? (mio.ok_at ? `<div class="pill p-menta" style="margin-top:16px">Entendido ✓ · ${fmtHora(mio.ok_at)}</div>` : `<button class="btn block" style="margin-top:16px" data-ok>Entendido</button>`) : ""}</div>
       ${dest ? `<h3 class="sec-t">Quién lo ${c.requiere_ok ? "confirmó" : "leyó"}</h3><div class="card list">${dest.map((d) => `<div class="item"><div class="ava">${esc(iniciales(d.perfiles?.nombre || "?"))}</div>
-          <div class="grow"><div class="t">${esc(d.perfiles?.nombre || "")}</div><div class="small muted">${d.recordatorios ? d.recordatorios + " recordatorio(s) enviados" : ""}</div></div>
+          <div class="grow"><div class="t">${esc(d.perfiles?.nombre || "")}</div><div class="small muted">${d.recordatorios ? (d.recordatorios === 1 ? "1 recordatorio enviado" : d.recordatorios + " recordatorios enviados") : ""}</div></div>
           ${d.ok_at ? `<span class="pill p-menta">Entendido · ${fmtHora(d.ok_at)}</span>` : d.leido_at ? `<span class="pill p-durazno">${c.requiere_ok ? "Leído, sin confirmar" : "Leído · " + fmtHora(d.leido_at)}</span>` : `<span class="pill p-rosa">${futuro ? "Pendiente de envío" : "No lo ha abierto"}</span>`}</div>`).join("")}</div>
         <button class="btn peligro sm" data-anular>${futuro ? "Cancelar envío" : "Retirar comunicado"}</button>` : ""}`;
     const ok = $("[data-ok]", root);
@@ -218,7 +221,7 @@ const MSG = {
           const r2 = await sb.from("comunicado_destinos").insert(ids.map((u) => ({ comunicado_id: c.id, user_id: u })));
           if (r2.error) { await sb.from("comunicados").delete().eq("id", c.id); throw r2.error; }
           if (cuando === "ya") DB.funcion("avisos", {}).catch(() => {});
-          close(); toast(cuando === "ya" ? `Enviado a ${ids.length} persona(s) ✓` : `Programado para el ${fmtFecha(prog.toISOString())} ${fmtHora(prog.toISOString())} ✓`);
+          close(); toast(cuando === "ya" ? `Enviado a ${plur(ids.length, "persona")} ✓` : `Programado para el ${fmtFecha(prog.toISOString())} ${fmtHora(prog.toISOString())} ✓`);
           LS.set("msg.tab", cuando === "ya" ? "enviados" : "programados"); listo && listo();
         } catch (err) { e.target.disabled = false; toast(err.message || String(err)); }
       };
