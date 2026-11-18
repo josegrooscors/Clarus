@@ -73,7 +73,7 @@ const DB = {
 
   async salir() {
     const pend = (await IDB.ops()).length;
-    if (pend && !(await confirmar(`Tienes ${pend} registro(s) sin sincronizar. Si sales ahora se pueden perder.`, "Salir igual"))) return;
+    if (pend && !(await confirmar(`Tienes ${plur(pend, "registro")} sin sincronizar. Si sales ahora se pueden perder.`, "Salir igual"))) return;
     await sb.auth.signOut(); localStorage.clear(); location.reload();
   },
 

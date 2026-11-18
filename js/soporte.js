@@ -61,7 +61,7 @@ const SOP = {
         const pend = (mes || []).filter((t) => t.estado === "abierto").length;
         $("#sk").innerHTML = `<div class="kpis">
           <div class="kpi ${pend ? "alerta" : ""}"><div class="v">${tab === "pendientes" ? data.length : pend}</div><div class="l">Por responder</div></div>
-          <div class="kpi"><div class="v">${prom == null ? "–" : prom < 60 ? Math.round(prom) + " min" : fmtNum(prom / 60, 1) + " h"}</div><div class="l">Tiempo promedio de primera respuesta</div><div class="tiny muted" style="margin-top:4px">últimos 30 días · ${(mes || []).length} consulta(s)</div></div></div>`;
+          <div class="kpi"><div class="v">${prom == null ? "–" : prom < 60 ? Math.round(prom) + " min" : fmtNum(prom / 60, 1) + " h"}</div><div class="l">Tiempo promedio de primera respuesta</div><div class="tiny muted" style="margin-top:4px">últimos 30 días · ${plur((mes || []).length, "consulta")}</div></div></div>`;
       }
       $("#sl", root).outerHTML = data.length ? `<div class="card list">${data.map((t) => {
           const espera = ag && t.estado === "abierto" ? (Date.now() - new Date(t.ultimo_at)) / 60000 : 0;

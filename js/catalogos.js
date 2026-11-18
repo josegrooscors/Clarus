@@ -31,7 +31,7 @@ const K = {
     if (error) throw error;
     const n = (id) => (des || []).filter((d) => d.transporte_id === id).length;
     kb.innerHTML = `<div class="card"><div class="row wrap"><input class="in sp" id="tn" placeholder="Empresa de transporte"><input class="in" id="tc" placeholder="Contacto" style="width:160px"><input class="in" id="tt" placeholder="Teléfono" inputmode="tel" style="width:140px"><button class="btn" id="ta">Agregar</button></div></div>
-      <div class="list">${data.map((x) => `<div class="item" data-id="${x.id}"><div class="ava" style="color:var(--azul)">${ic("caja", 22)}</div><div class="grow"><div class="t">${esc(x.nombre)}</div><div class="tiny muted">${[x.contacto, x.telefono].filter(Boolean).map(esc).join(" · ") || "Sin contacto"} · ${n(x.id)} ruta(s)</div></div>${x.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}<span class="muted">›</span></div>`).join("") || `<div class="empty card flat">Aún no hay transportes. Agrega las empresas que llevan la mercancía.</div>`}</div>`;
+      <div class="list">${data.map((x) => `<div class="item" data-id="${x.id}"><div class="ava" style="color:var(--azul)">${ic("caja", 22)}</div><div class="grow"><div class="t">${esc(x.nombre)}</div><div class="tiny muted">${[x.contacto, x.telefono].filter(Boolean).map(esc).join(" · ") || "Sin contacto"} · ${plur(n(x.id), "ruta")}</div></div>${x.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}<span class="muted">›</span></div>`).join("") || `<div class="empty card flat">Aún no hay transportes. Agrega las empresas que llevan la mercancía.</div>`}</div>`;
     $("#ta", kb).onclick = async () => {
       const v = $("#tn", kb).value.trim(); if (!v) return toast("Escribe el nombre del transporte");
       const r = await sb.from("transportes").insert({ nombre: v, contacto: $("#tc", kb).value.trim() || null, telefono: $("#tt", kb).value.trim() || null });
@@ -59,7 +59,7 @@ const K = {
     if (error) throw error;
     const n = (id) => (rel.data || []).filter((r) => r[cuenta || cuentaProd] === id).length;
     kb.innerHTML = `<div class="card"><div class="row"><input class="in sp" id="kn" placeholder="Nuevo ${nombre}: ${ej}"><button class="btn" id="ka">Agregar</button></div></div>
-      <div class="list">${data.map((x) => `<div class="item" data-id="${x.id}"><div class="grow"><div class="t">${esc(x.nombre)}</div><div class="tiny muted">${n(x.id)} ${cuenta ? "tienda(s)" : "producto(s)"}</div></div>${x.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}<span class="muted">›</span></div>`).join("") || `<div class="empty card flat">Aún no hay ${nombre}s.</div>`}</div>`;
+      <div class="list">${data.map((x) => `<div class="item" data-id="${x.id}"><div class="grow"><div class="t">${esc(x.nombre)}</div><div class="tiny muted">${plur(n(x.id), cuenta ? "tienda" : "producto")}</div></div>${x.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}<span class="muted">›</span></div>`).join("") || `<div class="empty card flat">Aún no hay ${nombre}s.</div>`}</div>`;
     $("#ka", kb).onclick = async () => { const v = $("#kn", kb).value.trim(); if (!v) return; const r = await sb.from(tabla).insert({ nombre: v }); if (r.error) return toast(r.error.code === "23505" ? "Ya existe" : r.error.message); toast("Agregado ✓"); re(); };
     $$("[data-id]", kb).forEach((el) => (el.onclick = () => {
       const x = data.find((d) => d.id == el.dataset.id);
@@ -95,7 +95,7 @@ const K = {
         <span class="tiny muted sp">En My Maps: ⋮ › Exportar a KML/KMZ › marca "Exportar a un archivo .KML". Trae zonas (polígonos) y ubicación de tiendas (puntos).</span></div></div>
       <div class="list">${data.map((z) => { const n = (cl || []).filter((c) => c.zona_id === z.id).length;
         return `<div class="item" data-id="${z.id}"><span style="width:14px;height:14px;border-radius:4px;background:${esc(z.color)};flex:none"></span><div class="grow"><div class="t">${esc(z.nombre)}</div>
-          <div class="tiny muted">${n} tienda(s) · ${z.poligono ? "zona dibujada en el mapa" : "sin dibujar"}</div></div>${z.activo ? "" : `<span class="pill p-gris">Inactiva</span>`}<span class="muted">›</span></div>`; }).join("") || `<div class="empty card flat">Aún no hay zonas. Crea una o impórtalas de Google My Maps.</div>`}</div>`;
+          <div class="tiny muted">${plur(n, "tienda")} · ${z.poligono ? "zona dibujada en el mapa" : "sin dibujar"}</div></div>${z.activo ? "" : `<span class="pill p-gris">Inactiva</span>`}<span class="muted">›</span></div>`; }).join("") || `<div class="empty card flat">Aún no hay zonas. Crea una o impórtalas de Google My Maps.</div>`}</div>`;
     $("#za", kb).onclick = async () => { const v = $("#zn", kb).value.trim(); if (!v) return; const r = await sb.from("zonas").insert({ nombre: v, color: $("#zc", kb).value }); if (r.error) return toast(r.error.code === "23505" ? "Ya existe" : r.error.message); re(); };
     $("#zk", kb).onchange = (e) => e.target.files[0] && this.importarKml(e.target.files[0], data, cl || [], re);
     $$("[data-id]", kb).forEach((el) => (el.onclick = () => this.zona(data.find((z) => z.id == el.dataset.id), cl || [], re)));
@@ -109,7 +109,7 @@ const K = {
       <div class="grid2c"><div><label class="f">Color</label><input type="color" name="c" value="${esc(z.color)}" style="width:100%;height:44px;border:0;background:none"></div>
       <div><label class="f">Estado</label><select class="in" name="a"><option value="1">Activa</option><option value="0" ${z.activo ? "" : "selected"}>Inactiva</option></select></div></div>
       <button class="btn sec block" style="margin-top:14px" data-dib>${ic("ruta", 18)} ${z.poligono ? "Redibujar en el mapa" : "Dibujar en el mapa"}</button>
-      ${z.poligono ? `<button class="btn ghost block" style="margin-top:8px" data-asig>Asignar a esta zona las ${nDentro} tienda(s) que quedan dentro</button>` : ""}
+      ${z.poligono ? `<button class="btn ghost block" style="margin-top:8px" data-asig>Asignar a esta zona las ${plur(nDentro, "tienda")} que quedan dentro</button>` : ""}
       <button class="btn block" style="margin-top:16px" data-ok>Guardar</button>`, (m, close) => {
       $("[data-ok]", m).onclick = async () => { const r = await sb.from("zonas").update({ nombre: $("[name=n]", m).value.trim(), color: $("[name=c]", m).value, activo: $("[name=a]", m).value === "1" }).eq("id", z.id); if (r.error) return toast(r.error.message); close(); re(); };
       $("[data-dib]", m).onclick = () => { close(); M.dibujar(z, async (pol) => { const r = await sb.from("zonas").update({ poligono: pol }).eq("id", z.id); if (r.error) return toast(r.error.message); toast("Zona guardada ✓"); re(); }); };
@@ -118,7 +118,7 @@ const K = {
         const ids = clientes.filter((c) => c.activo && dentro(c)).map((c) => c.id);
         if (!ids.length) return toast("No hay tiendas con GPS dentro de la zona");
         const r = await sb.from("clientes").update({ zona_id: z.id }).in("id", ids); if (r.error) return toast(r.error.message);
-        close(); toast(`${ids.length} tienda(s) asignadas a ${z.nombre} ✓`); re();
+        close(); toast(`${plur(ids.length, "tienda")} asignadas a ${z.nombre} ✓`); re();
       };
     });
   },
@@ -139,9 +139,9 @@ const K = {
     const ok = match.filter((x) => x.c);
     if (!polis.length && !puntos.length) return toast("El archivo no tiene zonas ni puntos", 4000);
     modal(`<h2>Importar de My Maps</h2>
-      <p>${polis.length} zona(s) dibujada(s) y ${puntos.length} punto(s).</p>
+      <p>${plur(polis.length, "zona")} ${polis.length === 1 ? "dibujada" : "dibujadas"} y ${plur(puntos.length, "punto")}.</p>
       ${polis.length ? `<p class="small"><b>Zonas:</b> ${polis.map((p) => esc(p.nombre || "Sin nombre")).join(", ")}</p>` : ""}
-      ${puntos.length ? `<p class="small"><b>${ok.length} punto(s) coinciden con una tienda</b> por el nombre y se les guardará la ubicación.${puntos.length - ok.length ? ` ${puntos.length - ok.length} no coinciden y se ignoran.` : ""}</p>
+      ${puntos.length ? `<p class="small"><b>${plur(ok.length, "punto")} coinciden con una tienda</b> por el nombre y se les guardará la ubicación.${puntos.length - ok.length ? ` ${puntos.length - ok.length} no coinciden y se ignoran.` : ""}</p>
         <div class="list small" style="max-height:220px;overflow:auto">${ok.slice(0, 50).map((x) => `<div>${esc(x.nombre)} → <b>${esc(x.c.nombre)}</b></div>`).join("")}</div>` : ""}
       <button class="btn block" style="margin-top:16px" data-ok>Importar</button>`, (m, close) => {
       $("[data-ok]", m).onclick = async () => {
@@ -164,7 +164,7 @@ const K = {
     if (error) throw error;
     kb.innerHTML = `<div class="card"><div class="row wrap"><input class="in sp" id="ln" placeholder="Nueva lista (ej. Canal tradicional)"><input class="in" id="lc" placeholder="Canal (opcional)" style="max-width:200px"><button class="btn" id="la">Agregar</button></div></div>
       <div class="list">${data.map((l) => `<div class="item" data-id="${l.id}"><div class="ava">${ic("etiqueta", 20)}</div><div class="grow"><div class="t">${esc(l.nombre)} ${l.por_defecto ? `<span class="pill p-azul">Por defecto</span>` : ""}</div>
-        <div class="tiny muted">${esc(l.canal || "")}${l.canal ? " · " : ""}${(pr || []).filter((p) => p.lista_id === l.id).length} precio(s) · ${(cl || []).filter((c) => c.lista_id === l.id).length} cliente(s) · ${esc(l.moneda)}</div></div><span class="muted">›</span></div>`).join("")}</div>`;
+        <div class="tiny muted">${esc(l.canal || "")}${l.canal ? " · " : ""}${plur((pr || []).filter((p) => p.lista_id === l.id).length, "precio")} · ${plur((cl || []).filter((c) => c.lista_id === l.id).length, "cliente")} · ${esc(l.moneda)}</div></div><span class="muted">›</span></div>`).join("")}</div>`;
     $("#la", kb).onclick = async () => { const v = $("#ln", kb).value.trim(); if (!v) return; const r = await sb.from("listas_precio").insert({ nombre: v, canal: $("#lc", kb).value.trim() || null }); if (r.error) return toast(r.error.code === "23505" ? "Ya existe" : r.error.message); re(); };
     $$("[data-id]", kb).forEach((el) => (el.onclick = () => {
       const l = data.find((x) => x.id == el.dataset.id), P = (pid) => (pr || []).find((p) => p.lista_id === l.id && p.producto_id === pid)?.precio ?? "";
@@ -300,7 +300,7 @@ const M = {
     $("#mp", root).outerHTML = `<div class="row wrap" style="margin-bottom:12px;gap:8px">
         <select class="in" id="mv" style="width:auto"><option value="">Todas las vendedoras</option>${vendedoras.map((v, i) => `<option value="${v.id}" ${v.id === vend ? "selected" : ""}>${esc(v.nombre)}</option>`).join("")}</select>
         <div class="steps" style="margin:0">${[["hoy", "Hoy"], ["todos", "Todos los días"], ...[1, 2, 3, 4, 5, 6].map((d) => [String(d), DIAS[d]])].map(([k, t]) => `<div class="step ${String(k) === String(dia) ? "on" : ""}" data-dia="${k}">${t}</div>`).join("")}</div></div>
-      <div class="mapa-grid"><div class="card mapa-lista"><div class="small muted" style="margin-bottom:8px">${tiendas.length} tienda(s) · ${conGps.length} con ubicación${tiendas.length - conGps.length ? ` · <b style="color:var(--durazno-t)">${tiendas.length - conGps.length} sin GPS</b>` : ""}</div>
+      <div class="mapa-grid"><div class="card mapa-lista"><div class="small muted" style="margin-bottom:8px">${plur(tiendas.length, "tienda")} · ${conGps.length} con ubicación${tiendas.length - conGps.length ? ` · <b style="color:var(--durazno-t)">${tiendas.length - conGps.length} sin GPS</b>` : ""}</div>
         <div class="list" style="gap:0">${tiendas.map((t) => { const a = (at.data || []).filter((x) => x.cliente_id === t.id);
           return `<div class="mrow" data-t="${t.id}">${enRuta ? `<span class="num" style="background:${col(vend)}">${tiendas.indexOf(t) + 1}</span>` : `<span class="dot" style="background:${a[0] ? col(a[0].vendedor_id) : "#999"}"></span>`}<div class="grow"><div style="font-weight:500">${esc(t.nombre)}</div>
             <div class="tiny muted">${a.map((x) => esc((vendedoras.find((v) => v.id === x.vendedor_id)?.nombre || "").split(" ")[0]) + " " + (x.dias_semana || []).map((d) => DIAS_C[d]).join("")).join(" · ") || "Sin vendedora"}</div></div>${t.lat == null ? `<span class="pill p-durazno">Sin GPS</span>` : ""}</div>`; }).join("") || `<div class="muted small">No hay tiendas con ese filtro.</div>`}</div></div>

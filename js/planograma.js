@@ -96,7 +96,7 @@ const PL = {
   // ---------- Lista ----------
   async render(root, id) {
     if (id) return this.editor(root, id === "nuevo" ? null : Number(id));
-    root.innerHTML = `<div class="top"><div><div class="muted small">Cómo debe verse la exhibición en cada tienda</div><h1>Planogramas</h1></div><a class="btn sm" href="#planogramas/nuevo">+ Nuevo planograma</a></div><div id="pll" class="muted">Cargando…</div>`;
+    root.innerHTML = `<div class="top"><div><div class="muted small">Exhibición por tienda</div><h1>Planogramas</h1></div><a class="btn sm" href="#planogramas/nuevo">+ Nuevo planograma</a></div><div id="pll" class="muted">Cargando…</div>`;
     const [{ data: pls, error }, { data: asg }] = await Promise.all([
       sb.from("planogramas").select("*").order("nombre"),
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
@@ -105,8 +105,8 @@ const PL = {
     $("#pll", root).outerHTML = pls.length ? `<div class="pl-grid">${pls.map((pl) => `<a class="card pl-card" href="#planogramas/${pl.id}">
         <div class="row"><div class="grow"><b>${esc(pl.nombre)}</b><div class="tiny muted">${this.lista(pl).map((m) => esc(this.MUEBLES[m.mueble])).join(" + ")}</div></div>
         ${pl.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>
-        <div class="pl-mini">${this.dibujo(this.lista(pl)[0])}</div>${this.lista(pl).length > 1 ? `<div class="tiny muted">+ ${this.lista(pl).length - 1} mueble(s) más</div>` : ""}
-        <div class="tiny muted">${(asg || []).filter((a) => a.planograma_id === pl.id).length} tienda(s) · ${this.totales(this.junto(pl)).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(this.junto(pl)).comp ? ` · ${this.espacio(this.junto(pl)).pN}% de la categoría` : ""}</div></a>`).join("")}</div>`
+        <div class="pl-mini">${this.dibujo(this.lista(pl)[0])}</div>${this.lista(pl).length > 1 ? `<div class="tiny muted">+ ${plur(this.lista(pl).length - 1, "mueble")} más</div>` : ""}
+        <div class="tiny muted">${plur((asg || []).filter((a) => a.planograma_id === pl.id).length, "tienda")} · ${this.totales(this.junto(pl)).map((t) => `${esc(PL.sigla(t.nombre))}: ${t.frentes} frentes`).join(" · ") || "sin productos"}${this.espacio(this.junto(pl)).comp ? ` · ${this.espacio(this.junto(pl)).pN}% de la categoría` : ""}</div></a>`).join("")}</div>`
       : `<div class="empty card flat"><div class="ic">${ic("resumen", 34)}</div>Aún no hay planogramas. Crea el primero, por ejemplo "Mozzarella en deli".</div>`;
   },
 
@@ -151,7 +151,7 @@ const PL = {
       root.innerHTML = `<a href="#planogramas" class="small" style="text-decoration:none">‹ Planogramas</a>
         <div class="top"><div><div class="muted small">${id ? "Editar planograma" : "Nuevo planograma"}</div><h1>${esc(pl.nombre || this.nombreAuto(pl.mueble, tiendas, clientes))}</h1></div>
           <div class="row" style="gap:8px">${id ? `<button class="btn ghost sm" data-dup>Duplicar</button>` : ""}<button class="btn sm" data-guardar>Guardar</button></div></div>
-        <div class="card pl-tiendas-card"><div class="row"><h3 class="grow" style="margin:0"><span class="pl-paso">1</span>Tiendas donde aplica</h3><span class="pill p-azul">${tiendas.size} tienda(s)</span></div>
+        <div class="card pl-tiendas-card"><div class="row"><h3 class="grow" style="margin:0"><span class="pl-paso">1</span>Tiendas donde aplica</h3><span class="pill p-azul">${plur(tiendas.size, "tienda")}</span></div>
               <div class="pl-filtros">
                 <details class="pl-dd" id="pcad"><summary class="in"><span class="grow" id="pcadt"></span><span style="display:inline-flex;transform:rotate(-90deg)">${ic("chev", 16)}</span></summary>
                   <div class="pl-dd-panel"><input class="in" id="pcadb" placeholder="Buscar cadena…"><div class="pl-dd-list" id="pcadl"></div>
@@ -257,7 +257,7 @@ const PL = {
       };
       const pintarTiendas = () => {
         const vis = visibles(), selVis = vis.filter((c) => tiendas.has(c.id)).length;
-        $("#ptz", root).innerHTML = `<div class="row small pl-acc"><span class="sp muted">${vis.length} tienda(s)${cadSel.size || filtro ? " con este filtro" : ""}</span>
+        $("#ptz", root).innerHTML = `<div class="row small pl-acc"><span class="sp muted">${plur(vis.length, "tienda")}${cadSel.size || filtro ? " con este filtro" : ""}</span>
             ${vis.length && selVis < vis.length ? `<button class="btn ghost sm" data-todas>Seleccionar ${vis.length}</button>` : ""}${selVis ? `<button class="btn ghost sm" data-quitar>Quitar ${selVis}</button>` : ""}</div>
           <label class="pl-solo"><input type="checkbox" data-solo ${soloSel ? "checked" : ""}> Ver solo las seleccionadas (${tiendas.size})</label>
           <div class="list pl-tiendas">${vis.slice(0, verN).map((c) => `<div class="check ${tiendas.has(c.id) ? "on" : ""}" data-t="${c.id}"><div class="box">✓</div><div class="grow">${esc(c.nombre)}<div class="tiny muted">${esc(c.cadena || "")}</div></div><span class="tiny muted">${esc(c.zona || "")}</span></div>`).join("") || `<div class="empty small">No hay tiendas con este filtro.</div>`}</div>

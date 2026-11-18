@@ -29,7 +29,7 @@ const C = {
     if (!ps.length) { root.innerHTML = `<div class="empty card flat">No tienes permisos de configuración.</div>`; return; }
     tab = ps.some((p) => p[0] === tab) ? tab : LS.get("cfgTab") && ps.some((p) => p[0] === LS.get("cfgTab")) ? LS.get("cfgTab") : ps[0][0];
     LS.set("cfgTab", tab);
-    root.innerHTML = `<div class="top"><h1>Configuración</h1><span id="cfgAcc"></span></div>
+    root.innerHTML = `<div class="top"><div><div class="muted small">Tiendas, productos y usuarios</div><h1>Configuración</h1></div><span id="cfgAcc"></span></div>
       <div class="steps">${ps.map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div><div id="cfg"></div>`;
     $$("[data-tab]", root).forEach((el) => (el.onclick = () => this.config(root, el.dataset.tab)));
     const box = $("#cfg", root);
@@ -254,8 +254,8 @@ const C = {
           <button class="btn sm" data-solpw="${x.perfil_id}">Asignar contraseña</button><button class="btn ghost sm" data-solok="${x.id}" title="Marcar atendida">✓</button></div>`).join("")}</div>` : ""}
       ${(emps || []).length ? `<div class="card sol-card"><div class="row"><b class="grow">Empresas que se registraron</b><span class="pill p-azul">${emps.length}</span></div>
         ${R.paginar(emps.map((e) => { const d = diasDe(e), pl = e.plan === "prueba" && d <= 0 ? ["Prueba vencida", "p-rosa"] : PLAN[e.plan];
-          return `<div class="sol-fila"><div class="grow"><b>${esc(e.nombre)}</b> <span class="pill ${pl[1]}">${pl[0]}${e.plan === "prueba" && d > 0 ? ` · ${d} día(s)` : ""}</span>
-          <div class="small muted">${esc(e.correo_contacto || "")} · ${e.usuarios} usuario(s) · ${e.tiendas} tienda(s) · ${e.visitas} visita(s)${e.ultima_visita ? " · última " + fmtFecha(e.ultima_visita) : ""} · desde ${fmtFecha(e.creado_at)}</div></div>
+          return `<div class="sol-fila"><div class="grow"><b>${esc(e.nombre)}</b> <span class="pill ${pl[1]}">${pl[0]}${e.plan === "prueba" && d > 0 ? ` · ${plur(d, "día")}` : ""}</span>
+          <div class="small muted">${esc(e.correo_contacto || "")} · ${plur(e.usuarios, "usuario")} · ${plur(e.tiendas, "tienda")} · ${plur(e.visitas, "visita")}${e.ultima_visita ? " · última " + fmtFecha(e.ultima_visita) : ""} · desde ${fmtFecha(e.creado_at)}</div></div>
           ${e.correo_contacto ? `<a class="btn sm ghost" href="mailto:${esc(e.correo_contacto)}">Correo</a>` : ""}
           ${e.plan !== "activo" ? `<button class="btn sm" data-plan="activar" data-emp="${e.id}">Activar</button>` : ""}
           <button class="btn sm sec" data-plan="extender" data-emp="${e.id}">+15 días</button>
@@ -273,7 +273,7 @@ const C = {
     }));
     $$("[data-solok]", box).forEach((b) => (b.onclick = async () => { const { error } = await sb.from("solicitudes").update({ estado: "atendida", atendida_por: DB.user.id, atendida_at: new Date().toISOString() }).eq("id", b.dataset.solok); if (error) return toast(error.message); this.usuarios(box); }));
     $("#lu", box).innerHTML = (data || []).map((u) => `<div class="item" data-id="${u.id}"><div class="ava">${esc(iniciales(u.nombre))}</div>
-      <div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${ROLES_TXT[u.rol]}${nT(u.id) ? " · " + nT(u.id) + " tiendas" : ""}${u.telefono ? " · " + esc(u.telefono) : ""}</div></div>
+      <div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${ROLES_TXT[u.rol]}${nT(u.id) ? " · " + plur(nT(u.id), "tienda") : ""}${u.telefono ? " · " + esc(u.telefono) : ""}</div></div>
       ${u.activo ? `<span class="pill p-menta">Activo</span>` : `<span class="pill p-gris">Inactivo</span>`}</div>`).join("");
     const opciones = (sel) => roles.map(([k, t]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${t}</option>`).join("");
     $("[data-nuevo]", box).onclick = () => modal(`<h2>Nuevo usuario</h2>
