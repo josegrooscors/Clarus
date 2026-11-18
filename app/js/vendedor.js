@@ -6,6 +6,13 @@ const Visita = {
 };
 
 // Motivos de "sin pedido" (como en las apps de preventa): quedan registrados en la visita y se ven en el Resumen
+// Motivos para justificar una tienda programada que no se va a visitar (catálogo cerrado + "otro" con nota)
+const MOTIVOS_NO_VISITA = [
+  ["reunion_oficina", "Reunión en la oficina"],
+  ["tienda_cerrada", "Tienda cerrada"],
+  ["otro", "Otro motivo"],
+];
+const motivoNoVisita = (k) => (MOTIVOS_NO_VISITA.find((m) => m[0] === k) || [0, k])[1];
 const MOTIVOS_SIN_PEDIDO = [
   ["sin_stock", "No tenemos producto en bodega (empresa)"],
   ["tienda_bodega", "La tienda tiene producto en su bodega"],
@@ -52,19 +59,21 @@ const V = {
     const dSel = dias.find((d) => d.iso === sel) || dias[0], esHoy = dSel.iso === dias[0].iso;
     const dia = dSel.dia;
     const hechas = LS.get("hechas:" + hoyISO(), {});
+    const justTodo = LS.get("just", {}), justDe = (id, iso = dSel.iso) => { const x = justTodo[iso + "|" + id]; return x && x.p !== -1 ? x : null; };
     const rutaIds = cat.ruta.filter((r) => (r.dias_semana || []).includes(dia)).map((r) => r.cliente_id);
     const ordenDe = (id) => cat.ruta.find((r) => r.cliente_id === id)?.orden ?? 999;
     const ruta = cat.clientes.filter((c) => rutaIds.includes(c.id)).sort((a, b) => ordenDe(a.id) - ordenDe(b.id) || a.nombre.localeCompare(b.nombre));
     const nombre = (DB.perfil.nombre || "").split(" ")[0];
     const hora = new Date().getHours();
     const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
+    const hoyProg = () => cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia) && !(justDe(r.cliente_id, dias[0].iso) && !hechas[r.cliente_id])).length;
     root.innerHTML = `
       <div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>${saludo}, ${esc(nombre)}</h1></div><span id="syncpill"></span></div>
       ${v ? `<div class="card" style="border-color:var(--azul-med);background:var(--azul-cl)">
           <div class="row"><div class="grow"><div class="small muted">Visita en curso desde ${fmtHora(v.at)}</div><h2>${esc(v.tienda)}</h2></div>
           <a class="btn" href="#visita">Continuar</a></div></div>` : ""}
       <div id="porEscanear"></div>
-      <div id="desemp">${V.tarjetaDesempeno(LS.get("desemp"), cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length)}</div>
+      <div id="desemp">${V.tarjetaDesempeno(LS.get("desemp"), hoyProg(), Object.keys(hechas).length)}</div>
       ${V.tarjetaObjetivo(cat)}
       <h3 style="margin:18px 0 10px">Mi ruta</h3>
       <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-dia="${d.iso}">${d.etiqueta} <span class="tiny">· ${cat.ruta.filter((r) => (r.dias_semana || []).includes(d.dia)).length}</span></div>`).join("")}</div>
@@ -73,10 +82,11 @@ const V = {
       <input class="in" id="buscar" placeholder="Buscar tienda o cadena…">
       <div class="list" id="otras" style="margin-top:10px"></div>`;
     const fila = (c, i) => {
-      const h = hechas[c.id], enRuta = rutaIds.includes(c.id) && typeof i === "number";
+      const h = hechas[c.id], enRuta = rutaIds.includes(c.id) && typeof i === "number", j = enRuta ? justDe(c.id) : null;
       return `<div class="item" data-c="${c.id}"><div class="ava">${enRuta ? i + 1 : esc(iniciales(c.cadena || c.nombre))}</div>
-        <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}</div>
-        ${h && esHoy ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : esHoy ? `<span class="pill p-azul">Iniciar</span>` : `<span class="pill p-gris">${esc(dSel.etiqueta)}</span>`}</div>`;
+        <div class="grow"><div class="t">${esc(c.nombre)}</div><div class="small muted">${esc(c.cadena || "")}${c.zona ? " · " + esc(c.zona) : ""}</div>${V.avanceTienda(cat, c.id)}
+          ${enRuta && !(h && esHoy) ? (j ? `<div class="nov-l"><span>No se visitará: <b>${esc(motivoNoVisita(j.motivo))}</b>${j.nota ? " · " + esc(j.nota) : ""}</span> <a data-nov="${c.id}">Cambiar</a></div>` : `<div class="nov-l"><a data-nov="${c.id}">No podré visitarla</a></div>`) : ""}</div>
+        ${h && esHoy ? `<span class="pill p-menta">✓ ${fmtHora(h)}</span>` : j ? `<span class="pill p-gris">Justificada</span>` : esHoy ? `<span class="pill p-azul">Iniciar</span>` : `<span class="pill p-gris">${esc(dSel.etiqueta)}</span>`}</div>`;
     };
     $("#ruta", root).insertAdjacentHTML("beforeend", ruta.map((c, i) => fila(c, i)).join(""));
     $$("[data-dia]", root).forEach((el) => (el.onclick = () => { root.innerHTML = ""; const nr = root.cloneNode(false); root.replaceWith(nr); V.hoy(nr, el.dataset.dia); }));
@@ -87,6 +97,8 @@ const V = {
     };
     $("#buscar", root).oninput = (e) => pintarOtras(e.target.value);
     root.addEventListener("click", (e) => {
+      const nv = e.target.closest("[data-nov]");
+      if (nv) { e.preventDefault(); const c = cat.clientes.find((x) => x.id == nv.dataset.nov); return this.noVisita(c, dSel, ruta.filter((x) => !(esHoy && hechas[x.id]) && !justDe(x.id)), justDe(c.id), () => { const nr = root.cloneNode(false); root.replaceWith(nr); V.hoy(nr, dSel.iso); }); }
       const it = e.target.closest("[data-c]"); if (!it) return;
       const c = cat.clientes.find((x) => x.id == it.dataset.c);
       this.iniciar(c);
@@ -94,7 +106,7 @@ const V = {
     App.syncPill();
     if (navigator.onLine) sb.rpc("mi_desempeno").then(({ data }) => {
       if (!data) return; LS.set("desemp", data);
-      const el = $("#desemp", root); if (el) el.innerHTML = V.tarjetaDesempeno(data, cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia)).length, Object.keys(hechas).length);
+      const el = $("#desemp", root); if (el) el.innerHTML = V.tarjetaDesempeno(data, hoyProg(), Object.keys(hechas).length);
     });
     if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
       const el = $("#porEscanear", root); if (!el || !count) return;
@@ -592,6 +604,39 @@ const V = {
     if (!o || !Number(o.objetivo_kg)) return "";
     const falta = Math.max(0, cajas(o.objetivo_kg - o.venta_kg, p)), pc = pct(o.venta_kg, o.objetivo_kg);
     return `<div class="tiny" style="margin:2px 0"><span class="pill ${colorPct(pc)}" style="font-weight:500">Objetivo del mes ${fmtNum(cajas(o.objetivo_kg, p), 0)} cj · facturado ${fmtNum(cajas(o.venta_kg, p), 1)} · ${falta > 0 ? "faltan " + fmtNum(falta, 1) : "cumplido ✓"}</span></div>`;
+  },
+  // Justificar una tienda programada que no se va a visitar (queda registrado para gerencia y no baja el cumplimiento)
+  noVisita(c, dSel, pendientes, actual, alTerminar) {
+    let sel = actual?.motivo || "", todas = false;
+    const otras = pendientes.filter((x) => x.id !== c.id);
+    const cuando = dSel.etiqueta === "Hoy" ? "hoy" : dSel.etiqueta === "Mañana" ? "mañana" : "el " + dSel.etiqueta;
+    modal("", (m, close) => {
+      const sheet = $(".sheet", m);
+      const pintar = (nota = actual?.nota || "") => {
+        sheet.innerHTML = `<h2 style="margin-bottom:4px">No podré visitar esta tienda</h2>
+          <p class="muted small" style="margin:0 0 12px"><b>${esc(c.nombre)}</b> · ${esc(cuando)}. El motivo le queda registrado a tu supervisor y esta tienda no cuenta en tu cumplimiento de ruta.</p>
+          <div class="list">${MOTIVOS_NO_VISITA.map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
+          <label class="f">${sel === "otro" ? "Escribe el motivo" : 'Comentario <span class="tiny muted">(opcional)</span>'}</label><input class="in" id="novn" maxlength="140" value="${esc(nota)}" placeholder="${sel === "tienda_cerrada" ? "Ej.: cerrada por inventario" : sel === "reunion_oficina" ? "Ej.: reunión con gerencia a las 2 p. m." : "Ej.: vía cerrada por protesta"}">
+          ${!actual && otras.length ? `<div class="check ${todas ? "on" : ""}" data-todas style="margin-top:10px"><div class="box">✓</div><div>Aplicar también a ${otras.length === 1 ? "la otra tienda" : "las otras " + otras.length + " tiendas"} sin visitar de ${esc(cuando)}</div></div>` : ""}
+          <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>${actual ? "Quitar justificación" : "Cancelar"}</button><button class="btn sp" data-ok>Guardar</button></div>`;
+        $$("[data-mot]", sheet).forEach((el) => (el.onclick = () => { sel = el.dataset.mot; pintar($("#novn", sheet).value); }));
+        const t = $("[data-todas]", sheet); if (t) t.onclick = () => { todas = !todas; pintar($("#novn", sheet).value); };
+        $("[data-no]", sheet).onclick = async () => {
+          if (actual) { const j = LS.get("just", {}); j[dSel.iso + "|" + c.id] = { ...actual, p: -1 }; LS.set("just", j); await DB.encolar({ t: "no_visita_quitar", cliente_id: c.id, fecha: dSel.iso }); toast("Justificación quitada: la tienda vuelve a tu ruta"); }
+          close(); if (actual) alTerminar();
+        };
+        $("[data-ok]", sheet).onclick = async () => {
+          const nota = $("#novn", sheet).value.trim();
+          if (!sel) return toast("Elige el motivo");
+          if (sel === "otro" && !nota) return toast("Escribe el motivo");
+          const filas = (todas ? [c, ...otras] : [c]).map((x) => ({ cliente_id: x.id, fecha: dSel.iso }));
+          const j = LS.get("just", {}); filas.forEach((x) => (j[x.fecha + "|" + x.cliente_id] = { motivo: sel, nota, p: 1 })); LS.set("just", j);
+          await DB.encolar({ t: "no_visita", rows: filas, motivo: sel, nota });
+          close(); toast(filas.length === 1 ? "Justificada: " + motivoNoVisita(sel) : filas.length + " tiendas justificadas: " + motivoNoVisita(sel)); alTerminar();
+        };
+      };
+      pintar();
+    });
   },
   // Mi desempeño del mes (hasta ayer, sin feriados): cumplimiento de ruta + horarios promedio. Hoy se suma aparte.
   tarjetaDesempeno(d, hoyAg, hoyVis) {

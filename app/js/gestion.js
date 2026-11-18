@@ -118,10 +118,11 @@ const G = {
     sel = sel || dias[1].iso; // por defecto: mañana
     const dSel = dias.find((d) => d.iso === sel) || dias[1];
     root.innerHTML = `<div class="top"><div><div class="muted small">Visitas programadas</div><h1>Programación</h1></div></div><div id="pg" class="muted">Cargando…</div>`;
-    const [{ data: asig, error }, { data: obj }, { data: vis }] = await Promise.all([
+    const [{ data: asig, error }, { data: obj }, { data: vis }, { data: just }] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden, clientes(nombre, cadena, zona), perfiles(nombre)"),
       sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd, objetivo_kg, venta_kg").eq("mes", mesActual()),
       dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
+      sb.from("visitas_justificadas").select("vendedor_id, cliente_id, motivo, nota").eq("fecha", dSel.iso),
     ]);
     if (error) { $("#pg", root).textContent = error.message; return; }
     const vendedoras = [...new Map(asig.map((a) => [a.vendedor_id, a.perfiles?.nombre || "—"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
@@ -132,6 +133,9 @@ const G = {
     const delDia = asig.filter((a) => (a.dias_semana || []).includes(dSel.dia) && (!vend || a.vendedor_id === vend));
     const porV = {}; delDia.forEach((a) => (porV[a.vendedor_id] = porV[a.vendedor_id] || []).push(a));
     const estado = (a) => {
+      const jj = (just || []).find((x) => x.vendedor_id === a.vendedor_id && x.cliente_id === a.cliente_id);
+      const hecha = (vis || []).some((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
+      if (jj && !hecha) return `<span class="pill p-gris" title="${esc(jj.nota || "")}">Justificada: ${esc(motivoNoVisita(jj.motivo))}</span>`;
       if (dSel.iso > hoyISO()) return `<span class="pill p-gris">Programada</span>`;
       const x = (vis || []).find((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
       if (x) return x.checkout_at ? `<span class="pill p-menta">✓ ${fmtHora(x.checkin_at)}–${fmtHora(x.checkout_at)}</span>` : `<span class="pill p-azul">En tienda desde ${fmtHora(x.checkin_at)}</span>`;

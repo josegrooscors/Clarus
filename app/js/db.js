@@ -97,7 +97,7 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua, vj] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
@@ -109,12 +109,19 @@ const DB = {
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
       sb.from("tienda_muebles").select("cliente_id, orden, mueble, niveles, posiciones, celdas, por_nivel"),
       sb.from("v_ultima_auditoria").select("cliente_id, fecha, pct, nuestro, competencia"),
+      sb.from("visitas_justificadas").select("cliente_id, fecha, motivo, nota").eq("vendedor_id", this.user.id).gte("fecha", hoyISO()),
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
     if (!pm.error) { this.permisos = pm.data.filter((x) => x.permitido !== false).map((x) => x.permiso); LS.set("permisos", this.permisos); this.permMap = Object.fromEntries(pm.data.map((x) => [x.permiso, x.permitido !== false])); LS.set("permMap", this.permMap); }
     const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data };
     LS.set("cat", out);
+    if (!vj.error) { // justificaciones: manda el servidor, salvo lo que aún está en cola en este teléfono
+      const loc = LS.get("just", {}), nuevo = {};
+      vj.data.forEach((x) => (nuevo[x.fecha + "|" + x.cliente_id] = { motivo: x.motivo, nota: x.nota || "" }));
+      Object.entries(loc).forEach(([k, x]) => { if (x.p) nuevo[k] = x; else if (x.t && Date.now() - x.t < 3 * 60 * 1000 && !nuevo[k]) nuevo[k] = x; }); // recién guardadas: se conservan aunque esta consulta haya salido antes de que llegaran al servidor
+      LS.set("just", nuevo);
+    }
     return out;
   },
 
@@ -193,6 +200,16 @@ const DB = {
       case "auditoria": {
         const r = await sb.rpc("guardar_auditoria", { p_cliente: op.cliente_id, p_muebles: op.muebles, p_id_local: op.id_local, p_visita_lid: op.lid });
         if (r.error) throw r.error;
+        return;
+      }
+      case "no_visita": {
+        ok(await sb.from("visitas_justificadas").upsert(op.rows.map((x) => ({ vendedor_id: this.user.id, cliente_id: x.cliente_id, fecha: x.fecha, motivo: op.motivo, nota: op.nota || null })), { onConflict: "vendedor_id,cliente_id,fecha" }));
+        const j = LS.get("just", {}); op.rows.forEach((x) => { const k = x.fecha + "|" + x.cliente_id; if (j[k]?.p === 1) { delete j[k].p; j[k].t = Date.now(); } }); LS.set("just", j);
+        return;
+      }
+      case "no_visita_quitar": {
+        ok(await sb.from("visitas_justificadas").delete().match({ vendedor_id: this.user.id, cliente_id: op.cliente_id, fecha: op.fecha }));
+        const j = LS.get("just", {}), k = op.fecha + "|" + op.cliente_id; if (j[k]?.p === -1) { delete j[k]; LS.set("just", j); }
         return;
       }
       case "sin_pedido": {
