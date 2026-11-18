@@ -120,6 +120,8 @@ const DB = {
           try { await this.ejecutar(op); await IDB.delOp(op.k); }
           catch (e) {
             console.warn("sync", op.t, e);
+            // dato de una visita o pedido que ya no existe (borrado): se descarta sin molestar a la vendedora
+            if (e && (e.descartar || e.code === "23503")) { await IDB.delOp(op.k); continue; }
             if (e && (e.code === "P0001" || e.permanente)) { // regla de negocio: no se puede reintentar
               await IDB.delOp(op.k); const av = LS.get("avisos", []); av.unshift({ at: Date.now(), msg: e.message }); LS.set("avisos", av.slice(0, 20));
               toast(e.message, 5000); continue;
@@ -138,6 +140,9 @@ const DB = {
     if (this.ids[lid]) return this.ids[lid];
     const { data } = await sb.from("visitas").select("id").eq("id_local", lid).maybeSingle();
     if (data) { this.setId(lid, data.id); return data.id; }
+    // Si la visita no está en la base y tampoco hay un check-in pendiente de enviar, la visita fue borrada (ej.: pruebas):
+    // ese dato se descarta para que la cola no se trabe y los datos nuevos sigan subiendo.
+    if (!(await IDB.ops()).some((o) => o.t === "visita_in" && o.lid === lid)) { const e = new Error("visita eliminada"); e.descartar = true; throw e; }
     throw new Error("Visita aún no sincronizada");
   },
 
