@@ -478,12 +478,34 @@ const V = {
     box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Resumen de la visita</h2>
       ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${t}</span>${h ? `<span class="pill p-menta">✓ Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
       <div class="row" style="padding:7px 0"><span class="sp">Tiempo en tienda</span><b>${minutos(v.at, new Date())} min</b></div></div>
-      ${(() => { const ag = v.modalidad === "pedido_cliente" ? [] : Object.keys(v.agot || {}).filter((k) => v.agot[k] && !(v.pedido?.items || []).some((i) => String(i.producto_id) === k)); return ag.length ? `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b style="color:var(--rosa-t)">Producto agotado sin pedido</b><div class="small">Marcaste producto agotado y no está en el pedido. Esto aparece como alerta para tu supervisor.</div><button class="btn sm" style="margin-top:8px" data-ir="pedido">Ir al pedido</button></div>` : ""; })()}
-      ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b><div class="small">Completa lo pendiente. Toca cada punto para ir directo.</div></div>`}
+      ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b>
+        <div class="small" style="margin:2px 0 8px">Falta completar:</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">${pend.map(([p, t]) => `<button class="btn sm" data-ir="${p}">${esc(t)} ›</button>`).join("")}</div></div>`}
+      ${(() => {
+        const ag = v.modalidad === "pedido_cliente" ? [] : Object.keys(v.agot || {}).filter((k) => v.agot[k] && !(v.pedido?.items || []).some((i) => String(i.producto_id) === k));
+        if (!ag.length) return "";
+        const nombres = ag.map((k) => (LS.get("cat")?.productos || []).find((p) => String(p.id) === k)?.nombre?.replace(/^Queso /, "") || "producto").join(", ");
+        const mot = v.motivoAgotado ? MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.motivoAgotado)?.[1] : null;
+        return `<div class="card flat" style="background:#FFF7EC;border-color:#F5D9AE"><div class="row" style="gap:8px"><b class="sp">Aviso: ${esc(nombres)} agotado sin pedido</b><span class="pill p-gris">No bloquea</span></div>
+          ${mot ? `<div class="small" style="margin-top:4px">Motivo registrado: <b>${esc(mot)}</b></div>`
+            : `<div class="small" style="margin-top:4px">Le aparecerá a tu supervisor. Si no pediste porque no hay producto o por otra razón, indica el motivo.</div>
+          <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-motag>Indicar motivo</button><button class="btn ghost sm" data-ir="pedido">Agregar al pedido</button></div>`}</div>`;
+      })()}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
       <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>`;
     $$("[data-ir]", box).forEach((el) => (el.onclick = () => ir(el.dataset.ir)));
     $("#com").oninput = (e) => { v.comentario = e.target.value; Visita.set(v); };
+    const ma = $("[data-motag]", box); if (ma) ma.onclick = () => {
+      const op = MOTIVOS_SIN_PEDIDO.filter(([k]) => k !== "no_hace_falta");
+      const caja = document.createElement("div"); caja.className = "card"; caja.style.marginTop = "8px";
+      caja.innerHTML = `<b>¿Por qué no pediste el producto agotado?</b><div class="list" style="margin-top:8px">${op.map(([k, t]) => `<div class="check" data-m2="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>`;
+      ma.closest(".card").after(caja); ma.disabled = true;
+      $$("[data-m2]", caja).forEach((el) => (el.onclick = async () => {
+        v.motivoAgotado = el.dataset.m2; Visita.set(v);
+        await DB.encolar({ t: "sin_pedido", lid: v.lid, motivo: el.dataset.m2, nota: "Agotado sin pedido" });
+        toast("Motivo registrado ✓"); this.pCierre(box, v, ir);
+      }));
+    };
     $("[data-out]", box).onclick = async () => {
       if (this.pendientes(v).length) return toast("Completa lo pendiente para hacer check-out");
       toast("Obteniendo ubicación…", 9000);
