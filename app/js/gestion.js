@@ -120,12 +120,12 @@ const G = {
     root.innerHTML = `<div class="top"><div><div class="muted small">Visitas programadas</div><h1>Programación</h1></div></div><div id="pg" class="muted">Cargando…</div>`;
     const [{ data: asig, error }, { data: obj }, { data: vis }] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden, clientes(nombre, cadena, zona), perfiles(nombre)"),
-      sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd").eq("mes", mesActual()),
+      sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd, objetivo_kg, venta_kg").eq("mes", mesActual()),
       dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
     ]);
     if (error) { $("#pg", root).textContent = error.message; return; }
     const vendedoras = [...new Map(asig.map((a) => [a.vendedor_id, a.perfiles?.nombre || "—"])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-    const O = {}; (obj || []).forEach((o) => { const x = (O[o.cliente_id] = O[o.cliente_id] || { o: 0, v: 0 }); x.o += Number(o.objetivo_usd || 0); x.v += Number(o.venta_usd || 0); });
+    const O = {}; (obj || []).forEach((o) => { const x = (O[o.cliente_id] = O[o.cliente_id] || { o: 0, v: 0 }); x.o += Number((conDinero() ? o.objetivo_usd : o.objetivo_kg) || 0); x.v += Number((conDinero() ? o.venta_usd : o.venta_kg) || 0); });
     // Semana: tiendas por vendedora y día
     const semana = vendedoras.map(([id, n]) => ({ id, n, d: [1, 2, 3, 4, 5, 6].map((w) => asig.filter((a) => a.vendedor_id === id && (a.dias_semana || []).includes(w)).length),
       sin: asig.filter((a) => a.vendedor_id === id && !(a.dias_semana || []).length).length }));
@@ -149,7 +149,7 @@ const G = {
       ${Object.entries(porV).sort((a, b) => (a[1][0].perfiles?.nombre || "").localeCompare(b[1][0].perfiles?.nombre || "")).map(([vid, xs]) => `
         <details class="card acord" ${Object.keys(porV).length === 1 ? "open" : ""}><summary class="row"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${plur(xs.length, "tienda")} · ${esc(tit)}</div></div><span class="acord-f">${ic("chev", 18)}</span></summary>
         <div class="list" style="margin-top:10px">${xs.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
-          return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ""}</div></div>
+          return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? (conDinero() ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ` · objetivo ${fmtKilos(o.o)} · vendido ${fmtKilos(o.v)}`) : ""}</div></div>
             ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></details>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
       <h3 style="margin:22px 0 10px">Semana por vendedora</h3>
       <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th>${[1, 2, 3, 4, 5, 6].map((w) => `<th style="text-align:center">${DIAS_C[w]}</th>`).join("")}<th style="text-align:center">Total</th><th>Sin día</th></tr>
@@ -171,33 +171,36 @@ const G = {
     const P = Object.fromEntries(prods.map((p) => [p.id, p]));
     const grupo = (o) => o.vendedora || "Sin vendedora · " + (o.zona || "—");
     const sum = (xs, k) => xs.reduce((a, o) => a + Number(o[k] || 0), 0);
+    // Gerencia (o quien tenga «Ver montos en dólares») mide en dólares y además ve los kilos; los demás ven solo kilos.
+    const din = conDinero(), KO = din ? "objetivo_usd" : "objetivo_kg", KV = din ? "venta_usd" : "venta_kg", fM = din ? fmtUsd : fmtKilos;
+    const kilos = (xs) => `${fmtKilos(sum(xs, "venta_kg"))} / ${fmtKilos(sum(xs, "objetivo_kg"))}`;
     const corte = data.map((o) => o.corte).filter(Boolean).sort().pop();
     const G = {}; data.forEach((o) => (G[grupo(o)] = G[grupo(o)] || []).push(o));
-    const tot = { obj: sum(data, "objetivo_usd"), ven: sum(data, "venta_usd") };
+    const tot = { obj: sum(data, KO), ven: sum(data, KV) };
     const prodCols = prods.filter((p) => data.some((o) => o.producto_id === p.id));
     const celdaProd = (xs, p) => { const x = xs.filter((o) => o.producto_id === p.id), ok = sum(x, "objetivo_kg"), vk = sum(x, "venta_kg"), pc = pct(vk, ok);
       return `<td>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} <span class="pill ${colorPct(pc)}">${pc ?? 0}%</span></td>`; };
     if (sel && G[sel]) {
       const xs = G[sel], tiendas = [...new Set(xs.map((o) => o.cliente_id))];
-      const filas = tiendas.map((id) => { const t = xs.filter((o) => o.cliente_id === id); return { t, n: t[0].tienda, obj: sum(t, "objetivo_usd"), ven: sum(t, "venta_usd") }; })
+      const filas = tiendas.map((id) => { const t = xs.filter((o) => o.cliente_id === id); return { t, n: t[0].tienda, obj: sum(t, KO), ven: sum(t, KV) }; })
         .sort((a, b) => (pct(a.ven, a.obj) ?? 0) - (pct(b.ven, b.obj) ?? 0));
       $("#ob", root).outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
-        <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · facturado al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}" style="font-size:14px">${pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")) ?? 0}%</span></div>
-        <div style="margin-top:6px"><b>${fmtUsd(sum(xs, "venta_usd"))}</b> <span class="muted">de ${fmtUsd(sum(xs, "objetivo_usd"))}</span></div>${barra(pct(sum(xs, "venta_usd"), sum(xs, "objetivo_usd")))}</div>
-        <div class="card scroll-x lim5"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th></tr>
-        ${filas.map((f) => `<tr><td>${esc(f.n)}</td>${prodCols.map((p) => celdaProd(f.t, p)).join("")}<td>${fmtUsd(f.ven)} / ${fmtUsd(f.obj)}</td></tr>`).join("")}</table></div>`;
+        <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · ${din ? "facturado" : "ventas"} al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, KV), sum(xs, KO)))}" style="font-size:14px">${pct(sum(xs, KV), sum(xs, KO)) ?? 0}%</span></div>
+        <div style="margin-top:6px"><b>${fM(sum(xs, KV))}</b> <span class="muted">de ${fM(sum(xs, KO))}</span></div>${barra(pct(sum(xs, KV), sum(xs, KO)))}</div>
+        <div class="card scroll-x lim5"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}${din ? "<th>Kilos</th>" : ""}<th>${din ? "Venta / objetivo" : "Kilos"}</th></tr>
+        ${filas.map((f) => `<tr><td>${esc(f.n)}</td>${prodCols.map((p) => celdaProd(f.t, p)).join("")}${din ? `<td>${kilos(f.t)}</td>` : ""}<td>${fM(f.ven)} / ${fM(f.obj)}</td></tr>`).join("")}</table></div>`;
       $("[data-volver]", root).onclick = () => G.objetivos(root);
       return;
     }
-    const lista = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, "objetivo_usd"), ven: sum(xs, "venta_usd") })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
+    const lista = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, KO), ven: sum(xs, KV) })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
     $("#ob", root).outerHTML = `<div class="kpis">
-        <div class="kpi"><div class="v">${fmtUsd(tot.ven)}</div><div class="l">Facturado al ${fmtFecha(corte + "T12:00:00")}</div></div>
-        <div class="kpi"><div class="v">${fmtUsd(tot.obj)}</div><div class="l">Objetivo del mes</div></div>
+        <div class="kpi"><div class="v">${fM(tot.ven)}</div><div class="l">${din ? "Facturado" : "Vendido"} al ${fmtFecha(corte + "T12:00:00")}</div>${din ? `<div class="tiny muted" style="margin-top:4px">${fmtKilos(sum(data, "venta_kg"))}</div>` : ""}</div>
+        <div class="kpi"><div class="v">${fM(tot.obj)}</div><div class="l">Objetivo del mes</div>${din ? `<div class="tiny muted" style="margin-top:4px">${fmtKilos(sum(data, "objetivo_kg"))}</div>` : ""}</div>
         <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>
         <div class="kpi"><div class="v">${new Set(data.map((o) => o.cliente_id)).size}</div><div class="l">Tiendas con objetivo</div></div></div>
-      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}<th>Venta / objetivo</th><th>Avance</th></tr>
-      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${plur(new Set(r.xs.map((o) => o.cliente_id)).size, "tienda")}</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}
-        <td>${fmtUsd(r.ven)} / ${fmtUsd(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
+      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}${din ? "<th>Kilos</th>" : ""}<th>${din ? "Venta / objetivo" : "Kilos"}</th><th>Avance</th></tr>
+      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${plur(new Set(r.xs.map((o) => o.cliente_id)).size, "tienda")}</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}${din ? `<td>${kilos(r.xs)}</td>` : ""}
+        <td>${fM(r.ven)} / ${fM(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
       <p class="tiny muted">Toca una vendedora para ver sus tiendas, de menor a mayor avance.</p>`;
     $$("[data-g]", root).forEach((tr) => (tr.onclick = () => this.objetivos(root, tr.dataset.g)));
   },

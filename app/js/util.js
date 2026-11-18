@@ -117,6 +117,9 @@ const kgLinea = (q, p) => (Number(q) || 0) * (p?.kg_por_pedido != null ? Number(
 const fmtKg = (k) => fmtNum(k, 2) + " kg";
 
 const mesActual = () => hoyISO().slice(0, 7) + "-01";
+// Montos en dólares solo para quien tiene el permiso «Ver montos en dólares» (gerencia siempre). El resto ve kilos.
+const conDinero = () => DB.puede("ver_dinero");
+const fmtKilos = (n) => fmtNum(n, 0) + " kg";
 const fmtUsd = (n) => "$" + Number(n || 0).toLocaleString("es-PA", { maximumFractionDigits: 0 });
 const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
 const colorPct = (p) => (p == null ? "p-gris" : p >= 100 ? "p-menta" : p >= 60 ? "p-azul" : p >= 30 ? "p-durazno" : "p-rosa");

@@ -615,7 +615,8 @@ const V = {
     const mias = new Set(cat.ruta.map((r) => r.cliente_id));
     const os = (cat.obj || []).filter((o) => mias.has(o.cliente_id));
     if (!os.length) return "";
-    const obj = os.reduce((a, o) => a + Number(o.objetivo_usd || 0), 0), ven = os.reduce((a, o) => a + Number(o.venta_usd || 0), 0), pc = pct(ven, obj);
+    const din = conDinero(), fM = din ? fmtUsd : fmtKilos;
+    const obj = os.reduce((a, o) => a + Number((din ? o.objetivo_usd : o.objetivo_kg) || 0), 0), ven = os.reduce((a, o) => a + Number((din ? o.venta_usd : o.venta_kg) || 0), 0), pc = pct(ven, obj);
     const corte = os.map((o) => o.corte).filter(Boolean).sort().pop();
     const porProd = cat.productos.map((p) => {
       const x = os.filter((o) => o.producto_id === p.id); if (!x.length) return "";
@@ -623,8 +624,8 @@ const V = {
       return `<div class="row small" style="margin-top:6px"><span class="sp">${esc(p.nombre.replace(/^Queso /, ""))}</span><b>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} cajas</b><span class="pill ${colorPct(pct(vk, ok))}">${pct(vk, ok) ?? 0}%</span></div>`;
     }).join("");
     const mes = new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long" });
-    return `<div class="card hero"><div class="row"><div class="grow"><div class="lbl muted">Mi objetivo de ${mes}</div><h2>${fmtUsd(ven)} <span class="muted" style="font-weight:500;font-size:15px">de ${fmtUsd(obj)}</span></h2></div><span class="pill ${colorPct(pc)}" style="font-size:14px">${pc ?? 0}%</span></div>
-      ${barra(pc)}${porProd}${corte ? `<div class="tiny muted" style="margin-top:8px">Facturado al ${fmtFecha(corte + "T12:00:00")}</div>` : ""}</div>`;
+    return `<div class="card hero"><div class="row"><div class="grow"><div class="lbl muted">Mi objetivo de ${mes}</div><h2>${fM(ven)} <span class="muted" style="font-weight:500;font-size:15px">de ${fM(obj)}</span></h2></div><span class="pill ${colorPct(pc)}" style="font-size:14px">${pc ?? 0}%</span></div>
+      ${barra(pc)}${porProd}${corte ? `<div class="tiny muted" style="margin-top:8px">${din ? "Facturado" : "Ventas"} al ${fmtFecha(corte + "T12:00:00")}</div>` : ""}</div>`;
   },
 
   // Escanear la orden de compra física (funciona sin señal: se envía cuando hay conexión)

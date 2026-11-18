@@ -9,6 +9,7 @@ const PERMISOS_TXT = {
   ver_metas: ["Ver Metas", "Objetivos de venta y avance"],
   ver_pedidos: ["Ver Pedidos", "Pedidos de las vendedoras y su estado"],
   ver_mapa: ["Ver Mapa", "Tiendas en el mapa"],
+  ver_dinero: ["Ver montos en dólares", "Objetivos y ventas en dólares. Sin este permiso se ven solo en kilos"],
   avisar: ["Avisar y enviar comunicados", "Botón «Avisar» en las alertas y envío de comunicados al equipo"],
   pedidos_imprimir: ["Imprimir órdenes", "Imprimir la orden de compra de un pedido"],
   planogramas: ["Planogramas", "Crear y editar planogramas y asignarlos a tiendas"],
@@ -18,7 +19,7 @@ const PERMISOS_TXT = {
   productos: ["Productos", "Crear y editar productos, pesos y precios"],
   usuarios: ["Usuarios", "Crear usuarios, cambiar contraseñas y desactivar (no administradores)"],
 };
-const PERMISOS_GRUPOS = [["Ejecución en tienda", ["visitar", "ubicacion"]], ["Consulta", ["ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa"]],
+const PERMISOS_GRUPOS = [["Ejecución en tienda", ["visitar", "ubicacion"]], ["Consulta", ["ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa", "ver_dinero"]],
   ["Acciones", ["avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
 
 // Convierte "9.02, -79.50" o un link de Google Maps con @lat,lng / q=lat,lng en coordenadas
