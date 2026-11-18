@@ -5,6 +5,15 @@ const Visita = {
   fin() { LS.del("visita"); },
 };
 
+// Motivos de "sin pedido" (como en las apps de preventa): quedan registrados en la visita y se ven en el Resumen
+const MOTIVOS_SIN_PEDIDO = [
+  ["sin_stock", "No tenemos producto en bodega (empresa)"],
+  ["tienda_bodega", "La tienda tiene producto en su bodega"],
+  ["no_autoriza", "El encargado no autorizó el pedido"],
+  ["pedido_central", "La cadena hace el pedido directo"],
+  ["no_hace_falta", "No hace falta: el inventario alcanza"],
+  ["otro", "Otro motivo"],
+];
 const PASOS = [
   ["fotos", "Fotos"], ["inventario", "Inventario"], ["promos", "Promociones"],
   ["pedido", "Pedido"], ["gestion", "Gestión"], ["cierre", "Cierre"],
@@ -337,7 +346,7 @@ const V = {
     }
     if (v.pedido && !v.editandoPedido) {
       if (v.pedido.ninguno) {
-        box.innerHTML = `<div class="card"><h2>Sin pedido</h2><p class="small muted">Indicaste que esta visita no necesita pedido.</p>
+        box.innerHTML = `<div class="card"><h2>Sin pedido</h2><p class="small muted">${v.pedido.motivo ? "Motivo: <b>" + esc(MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") + "</b>" + (v.motivoNota ? " · " + esc(v.motivoNota) : "") : "Indicaste que esta visita no necesita pedido."}</p>
           <button class="btn ghost block sm" data-camb>Hacer un pedido</button></div><button class="btn block" data-ok>Seguir</button>`;
         $("[data-camb]", box).onclick = () => { v.pedido = null; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
         $("[data-ok]", box).onclick = siguiente; return;
@@ -393,7 +402,7 @@ const V = {
           <div class="kg" data-kg></div></div>`).join("")}</div>
       <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total del pedido</span><b id="totkgp"></b></div></div>
       <label class="f">Nota para operaciones</label><input class="in" id="nota" placeholder="Opcional" value="${esc(previo?.nota || "")}">
-      <div class="row" style="margin-top:16px">${previo ? `<button class="btn sec sp" data-cancel>Cancelar</button>` : `<button class="btn sec sp" data-no>No hace falta pedido</button>`}<button class="btn sp" data-ok>${previo ? "Guardar cambios" : "Enviar pedido"}</button></div>`;
+      <div class="row" style="margin-top:16px">${previo ? `<button class="btn sec sp" data-cancel>Cancelar</button>` : `<button class="btn sec sp" data-no>Sin pedido</button>`}<button class="btn sp" data-ok>${previo ? "Guardar cambios" : "Enviar pedido"}</button></div>`;
     const calcKg = () => {
       let tot = 0;
       filas.forEach((f) => {
@@ -408,12 +417,18 @@ const V = {
     });
     box.addEventListener("input", calcKg);
     calcKg();
-    const no = $("[data-no]", box); if (no) no.onclick = () => { v.pedido = { ninguno: true, items: [] }; Visita.set(v); siguiente(); };
+    const no = $("[data-no]", box); if (no) no.onclick = () => this.pSinPedido(box, v, cat, siguiente, bajos > 0 || filas.some((f) => v.agot?.[f.p.id]));
     const cn = $("[data-cancel]", box); if (cn) cn.onclick = () => { v.editandoPedido = false; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
     $("[data-ok]", box).onclick = async () => {
       const items = filas.map((f) => ({ producto_id: f.p.id, nombre: f.p.nombre, unidad: f.p.unidad_pedido, stock: f.contado ? f.stock : null, sugerido: f.sug || null,
         propuesto: parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0 })).filter((i) => i.propuesto > 0);
-      if (!items.length) { toast("Escribe al menos una cantidad"); return; }
+      if (!items.length && previo) {
+        if (!(await confirmar("Todas las cantidades están en cero: se anulará el pedido y te pediremos el motivo.", "Anular pedido"))) return;
+        await DB.encolar({ t: "pedido_anular", plid: previo.plid });
+        v.pedido = null; v.editandoPedido = false; Visita.set(v); toast("Pedido anulado");
+        return this.pSinPedido(box, v, cat, siguiente, true);
+      }
+      if (!items.length) { toast("Escribe al menos una cantidad o toca «Sin pedido»"); return; }
       const nota = $("#nota").value.trim();
       if (previo) {
         await DB.encolar({ t: "pedido_editar", plid: previo.plid, nota, items });
@@ -425,6 +440,30 @@ const V = {
       v.pedido = { plid, items, nota }; Visita.set(v);
       toast("Pedido enviado a operaciones ✓"); this.pPedido(box, v, cat, siguiente);
     };
+  },
+
+  // Sin pedido: se elige el motivo (obligatorio si hay productos bajos o agotados)
+  pSinPedido(box, v, cat, siguiente, requerido) {
+    let sel = v.motivoSinPedido || (requerido ? "" : "no_hace_falta");
+    const pintar = () => {
+      box.innerHTML = `<div class="card"><h3 style="margin:0 0 4px">¿Por qué no hay pedido?</h3>
+        <div class="small muted" style="margin-bottom:10px">${requerido ? "Hay productos bajos o agotados: el motivo queda registrado para tu supervisor." : "Elige el motivo."}</div>
+        <div class="list">${MOTIVOS_SIN_PEDIDO.filter(([k]) => !(requerido && k === "no_hace_falta")).map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
+        <label class="f">Comentario ${sel === "otro" ? "" : '<span class="tiny muted">(opcional)</span>'}</label><input class="in" id="motn" value="${esc(v.motivoNota || "")}" placeholder="${sel === "sin_stock" ? "Ej.: Muenster llega el jueves" : "Ej.: el jefe de compras vuelve mañana"}"></div>
+        <div class="row" style="margin-top:12px"><button class="btn sec sp" data-volver>Volver al pedido</button><button class="btn sp" data-ok>Seguir sin pedido</button></div>`;
+      $$("[data-mot]", box).forEach((el) => (el.onclick = () => { v.motivoNota = $("#motn", box).value; sel = el.dataset.mot; pintar(); }));
+      $("[data-volver]", box).onclick = () => { this.pPedido(box, v, cat, siguiente); };
+      $("[data-ok]", box).onclick = async () => {
+        const nota = $("#motn", box).value.trim();
+        if (!sel) return toast("Elige el motivo");
+        if (sel === "otro" && !nota) return toast("Escribe el motivo en el comentario");
+        await DB.encolar({ t: "sin_pedido", lid: v.lid, motivo: sel, nota });
+        v.pedido = { ninguno: true, items: [], motivo: sel }; v.motivoSinPedido = sel; v.motivoNota = nota; Visita.set(v);
+        toast("Listo: visita sin pedido · " + MOTIVOS_SIN_PEDIDO.find((m) => m[0] === sel)[1]);
+        siguiente();
+      };
+    };
+    pintar();
   },
 
   pCierre(box, v, ir) {

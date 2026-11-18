@@ -1,6 +1,6 @@
 // Cámara en vivo: la foto solo se puede tomar en el momento (no hay acceso a la galería)
 const Camara = {
-  async abrir({ titulo = "Tomar foto", marca = "", alta = false } = {}) {
+  async abrir({ titulo = "Tomar foto", marca = "", alta = false, guia = false } = {}) {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -14,7 +14,7 @@ const Camara = {
       const el = document.createElement("div");
       el.className = "full";
       el.innerHTML = `<div class="head"><button class="txtbtn" data-x>Cancelar</button><b>${esc(titulo)}</b><span style="width:70px"></span></div>
-        <video playsinline autoplay muted></video>
+        <div class="cam-vista"><video playsinline autoplay muted></video>${guia ? `<div class="cam-guia"><i></i><span>Encuadra la hoja dentro del marco</span></div>` : ""}</div>
         <div class="bar"><span style="width:70px"></span><button class="shutter" data-shot aria-label="Tomar foto"></button><span style="width:70px"></span></div>`;
       document.body.appendChild(el);
       const v = $("video", el); v.srcObject = stream;
@@ -41,12 +41,34 @@ const Camara = {
           c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
           c.getContext("2d").drawImage(v, 0, 0);
         }
+        // La foto del sensor suele abarcar más que la vista previa (por eso "salía más lejos"): se recorta a lo que se veía
+        c = Camara.comoVista(c, v.videoWidth, v.videoHeight);
         if (Camara.oscura(c)) { btn.disabled = false; toast("La foto salió negra. Apunta a la zona con luz e inténtalo de nuevo.", 3500); return; }
         stream.getTracks().forEach((t) => t.stop());
         el.remove();
-        resolve({ canvas: c, at: tomadaEn, marca });
+        resolve({ canvas: c, at: tomadaEn, marca, guia: guia ? Camara.rectGuia(el, v) : null });
       };
     });
+  },
+
+  // Recorte centrado a la proporción del video (misma orientación); si no coincide la orientación, no toca nada
+  comoVista(c, vw, vh) {
+    if (!vw || !vh || (c.width >= c.height) !== (vw >= vh)) return c;
+    const rv = vw / vh, rc = c.width / c.height;
+    if (Math.abs(rv - rc) < 0.02) return c;
+    let w = c.width, h = c.height;
+    if (rc > rv) w = Math.round(h * rv); else h = Math.round(w / rv);
+    const o = document.createElement("canvas"); o.width = w; o.height = h;
+    o.getContext("2d").drawImage(c, (c.width - w) / 2, (c.height - h) / 2, w, h, 0, 0, w, h);
+    return o;
+  },
+  // Posición del marco guía dentro de la foto, en proporción (0–1)
+  rectGuia(el, v) {
+    const g = $(".cam-guia i", el); if (!g) return null;
+    const vr = v.getBoundingClientRect(), s = Math.min(vr.width / v.videoWidth, vr.height / v.videoHeight);
+    const iw = v.videoWidth * s, ih = v.videoHeight * s, ix = vr.left + (vr.width - iw) / 2, iy = vr.top + (vr.height - ih) / 2, r = g.getBoundingClientRect();
+    const cl = (x) => Math.max(0, Math.min(1, x));
+    return [cl((r.left - ix) / iw), cl((r.top - iy) / ih), cl((r.right - ix) / iw), cl((r.bottom - iy) / ih)];
   },
 
   // ¿La imagen salió negra? (promedio de brillo muy bajo)
