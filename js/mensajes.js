@@ -111,7 +111,7 @@ const MSG = {
   // ---------- Pantallas ----------
   async render(root, id) {
     if (id) return this.detalle(root, Number(id));
-    const gestor = DB.perfil.rol !== "vendedor";
+    const gestor = DB.perfil.rol !== "vendedor" && DB.puede("avisar");
     let tab = gestor ? LS.get("msg.tab", "enviados") : "recibidos";
     const pintar = async () => {
       root.innerHTML = `<div class="top"><div><div class="muted small">Comunicados</div><h1>Mensajes</h1></div>${gestor ? `<button class="btn sm" data-nuevo>+ Nuevo comunicado</button>` : ""}</div>

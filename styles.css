@@ -640,3 +640,7 @@ details.acord>summary .grow{flex:1;min-width:0}
 .fv-fig figcaption{font-size:12px;line-height:1.25;margin-top:5px;color:var(--tinta);overflow-wrap:break-word}
 .fv-fig figcaption span{display:block;color:var(--gris);font-size:11px}
 .fv-kpis b{font-size:15px}
+
+/* v0.14.44: Permisos agrupados (Ejecución · Consulta · Acciones · Configuración) */
+table.perm tr.perm-g td{background:var(--azul-cl);color:var(--azul-osc);font:700 12px var(--font);letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;position:sticky;left:0}
+table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px}

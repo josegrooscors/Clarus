@@ -32,7 +32,7 @@ const G = {
   async detalle(p, recargar) {
     const rol = DB.perfil.rol;
     const puedeAprobar = false; // el flujo no lleva aprobación
-    const puedeImprimir = ["admin", "operaciones", "supervisor"].includes(rol) && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
+    const puedeImprimir = DB.puede("pedidos_imprimir") && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
     const [{ data: items }, { data: ev }] = await Promise.all([
       sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id"),
       sb.from("pedido_eventos").select("*, perfiles(nombre)").eq("pedido_id", p.id).order("at"),

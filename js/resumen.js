@@ -124,7 +124,7 @@ const R = {
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
         <div class="small">${plur(new Set(agotSinPed.map((a) => a.cliente_id)).size, "tienda")} en total · ${plur(agotSinPed.length, "conteo")} en ${plur(new Set(agotSinPed.map((a) => a.visita_id)).size, "visita")}. <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
-        <button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button></div>` : ""}
+        ${DB.puede("avisar") ? `<button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button>` : ""}</div>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       <div class="kpis">
@@ -156,7 +156,7 @@ const R = {
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
         <div class="al-fila"><div class="al-t fv-link" data-fv="${a.visita_id}" role="button" tabindex="0"><b>${esc(a.tienda)}</b><span class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)} · <u>Ver visita</u></span></div>
           <div class="al-p">${a.prods.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span>`).join("")}<span class="tiny" style="color:var(--rosa-t)">Sin pedido</span>${a.motivo ? `<span class="pill al-m ${a.motivo === "sin_stock" ? "p-gris" : "p-durazno"}">Motivo: ${esc((MOTIVOS_SIN_PEDIDO.find((m) => m[0] === a.motivo) || [, a.motivo])[1])}${a.motivoNota ? " · " + esc(a.motivoNota) : ""}</span>` : ""}</div>
-          <button class="btn sm al-b" onclick="R.avisar(${a.visita_id})">${ic("megafono", 15)} Avisar</button></div>`), "alertas")
+          ${DB.puede("avisar") ? `<button class="btn sm al-b" onclick="R.avisar(${a.visita_id})">${ic("megafono", 15)} Avisar</button>` : ""}</div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 

@@ -1,12 +1,25 @@
 // Configuración: tiendas, productos, usuarios y permisos por rol (según el permiso de cada rol)
 const ROLES_TXT = { admin: "Administrador", supervisor: "Supervisor", operaciones: "Operaciones", administracion: "Administración (facturación)", vendedor: "Vendedor" };
 const PERMISOS_TXT = {
-  tiendas: ["Tiendas", "Crear y editar tiendas, su dirección y ubicación"],
+  visitar: ["Hacer visitas", "Ruta del día: check-in, fotos, inventario, pedido y cierre"],
   ubicacion: ["Ubicación en visita", "Guardar el GPS de una tienda que aún no tiene ubicación, desde la visita"],
+  ver_resumen: ["Ver Resumen", "Indicadores de ventas, visitas, inventario y espacio"],
+  ver_equipo: ["Ver Equipo", "Visitas del día de cada vendedora y la ficha de cada visita"],
+  ver_agenda: ["Ver Agenda", "Visitas programadas por día y por vendedora"],
+  ver_metas: ["Ver Metas", "Objetivos de venta y avance"],
+  ver_pedidos: ["Ver Pedidos", "Pedidos de las vendedoras y su estado"],
+  ver_mapa: ["Ver Mapa", "Tiendas en el mapa"],
+  avisar: ["Avisar y enviar comunicados", "Botón «Avisar» en las alertas y envío de comunicados al equipo"],
+  pedidos_imprimir: ["Imprimir órdenes", "Imprimir la orden de compra de un pedido"],
+  planogramas: ["Planogramas", "Crear y editar planogramas y asignarlos a tiendas"],
+  picking: ["Picking", "Preparar, despachar y facturar pedidos"],
+  tiendas: ["Tiendas", "Crear y editar tiendas, su dirección y ubicación"],
   rutas: ["Rutas", "Asignar tiendas y días de visita a cada vendedora"],
   productos: ["Productos", "Crear y editar productos, pesos y precios"],
   usuarios: ["Usuarios", "Crear usuarios, cambiar contraseñas y desactivar (no administradores)"],
 };
+const PERMISOS_GRUPOS = [["Ejecución en tienda", ["visitar", "ubicacion"]], ["Consulta", ["ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa"]],
+  ["Acciones", ["avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
 
 // Convierte "9.02, -79.50" o un link de Google Maps con @lat,lng / q=lat,lng en coordenadas
 function leerCoordenadas(t) {
@@ -333,12 +346,12 @@ const C = {
   async permisos(box) {
     const { data, error } = await sb.from("permisos_rol").select("*");
     if (error) throw error;
-    const roles = ["supervisor", "operaciones", "administracion", "vendedor"];
-    const tiene = (r, p) => !!(data || []).find((x) => x.rol === r && x.permiso === p)?.permitido;
+    const roles = ["vendedor", "supervisor", "operaciones", "administracion"];
+    const tiene = (r, p) => { const x = (data || []).find((x) => x.rol === r && x.permiso === p); return x ? !!x.permitido : (PERM_DEF[r] || []).includes(p); };
     box.innerHTML = `<p class="small muted" style="margin-top:0">Elige qué puede hacer cada rol. El administrador siempre puede todo. Los cambios aplican la próxima vez que cada persona abra la app.</p>
       <div class="card flat scroll-x" style="padding:0"><table class="t perm"><tr><th>Permiso</th>${roles.map((r) => `<th>${ROLES_TXT[r]}</th>`).join("")}</tr>
-      ${Object.entries(PERMISOS_TXT).map(([p, [t, d]]) => `<tr><td><b>${t}</b><div class="tiny muted">${d}</div></td>
-        ${roles.map((r) => `<td><label class="sw"><input type="checkbox" data-r="${r}" data-p="${p}" ${tiene(r, p) ? "checked" : ""} aria-label="${t} — ${ROLES_TXT[r]}"><span></span></label></td>`).join("")}</tr>`).join("")}
+      ${PERMISOS_GRUPOS.map(([g, ps]) => `<tr class="perm-g"><td colspan="${roles.length + 1}">${g}</td></tr>` + ps.map((p) => { const [t, d] = PERMISOS_TXT[p]; return `<tr><td><b>${t}</b><div class="tiny muted">${d}</div></td>
+        ${roles.map((r) => `<td><label class="sw"><input type="checkbox" data-r="${r}" data-p="${p}" ${tiene(r, p) ? "checked" : ""} aria-label="${t} — ${ROLES_TXT[r]}"><span></span></label></td>`).join("")}</tr>`; }).join("")).join("")}
       </table></div>`;
     $$("input[data-r]", box).forEach((el) => (el.onchange = async () => {
       const r = await sb.from("permisos_rol").upsert({ empresa_id: DB.perfil.empresa_id, rol: el.dataset.r, permiso: el.dataset.p, permitido: el.checked });

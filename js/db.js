@@ -27,10 +27,25 @@ const IDB = (() => {
   };
 })();
 
+// Lo que cada rol puede hacer si la empresa no lo ha cambiado en Configuración → Permisos.
+const PERM_DEF = {
+  supervisor: ["visitar", "ubicacion", "ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa", "avisar"],
+  operaciones: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "avisar", "pedidos_imprimir"],
+  administracion: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "avisar"],
+  vendedor: ["visitar", "ubicacion"],
+};
 const DB = {
   user: null, perfil: null, empresa: null, permisos: LS.get("permisos", []),
   // El administrador puede todo; los demás roles, según la tabla de permisos
-  puede(p) { return this.perfil?.rol === "admin" || this.permisos.includes(p); },
+  // Permisos por rol (Configuración → Permisos). Si el teléfono aún no ha bajado la tabla nueva, se usan los valores por defecto del rol,
+  // para que a nadie le desaparezca una pantalla en mitad del día.
+  permMap: LS.get("permMap", null),
+  puede(p) {
+    const r = this.perfil?.rol;
+    if (r === "admin") return true;
+    if (this.permMap && p in this.permMap) return !!this.permMap[p];
+    return (PERM_DEF[r] || []).includes(p) || this.permisos.includes(p);
+  },
 
   async iniciar() {
     const { data } = await sb.auth.getSession();
@@ -89,7 +104,7 @@ const DB = {
       sb.from("tareas_catalogo").select("*").eq("activo", true).order("orden"),
       sb.from("asignacion_productos").select("*"),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mesActual()),
-      sb.from("permisos_rol").select("permiso").eq("rol", this.perfil.rol).eq("permitido", true),
+      sb.from("permisos_rol").select("permiso, permitido").eq("rol", this.perfil.rol),
       sb.from("planogramas").select("*").eq("activo", true),
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
       sb.from("tienda_muebles").select("cliente_id, orden, mueble, niveles, posiciones, celdas, por_nivel"),
@@ -97,7 +112,7 @@ const DB = {
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
-    if (!pm.error) { this.permisos = pm.data.map((x) => x.permiso); LS.set("permisos", this.permisos); }
+    if (!pm.error) { this.permisos = pm.data.filter((x) => x.permitido !== false).map((x) => x.permiso); LS.set("permisos", this.permisos); this.permMap = Object.fromEntries(pm.data.map((x) => [x.permiso, x.permitido !== false])); LS.set("permMap", this.permMap); }
     const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data };
     LS.set("cat", out);
     return out;
