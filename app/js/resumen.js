@@ -91,6 +91,13 @@ const R = {
     const agotSinPed = alertas.filter((a) => a.agotado && !a.con_pedido), bajoSinPed = alertas.filter((a) => a.bajo && !a.con_pedido);
     R._alertas = [...agotSinPed, ...bajoSinPed];
     const porVisita = {}; [...agotSinPed, ...bajoSinPed].forEach((a) => (porVisita[a.visita_id] = porVisita[a.visita_id] || { ...a, prods: [] }).prods.push(a));
+    // Motivo que dio la vendedora cuando cerró sin pedido (ej.: la empresa no tenía producto)
+    const idsAl = Object.keys(porVisita).map(Number);
+    if (idsAl.length) {
+      const { data: mot } = await sb.from("visitas").select("id, sin_pedido_motivo, sin_pedido_nota").in("id", idsAl);
+      if (gen !== root._resGen || !$("#rs", root)) return;
+      (mot || []).forEach((m) => { if (porVisita[m.id]) Object.assign(porVisita[m.id], { motivo: m.sin_pedido_motivo, motivoNota: m.sin_pedido_nota }); });
+    }
 
     // ---- Por vendedora ----
     const filasV = (vend ? vendedoras.filter((v) => v.id === vend) : vendedoras).map((u) => {
@@ -149,6 +156,7 @@ const R = {
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
         <div class="al-fila"><div class="al-t"><b>${esc(a.tienda)}</b><span class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)}</span></div>
           <div class="al-p">${a.prods.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span>`).join("")}<span class="tiny" style="color:var(--rosa-t)">Sin pedido</span></div>
+          ${a.motivo ? `<span class="pill ${a.motivo === "sin_stock" ? "p-gris" : "p-durazno"}" title="${esc(a.motivoNota || "")}">Motivo: ${esc((MOTIVOS_SIN_PEDIDO.find((m) => m[0] === a.motivo) || [, a.motivo])[1])}${a.motivoNota ? " · " + esc(a.motivoNota) : ""}</span>` : ""}
           <button class="btn sm al-b" onclick="R.avisar(${a.visita_id})">${ic("megafono", 15)} Avisar</button></div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
         <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>

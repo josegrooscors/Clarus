@@ -175,6 +175,11 @@ const DB = {
         if (r.error) throw r.error;
         return;
       }
+      case "sin_pedido": {
+        const id = await this.idVisita(op.lid);
+        ok(await sb.from("visitas").update({ sin_pedido_motivo: op.motivo, sin_pedido_nota: op.nota || null }).eq("id", id));
+        return;
+      }
       case "planos": {
         const id = await this.idVisita(op.lid);
         ok(await sb.from("planograma_revisiones").upsert(op.rows.map((x) => ({ visita_id: id, planograma_id: x.planograma_id, cumple: x.cumple })), { onConflict: "visita_id,planograma_id" }));
