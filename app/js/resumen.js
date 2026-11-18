@@ -214,28 +214,38 @@ const R = {
     const inicio = visitas.map((v) => v.fecha).sort()[0] || hoy; // antes de la primera visita en Clarus no hay datos (usaban Handy)
     const activos = new Set(visitas.map((v) => v.fecha));
     const cuenta = {}; visitas.forEach((v) => { const k = v.vendedor_id + "|" + v.fecha; cuenta[k] = (cuenta[k] || 0) + 1; });
+    // Cada día es un cuadro con el número de visitas. Azul claro: cumplió su ruta (≥ 90 %). Ámbar: trabajó pero dejó programadas sin hacer ("5 ·1" = 5 hechas, 1 pendiente).
+    // Rojo: tenía ruta y no visitó. "F": feriado o día libre (nadie registró visitas).
     const filas = vendedoras.map((u) => {
-      const diasRuta = new Set(asig.filter((a) => a.vendedor_id === u.id).flatMap((a) => a.dias_semana || []));
+      const mias = asig.filter((a) => a.vendedor_id === u.id);
       let asis = 0, faltas = 0;
       const celdas = dias.map((d) => {
-        const n = cuenta[u.id + "|" + d.iso] || 0, fecha = new Date(d.iso + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
-        let c = "fut", t = fecha;
-        if (d.iso > hoy) c = "fut";
+        const n = cuenta[u.id + "|" + d.iso] || 0, prog = mias.filter((a) => (a.dias_semana || []).includes(d.w)).length;
+        const fecha = new Date(d.iso + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
+        let c = "fut", t = fecha, x = "";
+        if (d.iso > hoy) { c = "fut"; x = prog || ""; t += prog ? ` · ${plur(prog, "visita")} programada${prog === 1 ? "" : "s"}` : " · sin ruta"; }
         else if (d.iso < inicio) { c = "libre"; t += " · antes de empezar a usar Clarus"; }
-        else if (d.iso < hoy && !activos.has(d.iso)) { c = "libre"; t += " · nadie registró visitas (feriado o día libre)"; }
-        else if (n) { c = "ok"; asis++; t += ` · asistió (${n} visita${n > 1 ? "s" : ""})`; }
-        else if (d.iso === hoy) { c = "hoy"; t += " · hoy, aún sin visitas"; }
-        else if (diasRuta.has(d.w)) { c = "falta"; faltas++; t += " · FALTA: tenía ruta y no registró visitas"; }
+        else if (d.iso < hoy && !activos.has(d.iso)) { c = "libre"; x = "F"; t += " · feriado o día libre (nadie registró visitas)"; }
+        else if (n) {
+          const falt = Math.max(0, prog - n); asis++;
+          if (!prog || n >= prog * 0.9) { c = "ok"; x = n; t += ` · cumplió su ruta: ${plur(n, "visita")}${prog ? " de " + prog : ""}`; }
+          else { c = "parcial"; x = `${n}<i>·${falt}</i>`; t += ` · ${plur(n, "visita")}, ${falt} programada${falt === 1 ? "" : "s"} sin hacer`; }
+        }
+        else if (d.iso === hoy) { c = "hoy"; x = prog ? "0" : ""; t += prog ? ` · hoy, aún sin visitas (${prog} programadas)` : " · hoy, sin ruta"; }
+        else if (prog) { c = "falta"; x = "0"; faltas++; t += ` · FALTA: tenía ${plur(prog, "visita")} y no registró ninguna`; }
         else { c = "libre"; t += " · sin ruta"; }
-        return `<td><span class="asi ${c}" title="${esc(t)}"></span></td>`;
+        return `<td><span class="asi ${c}${d.iso === hoy ? " es-hoy" : ""}" title="${esc(t)}">${x}</span></td>`;
       }).join("");
-      return `<tr><td class="asi-n">${esc(u.nombre)}</td>${celdas}<td class="asi-t"><b style="color:var(--azul)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
+      return `<tr><td class="asi-n">${esc(u.nombre)}</td>${celdas}<td class="asi-t"><b style="color:var(--azul-osc)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
     }).join("");
     const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
+    setTimeout(() => { const h = document.querySelector(".asis th.hoyc"), sx = h?.closest(".scroll-x"); if (sx) sx.scrollLeft = Math.max(0, h.offsetLeft - sx.clientWidth + h.offsetWidth * 2.2); }, 60); // abre mostrando hoy y los días anteriores
     return `<h3 class="sec-t">Asistencia · ${esc(mes)}</h3>
-      <div class="card"><div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
-      <div class="row tiny muted" style="flex-wrap:wrap;gap:14px;margin-top:10px"><span><span class="asi ok"></span> Asistió (registró visitas)</span><span><span class="asi falta"></span> Falta (tenía ruta y no visitó)</span><span><span class="asi libre"></span> Sin ruta o feriado</span><span><span class="asi hoy"></span> Hoy</span><span><span class="asi fut"></span> Por venir</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
+      <div class="card"><div class="tiny muted" style="margin-bottom:8px">El número es la cantidad de visitas registradas ese día. «5 ·1» = 5 hechas y 1 programada sin hacer.</div>
+      <div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
+      <div class="asi-ley tiny muted"><span><span class="asi ok"></span> Cumplió</span><span><span class="asi parcial"></span> Dejó visitas sin hacer</span><span><span class="asi falta"></span> No asistió</span><span><span class="asi libre">F</span> Feriado o libre</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },
+
 
   // Enviar a la vendedora un comunicado con «Entendido» por agotados/bajos sin pedido
   async avisar(sel) {
