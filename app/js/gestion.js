@@ -102,10 +102,10 @@ const G = {
         const ini = vs[0].checkin_at, fin = vs.filter((v) => v.checkout_at).slice(-1)[0]?.checkout_at;
         return `<div class="card"><div class="row" style="margin-bottom:10px"><div class="ava">${esc(iniciales(n))}</div><div class="grow"><h3>${esc(n)}</h3>
           <div class="small muted">Inicio ${fmtHora(ini)} · ${fin ? "último cierre " + fmtHora(fin) : "sin cierres"} · ${plur(vs.length, "visita")}</div></div></div>
-          <div class="list solo-movil">${vs.map((v) => `<div class="inv"><div class="row"><b class="sp">${esc(v.tienda)}</b>${G.gps(v)}</div>
+          <div class="list solo-movil">${vs.map((v) => `<div class="inv fv-link" data-fv="${v.id}" role="button" tabindex="0"><div class="row"><b class="sp">${esc(v.tienda)}</b>${G.gps(v)}</div>
             <div class="small muted" style="margin-top:4px">${fmtHora(v.checkin_at)} → ${v.checkout_at ? fmtHora(v.checkout_at) : "<b style='color:var(--azul-osc)'>abierta</b>"}${v.minutos_en_tienda != null ? " · " + fmtNum(v.minutos_en_tienda, 0) + " min" : ""} · ${v.num_fotos} fotos · inventario ${v.con_inventario ? "✓" : "—"}</div></div>`).join("")}</div>
           <div class="scroll-x solo-escritorio"><table class="t"><tr><th>Tienda</th><th>Entrada</th><th>Salida</th><th>Min</th><th>GPS</th><th>Fotos</th><th>Inv.</th></tr>
-          ${vs.map((v) => `<tr><td>${esc(v.tienda)}</td><td>${fmtHora(v.checkin_at)}</td><td>${v.checkout_at ? fmtHora(v.checkout_at) : `<span class="pill p-azul">Abierta</span>`}</td>
+          ${vs.map((v) => `<tr class="fv-link" data-fv="${v.id}"><td><b>${esc(v.tienda)}</b></td><td>${fmtHora(v.checkin_at)}</td><td>${v.checkout_at ? fmtHora(v.checkout_at) : `<span class="pill p-azul">Abierta</span>`}</td>
             <td>${v.minutos_en_tienda != null ? fmtNum(v.minutos_en_tienda, 0) : "–"}</td>
             <td>${G.gps(v)}</td>
             <td>${v.num_fotos}</td><td>${v.con_inventario ? "✓" : "–"}</td></tr>`).join("")}</table></div></div>`;

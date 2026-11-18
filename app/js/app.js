@@ -47,6 +47,7 @@ const App = {
     const [base, sub] = ruta.split("/");
     if (base === "mensajes") ruta = "mensajes";
     if (base === "soporte") ruta = "soporte";
+    if (base === "ficha") { const idF = Number(sub); location.hash = "#" + (menu.some((x) => x[0] === "equipo") ? "equipo" : menu[0][0]); if (idF) setTimeout(() => FICHA.abrir(idF), 400); return; }
     if (base === "facturacion") { location.hash = "#picking" + (sub ? "/" + sub : ""); return; }
     if (["planogramas", "picking"].includes(base)) ruta = base;
     if (!ruta || (ruta !== "visita" && ruta !== "soporte" && !menu.some((x) => x[0] === ruta))) ruta = menu[0][0];
