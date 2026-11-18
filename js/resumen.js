@@ -166,8 +166,8 @@ const R = {
       ${asistencia}
 
       <h3 class="sec-t">Por vendedora</h3>
-      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
-        ${filasV.map((r) => `<tr><td><b>${esc(r.u.nombre)}</b>${!r.vis && r.prog ? ` <span class="pill p-rosa">Sin visitas</span>` : r.vis && !r.ped ? ` <span class="pill p-durazno">Sin pedidos</span>` : ""}</td>
+      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th><th>Estado</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
+        ${filasV.map((r) => `<tr><td><b>${esc(r.u.nombre)}</b></td><td>${!r.vis && r.prog ? `<span class="pill p-rosa">Sin visitas</span>` : r.vis && !r.ped ? `<span class="pill p-durazno">Sin pedidos</span>` : r.vis ? `<span class="pill p-menta">Con pedidos</span>` : `<span class="pill">Sin ruta</span>`}</td>
           <td>${r.prog}</td><td><span class="pill ${colorPct(pct(r.ok, r.prog))}">${pct(r.ok, r.prog) ?? "–"}${r.prog ? "%" : ""}</span> <span class="tiny muted">${r.ok}/${r.prog}</span></td>
           <td>${r.vis}</td><td>${r.visPT ? pct(r.conPed, r.visPT) + "%" : "–"}</td><td>${fmtNum(r.kg, 0)}</td><td>${r.alertas ? `<span class="pill p-rosa">${r.alertas}</span>` : "–"}</td></tr>`).join("")}</table></div>
       <div class="kpis">
