@@ -188,7 +188,10 @@ const V = {
   // Qué está completo en la visita
   estado(v) {
     const fotosOk = FOTOS_REQ.every(([k]) => v.fotos.some((f) => f.tipo === k));
-    return { fotos: fotosOk, inventario: !!v.guardado.inventario, promos: !!v.guardado.promos || v.promos.length > 0, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion: !!v.guardado.gestion };
+    // Gestión ya no es una lista para marcar: solo pide respuesta si la tienda tiene planograma que revisar
+    const pls = PL.deTienda(LS.get("cat") || {}, v.cliente_id) || [];
+    const gestion = !!v.guardado.gestion || pls.every((p) => (v.planos || {})[p.id]);
+    return { fotos: fotosOk, inventario: !!v.guardado.inventario, promos: !!v.guardado.promos || v.promos.length > 0, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion };
   },
   pendientes(v) {
     const e = this.estado(v), out = [];
@@ -196,27 +199,25 @@ const V = {
     if (!e.inventario) out.push(["inventario", "Inventario"]);
     if (!e.promos) out.push(["promos", "Promociones"]);
     if (!e.pedido) out.push(["pedido", "Pedido"]);
-    if (!e.gestion) out.push(["gestion", "Gestión"]);
+    if (!e.gestion) out.push(["gestion", "Revisar planograma"]);
     return out;
   },
 
   pGestion(box, v, cat, siguiente) {
-    box.innerHTML = `${AUD.enVisita(v, cat)}${PL.enVisita(v, cat)}<p class="muted small" style="margin-top:0">Marca lo que hiciste en la tienda.</p>
-      <div class="list">${cat.tareas.map((t) => `<div class="check ${v.gestiones[t.id] ? "on" : ""}" data-t="${t.id}"><div class="box">✓</div><div>${esc(t.nombre)}</div></div>`).join("")}</div>
-      <button class="btn block" style="margin-top:16px" data-ok>Guardar y seguir</button>`;
-    $$(".check", box).forEach((el) => (el.onclick = () => {
-      el.classList.toggle("on"); v.gestiones[el.dataset.t] = el.classList.contains("on"); Visita.set(v);
-    }));
+    box.onclick = null; box.oninput = null;
+    const pls = PL.deTienda(cat, v.cliente_id);
+    box.innerHTML = `${AUD.enVisita(v, cat)}${PL.enVisita(v, cat)}
+      ${pls.length ? "" : `<p class="muted small" style="margin-top:0">Esta tienda no tiene planograma que revisar. Lo que hiciste queda registrado solo con tus fotos, inventario y pedido.</p>`}
+      <button class="btn block" style="margin-top:16px" data-ok>Seguir</button>`;
     PL.enlazarVisita(box, v);
     AUD.enlazarVisita(box, v, cat, () => this.pGestion(box, v, cat, siguiente));
     $("[data-ok]", box).onclick = async () => {
-      const pls = PL.deTienda(cat, v.cliente_id);
       if (pls.some((p) => !(v.planos || {})[p.id])) return toast("Indica si la exhibición cumple el planograma");
       if (pls.length) await DB.encolar({ t: "planos", lid: v.lid, rows: pls.map((p) => ({ planograma_id: p.id, cumple: v.planos[p.id] })) });
-      await DB.encolar({ t: "gestiones", lid: v.lid, rows: cat.tareas.map((t) => ({ tarea_id: t.id, hecho: !!v.gestiones[t.id] })) });
       v.guardado.gestion = true; Visita.set(v); siguiente();
     };
   },
+
 
   pFotos(box, v, siguiente) {
     const tipos = FOTOS_REQ;
@@ -470,13 +471,21 @@ const V = {
   pCierre(box, v, ir) {
     const pend = this.pendientes(v);
     const ok = !pend.length;
+    // Lo que hizo la vendedora sale solo de los pasos y las evidencias (sin casillas para marcar)
+    const e = this.estado(v), cat0 = LS.get("cat") || {}, pls = PL.deTienda(cat0, v.cliente_id) || [];
+    const nFotos = FOTOS_REQ.filter(([k]) => v.fotos.some((f) => f.tipo === k)).length;
+    const agot = Object.keys(v.agot || {}).filter((k) => v.agot[k]).length;
+    const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
-      ...FOTOS_REQ.map(([k, t]) => ["fotos", "Foto " + t.toLowerCase(), v.fotos.some((f) => f.tipo === k)]),
-      ["inventario", "Inventario", this.estado(v).inventario], ["promos", "Promociones revisadas", this.estado(v).promos],
-      ["pedido", "Pedido revisado", this.estado(v).pedido], ["gestion", "Gestión", this.estado(v).gestion],
+      ["fotos", `Fotos de evidencia · ${nFotos} de ${FOTOS_REQ.length}`, e.fotos],
+      ["inventario", `Inventario contado${agot ? ` · ${agot} agotado(s)` : ""}`, e.inventario],
+      ["promos", "Promociones revisadas", e.promos],
+      ["pedido", v.pedido?.ninguno ? `Sin pedido${v.pedido.motivo ? " · " + (MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") : ""}` : v.pedido?.items?.length ? `Pedido enviado · ${fmtKg(kgPed)}` : "Pedido", e.pedido],
+      ...(pls.length ? [["gestion", `Planograma revisado${pls.length > 1 ? " (" + pls.length + ")" : ""}`, e.gestion]] : []),
+      ...(v.auditoria ? [["gestion", `Auditoría de espacio · ${v.auditoria.pct == null ? "hecha" : v.auditoria.pct + "% de la categoría"}`, true]] : []),
     ];
-    box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Resumen de la visita</h2>
-      ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${t}</span>${h ? `<span class="pill p-menta">✓ Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
+    box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Lo que hiciste en la visita</h2>
+      ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${h ? "✓ " : ""}${esc(t)}</span>${h ? `<span class="pill p-menta">Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
       <div class="row" style="padding:7px 0"><span class="sp">Tiempo en tienda</span><b>${minutos(v.at, new Date())} min</b></div></div>
       ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b>
         <div class="small" style="margin:2px 0 8px">Falta completar:</div>
