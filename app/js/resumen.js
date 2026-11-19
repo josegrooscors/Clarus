@@ -140,6 +140,9 @@ const R = {
           <h2>${fmtNum(avance, 0)} kg <span class="muted" style="font-weight:500;font-size:15px">de ${fmtNum(objKg, 0)} kg</span></h2></div><span class="pill ${colorPct(pcObj)}" style="font-size:15px">${pcObj ?? 0}%</span></div>${barra(pcObj)}
         <div class="row small" style="margin-top:10px;flex-wrap:wrap;gap:16px"><span>Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}: <b>${fmtNum(factKg, 0)} kg</b></span><span>Pedidos capturados después: <b>${fmtNum(pedPost, 0)} kg</b></span><span>Falta: <b>${fmtNum(Math.max(0, objKg - avance), 0)} kg</b></span></div></div>` : ""}
 
+      ${vendedoras.length ? `<h3 class="sec-t">Cierre del día por vendedora</h3><div class="card"><div class="tiny muted" style="margin-bottom:8px">Toca una vendedora para ver su tarjeta de hoy y compartirla.</div>
+        <div class="list lim5">${(vend ? vendedoras.filter((u) => u.id === vend) : vendedoras).map((u) => { const pr = prog.filter((p) => p.vendedor_id === u.id && p.fecha === hoy), ok = pr.filter((p) => p.hecha).length;
+          return `<div class="item" data-cierre="${u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(u.nombre))}</div><div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${pr.length ? `Hoy: ${ok} de ${pr.length} visitas agendadas` : "Ver su cierre de hoy"}</div></div><span class="pill ${!pr.length ? "p-gris" : ok === pr.length ? "p-menta" : "p-azul"}">${!pr.length ? "Ver" : ok === pr.length ? "Cerrado" : "En ruta"}</span></div>`; }).join("")}</div></div>` : ""}
       <h3 class="sec-t">Efectividad de visitas · ${esc(etPer)}</h3>
       <div class="kpis">
         ${kpi(progN, "Visitas programadas", "", dias.length < this.fechas(desde, hasta).length ? "hasta hoy" : "")}

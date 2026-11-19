@@ -10,6 +10,7 @@ const PERMISOS_TXT = {
   ver_pedidos: ["Ver Pedidos", "Pedidos de las vendedoras y su estado"],
   ver_mapa: ["Ver Mapa", "Tiendas en el mapa"],
   ver_dinero: ["Ver montos en dólares", "Objetivos y ventas en dólares. Sin este permiso se ven solo en kilos"],
+  aviso_cierre: ["Recibir el cierre del día", "Le llega un aviso cuando cada vendedora termina su ruta (o a la hora de corte si no la terminó)"],
   avisar: ["Avisar y enviar comunicados", "Botón «Avisar» en las alertas y envío de comunicados al equipo"],
   pedidos_imprimir: ["Imprimir órdenes", "Imprimir la orden de compra de un pedido"],
   planogramas: ["Planogramas", "Crear y editar planogramas y asignarlos a tiendas"],
@@ -20,7 +21,7 @@ const PERMISOS_TXT = {
   usuarios: ["Usuarios", "Crear usuarios, cambiar contraseñas y desactivar (no administradores)"],
 };
 const PERMISOS_GRUPOS = [["Ejecución en tienda", ["visitar", "ubicacion"]], ["Consulta", ["ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa", "ver_dinero"]],
-  ["Acciones", ["avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
+  ["Acciones", ["aviso_cierre", "avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
 
 // Convierte "9.02, -79.50" o un link de Google Maps con @lat,lng / q=lat,lng en coordenadas
 function leerCoordenadas(t) {
@@ -391,11 +392,18 @@ const C = {
     if (error) throw error;
     const roles = ["vendedor", "supervisor", "operaciones", "administracion"];
     const tiene = (r, p) => { const x = (data || []).find((x) => x.rol === r && x.permiso === p); return x ? !!x.permitido : (PERM_DEF[r] || []).includes(p); };
-    box.innerHTML = `<p class="small muted" style="margin-top:0">Elige qué puede hacer cada rol. El administrador siempre puede todo. Los cambios aplican la próxima vez que cada persona abra la app.</p>
+    const emp = (await sb.from("empresas").select("id, cierre_diario, cierre_hora_corte").limit(1)).data?.[0];
+    box.innerHTML = `${emp ? `<div class="card" style="margin-bottom:14px"><h3 style="margin:0 0 4px">Cierre del día de cada vendedora</h3>
+        <p class="small muted" style="margin:0 0 10px">Aviso al teléfono cuando cada vendedora termina sus tiendas agendadas. Si no las termina, llega a la hora de corte como «día sin cerrar». Lo reciben los administradores y los roles con el permiso «Recibir el cierre del día».</p>
+        <div class="grid2c"><div><label class="f" style="margin-top:0">Avisos</label><select class="in" id="cd-on"><option value="1">Encendidos</option><option value="0" ${emp.cierre_diario ? "" : "selected"}>Apagados</option></select></div>
+        <div><label class="f" style="margin-top:0">Hora de corte</label><select class="in" id="cd-h">${[16, 17, 18, 19, 20, 21].map((h) => `<option value="${h}" ${h === emp.cierre_hora_corte ? "selected" : ""}>${h - 12}:00 p. m.</option>`).join("")}</select></div></div></div>` : ""}
+      <p class="small muted" style="margin-top:0">Elige qué puede hacer cada rol. El administrador siempre puede todo. Los cambios aplican la próxima vez que cada persona abra la app.</p>
       <div class="card flat scroll-x" style="padding:0"><table class="t perm"><tr><th>Permiso</th>${roles.map((r) => `<th>${ROLES_TXT[r]}</th>`).join("")}</tr>
       ${PERMISOS_GRUPOS.map(([g, ps]) => `<tr class="perm-g"><td colspan="${roles.length + 1}">${g}</td></tr>` + ps.map((p) => { const [t, d] = PERMISOS_TXT[p]; return `<tr><td><b>${t}</b><div class="tiny muted">${d}</div></td>
         ${roles.map((r) => `<td><label class="sw"><input type="checkbox" data-r="${r}" data-p="${p}" ${tiene(r, p) ? "checked" : ""} aria-label="${t} — ${ROLES_TXT[r]}"><span></span></label></td>`).join("")}</tr>`; }).join("")).join("")}
       </table></div>`;
+    const guardarCierre = async () => { const r = await sb.from("empresas").update({ cierre_diario: $("#cd-on", box).value === "1", cierre_hora_corte: Number($("#cd-h", box).value) }).eq("id", emp.id); toast(r.error ? r.error.message : "Guardado ✓", r.error ? 4000 : 1500); };
+    if (emp) { $("#cd-on", box).onchange = guardarCierre; $("#cd-h", box).onchange = guardarCierre; }
     $$("input[data-r]", box).forEach((el) => (el.onchange = async () => {
       const r = await sb.from("permisos_rol").upsert({ empresa_id: DB.perfil.empresa_id, rol: el.dataset.r, permiso: el.dataset.p, permitido: el.checked });
       if (r.error) { el.checked = !el.checked; return toast(r.error.message, 4000); }

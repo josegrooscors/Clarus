@@ -1,4 +1,4 @@
-// Clarus · avisos: envía comunicados programados y recordatorios (push) hasta que la vendedora toque "Entendido".
+// Clarus · avisos: envía comunicados programados, recordatorios (push) hasta que la vendedora toque "Entendido" y el cierre del día de cada vendedora.
 // Lo llama pg_cron cada 5 min (x-clarus-token) y la app al enviar un comunicado (JWT del usuario).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -85,5 +85,67 @@ Deno.serve(async (req) => {
       recordados++;
     }
   }
-  return json({ ok: true, nuevos: nuevos?.length || 0, recordados, enviados });
+  // Texto del aviso de cierre (el mismo para el envío real y para la prueba)
+  // deno-lint-ignore no-explicit-any
+  const textoCierre = (r: any, completo: boolean) => {
+    const nom = String(r.vendedor || "Vendedora").split(" ")[0], pl = (n: number, w: string) => `${n} ${w}${Number(n) === 1 ? "" : "s"}`;
+    const areas = Number(r.fuera_radio) + Number(r.cortas) + Number(r.pendientes) + Number(r.agotados);
+    const titulo = completo ? (r.hechas ? `${nom} cerró su día: ${r.hechas} de ${r.agendadas} visitas` : `${nom}: día justificado (${pl(r.justificadas, "tienda")})`)
+      : `${nom}: día sin cerrar, ${r.hechas} de ${r.agendadas} visitas`;
+    const partes = [r.justificadas && r.hechas ? pl(r.justificadas, "justificada") : "", !completo && r.pendientes ? `${pl(r.pendientes, "tienda")} sin visitar` : "", !completo && r.abiertas ? `${pl(r.abiertas, "visita")} sin check-out` : "",
+      areas ? (areas === 1 ? "1 área de oportunidad" : `${areas} áreas de oportunidad`) : "Sin observaciones", r.pedidos ? pl(r.pedidos, "pedido") : ""].filter(Boolean);
+    return { titulo: (completo ? "✅ " : "⚠️ ") + titulo, cuerpo: partes.join(" · ") };
+  };
+  // Prueba del cierre (solo con el token del cron): arma el aviso de un día dado y lo manda a UNA persona, sin guardar nada.
+  if (!quien && body.cierre_prueba) {
+    const t = body.cierre_prueba as { vendedor: string; fecha: string; para: string };
+    const { data: r } = await db.rpc("cierre_dia", { p_vendedor: t.vendedor, p_fecha: t.fecha });
+    if (!r) return json({ error: "sin datos" }, 400);
+    const completo = r.pendientes === 0 && r.en_curso === 0 && r.abiertas === 0, tx = textoCierre(r, completo);
+    await push(t.para, { title: tx.titulo, body: tx.cuerpo, tag: `cierre-${t.vendedor}-${t.fecha}`, url: `./#cierre/${t.vendedor}/${t.fecha}` });
+    return json({ ok: true, prueba: tx, enviados });
+  }
+
+  // 3) Cierre del día: un aviso por vendedora cuando termina lo agendado (visitado o justificado), o a la hora de corte si no terminó.
+  //    Lo reciben los administradores y los roles con el permiso «aviso_cierre». Se guarda en cierres_dia para no repetir.
+  let cierres = 0;
+  if (!quien && hora >= 7 && hora < 22) {
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Panama" }).format(ahora);
+    const dow = ((new Date(hoy + "T12:00:00Z").getUTCDay() + 6) % 7) + 1; // 1 = lunes … 7 = domingo
+    const { data: emps } = await db.from("empresas").select("id, cierre_hora_corte").eq("activo", true).eq("cierre_diario", true);
+    for (const e of emps || []) {
+      const { data: feriado } = await db.from("dias_no_laborables").select("fecha").eq("empresa_id", e.id).eq("fecha", hoy).limit(1);
+      if (feriado?.length) continue;
+      const { data: asig } = await db.from("asignacion_tiendas").select("vendedor_id, clientes(cadena)").eq("empresa_id", e.id).contains("dias_semana", [dow]);
+      const porVend: Record<string, boolean> = {}; // vendedora → ¿todas sus tiendas de hoy son de pruebas?
+      for (const a of asig || []) { const pr = ((a.clientes as unknown as { cadena?: string })?.cadena || "") === "Pruebas"; porVend[a.vendedor_id] = porVend[a.vendedor_id] === undefined ? pr : porVend[a.vendedor_id] && pr; }
+      const vends = Object.keys(porVend); if (!vends.length) continue;
+      const { data: ya } = await db.from("cierres_dia").select("vendedor_id").eq("fecha", hoy).in("vendedor_id", vends);
+      const hechos = new Set((ya || []).map((x) => x.vendedor_id));
+      const { data: activos } = await db.from("perfiles").select("id").eq("empresa_id", e.id).eq("activo", true).in("id", vends);
+      const vivos = new Set((activos || []).map((x) => x.id));
+      let para: string[] | null = null;
+      for (const vid of vends) {
+        if (hechos.has(vid) || !vivos.has(vid)) continue;
+        const { data: r } = await db.rpc("cierre_dia", { p_vendedor: vid, p_fecha: hoy });
+        if (!r || !r.agendadas) continue;
+        const completo = r.pendientes === 0 && r.en_curso === 0 && r.abiertas === 0;
+        const corte = hora >= (e.cierre_hora_corte || 19);
+        if (!completo && !(corte && !porVend[vid])) continue; // la tienda de pruebas no genera «día sin cerrar»
+        const { data: ins } = await db.from("cierres_dia").upsert({ empresa_id: e.id, vendedor_id: vid, fecha: hoy, estado: completo ? "completo" : "sin_cerrar", resumen: r }, { onConflict: "vendedor_id,fecha", ignoreDuplicates: true }).select("id");
+        if (!ins?.length) continue; // otro proceso ya lo registró
+        if (para === null) {
+          const { data: roles } = await db.from("permisos_rol").select("rol").eq("empresa_id", e.id).eq("permiso", "aviso_cierre").eq("permitido", true);
+          const { data: us } = await db.from("perfiles").select("id, rol").eq("empresa_id", e.id).eq("activo", true).in("rol", ["admin", ...(roles || []).map((x) => x.rol)]);
+          para = (us || []).map((x) => x.id);
+        }
+        const { titulo, cuerpo } = textoCierre(r, completo);
+        let n = 0;
+        for (const u of para) { if (u === vid) continue; const antes = enviados; await push(u, { title: titulo, body: cuerpo, tag: `cierre-${vid}-${hoy}`, url: `./#cierre/${vid}/${hoy}` }); n += enviados - antes; }
+        await db.from("cierres_dia").update({ avisados: n }).eq("id", ins[0].id);
+        cierres++;
+      }
+    }
+  }
+  return json({ ok: true, nuevos: nuevos?.length || 0, recordados, cierres, enviados });
 });

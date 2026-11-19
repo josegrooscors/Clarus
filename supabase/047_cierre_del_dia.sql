@@ -1,0 +1,10 @@
+-- 047 · Cierre del día por vendedora (18-nov-2026, pedido por José).
+-- Aviso al teléfono (push) cuando cada vendedora termina sus tiendas agendadas (visitadas con check-out o justificadas).
+-- Si no termina, llega a la hora de corte (empresas.cierre_hora_corte, 19 = 7 p. m.) como «día sin cerrar».
+-- Lo reciben los administradores y los roles con el permiso «aviso_cierre» (por defecto, supervisor). Interruptor: empresas.cierre_diario.
+-- Lo envía la función «avisos» (cron clarus-avisos, cada 5 min, de 7 a. m. a 10 p. m.); guarda cada cierre en cierres_dia para no repetir.
+-- La tienda de pruebas (cadena «Pruebas») solo avisa si se completa; nunca como «día sin cerrar».
+-- El aviso abre #cierre/<vendedora>/<fecha>: tarjeta con indicadores, áreas de oportunidad, tiendas y visitas, y botón Compartir (imagen).
+-- Objetos: empresas.cierre_diario / cierre_hora_corte; permiso aviso_cierre; tabla cierres_dia (solo lectura para la app, RLS gestor o la propia vendedora);
+-- función public.cierre_dia(p_vendedor uuid, p_fecha date) → jsonb (security invoker: cada quien ve lo que la RLS le permite).
+-- Prueba sin efectos: POST a /functions/v1/avisos con el token del cron y {"cierre_prueba":{"vendedor":"…","fecha":"…","para":"…"}} manda el aviso a una sola persona y no guarda nada.
