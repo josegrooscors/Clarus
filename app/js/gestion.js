@@ -136,6 +136,17 @@ const G = {
       const jj = (just || []).find((x) => x.vendedor_id === a.vendedor_id && x.cliente_id === a.cliente_id);
       const hecha = (vis || []).some((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
       if (jj && !hecha) return `<span class="pill p-gris" title="${esc(jj.nota || "")}">Justificada: ${esc(motivoNoVisita(jj.motivo))}</span>`;
+      return estadoBase(a);
+    };
+    const puedeJust = DB.puede("rutas");
+    const enlaceJust = (a) => {
+      if (!puedeJust) return "";
+      const jj = (just || []).find((x) => x.vendedor_id === a.vendedor_id && x.cliente_id === a.cliente_id);
+      const hecha = (vis || []).some((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
+      if (hecha) return "";
+      return `<button type="button" class="just-lk" data-just="${a.vendedor_id}|${a.cliente_id}">${jj ? "Cambiar justificación" : "Justificar"}</button>`;
+    };
+    const estadoBase = (a) => {
       if (dSel.iso > hoyISO()) return `<span class="pill p-gris">Programada</span>`;
       const x = (vis || []).find((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
       if (x) return x.checkout_at ? `<span class="pill p-menta">✓ ${fmtHora(x.checkin_at)}–${fmtHora(x.checkout_at)}</span>` : `<span class="pill p-azul">En tienda desde ${fmtHora(x.checkin_at)}</span>`;
@@ -153,7 +164,7 @@ const G = {
       ${Object.entries(porV).sort((a, b) => (a[1][0].perfiles?.nombre || "").localeCompare(b[1][0].perfiles?.nombre || "")).map(([vid, xs]) => `
         <details class="card acord" ${Object.keys(porV).length === 1 ? "open" : ""}><summary class="row"><div class="ava">${esc(iniciales(xs[0].perfiles?.nombre))}</div><div class="grow"><h3>${esc(xs[0].perfiles?.nombre || "—")}</h3><div class="small muted">${plur(xs.length, "tienda")} · ${esc(tit)}</div></div><span class="acord-f">${ic("chev", 18)}</span></summary>
         <div class="list" style="margin-top:10px">${xs.sort((a, b) => (a.orden ?? 999) - (b.orden ?? 999) || a.clientes.nombre.localeCompare(b.clientes.nombre)).map((a) => { const o = O[a.cliente_id], pc = o ? pct(o.v, o.o) : null;
-          return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? (conDinero() ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ` · objetivo ${fmtKilos(o.o)} · vendido ${fmtKilos(o.v)}`) : ""}</div></div>
+          return `<div class="row" style="padding:8px 0;border-top:1px solid var(--borde)"><div class="grow"><div style="font-weight:500">${esc(a.clientes.nombre)}</div><div class="tiny muted">${esc(a.clientes.cadena || "")}${o ? (conDinero() ? ` · objetivo ${fmtUsd(o.o)} · facturado ${fmtUsd(o.v)}` : ` · objetivo ${fmtKilos(o.o)} · vendido ${fmtKilos(o.v)}`) : ""}</div>${enlaceJust(a)}</div>
             ${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}%</span>` : ""} ${estado(a)}</div>`; }).join("")}</div></details>`).join("") || `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>No hay visitas programadas para este día.</div>`}
       <h3 style="margin:22px 0 10px">Semana por vendedora</h3>
       <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th>${[1, 2, 3, 4, 5, 6].map((w) => `<th style="text-align:center">${DIAS_C[w]}</th>`).join("")}<th style="text-align:center">Total</th><th>Sin día</th></tr>
@@ -161,6 +172,40 @@ const G = {
       <p class="tiny muted">"Sin día" son tiendas asignadas a la vendedora que no tienen día de visita definido.</p>`;
     $$("[data-d]", root).forEach((el) => (el.onclick = () => G.programacion(root, el.dataset.d, vend)));
     $("#fv").onchange = (e) => G.programacion(root, dSel.iso, e.target.value || null);
+    // Gerencia registra (o quita) la justificación por la vendedora: p. ej. la citó a la oficina
+    $$("[data-just]", root).forEach((b) => (b.onclick = () => {
+      const [vid, cid] = b.dataset.just.split("|"), a = asig.find((x) => x.vendedor_id === vid && String(x.cliente_id) === cid);
+      const jj = (just || []).find((x) => x.vendedor_id === vid && String(x.cliente_id) === cid);
+      const otras = delDia.filter((x) => x.vendedor_id === vid && String(x.cliente_id) !== cid && !(vis || []).some((v) => v.vendedor_id === vid && v.cliente_id === x.cliente_id) && !(just || []).some((y) => y.vendedor_id === vid && y.cliente_id === x.cliente_id));
+      let sel = jj?.motivo || "", todas = false;
+      modal("", (m, close) => {
+        const sheet = $(".sheet", m);
+        const pintar = (nota = jj?.nota || "") => {
+          sheet.innerHTML = `<h2 style="margin-bottom:4px">Justificar visita</h2>
+            <p class="muted small" style="margin:0 0 12px"><b>${esc(a.clientes.nombre)}</b> · ${esc(a.perfiles?.nombre || "")} · ${esc(tit)}. No contará en su cumplimiento de ruta y ella lo verá en su Ruta.</p>
+            <div class="list">${MOTIVOS_NO_VISITA.map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
+            <label class="f">${sel === "otro" ? "Escribe el motivo" : 'Comentario <span class="tiny muted">(opcional)</span>'}</label><input class="in" id="jn" maxlength="140" value="${esc(nota)}" placeholder="Ej.: reunión con gerencia a las 2 p. m.">
+            ${!jj && otras.length ? `<div class="check ${todas ? "on" : ""}" data-todas style="margin-top:10px"><div class="box">✓</div><div>Aplicar también a ${otras.length === 1 ? "su otra tienda" : "sus otras " + otras.length + " tiendas"} sin visitar de ese día</div></div>` : ""}
+            <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>${jj ? "Quitar justificación" : "Cancelar"}</button><button class="btn sp" data-ok>Guardar</button></div>`;
+          $$("[data-mot]", sheet).forEach((el) => (el.onclick = () => { sel = el.dataset.mot; pintar($("#jn", sheet).value); }));
+          const t = $("[data-todas]", sheet); if (t) t.onclick = () => { todas = !todas; pintar($("#jn", sheet).value); };
+          $("[data-no]", sheet).onclick = async () => {
+            if (jj) { const r = await sb.from("visitas_justificadas").delete().match({ vendedor_id: vid, cliente_id: a.cliente_id, fecha: dSel.iso }); if (r.error) return toast(r.error.message, 4000); toast("Justificación quitada"); }
+            close(); if (jj) G.programacion(root, dSel.iso, vend);
+          };
+          $("[data-ok]", sheet).onclick = async () => {
+            const nota = $("#jn", sheet).value.trim();
+            if (!sel) return toast("Elige el motivo");
+            if (sel === "otro" && !nota) return toast("Escribe el motivo");
+            const filas = (todas ? [a, ...otras] : [a]).map((x) => ({ vendedor_id: vid, cliente_id: x.cliente_id, fecha: dSel.iso, motivo: sel, nota: nota || null }));
+            const r = await sb.from("visitas_justificadas").upsert(filas, { onConflict: "vendedor_id,cliente_id,fecha" });
+            if (r.error) return toast(r.error.message, 4000);
+            close(); toast(filas.length === 1 ? "Visita justificada" : filas.length + " visitas justificadas"); G.programacion(root, dSel.iso, vend);
+          };
+        };
+        pintar();
+      });
+    }));
   },
 
   // ---------------- OBJETIVOS ----------------

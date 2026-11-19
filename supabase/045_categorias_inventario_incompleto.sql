@@ -1,0 +1,11 @@
+-- 045 · Inventario y pedido por categoría (18-nov-2026, decisiones de José).
+-- "Categoría" en las pantallas = familias_producto (productos.familia_id), que ya existía con su catálogo en Configuración.
+-- Con UNA sola familia entre los productos de la tienda, inventario y pedido quedan igual que siempre (caso Viejo Cántaro).
+-- Con varias: selector desplegable con avance por categoría, buscador de producto, "Guardar y seguir con la siguiente".
+-- Pedido: un solo pedido; abre en "Sugeridos" (bajos y agotados de todas las categorías) y "Por categoría" para agregar.
+-- Decisión 3 (avisar, no bloquear): se puede seguir sin contar todas las categorías indicando el motivo; queda en la visita
+-- y sale en la ficha como área de oportunidad.
+-- Surtido por tienda = asignacion_productos (ya existía). Unidad de conteo y de pedido por producto = productos.unidad_conteo / unidad_pedido / unidades_por_pedido (ya existían).
+alter table public.visitas add column if not exists inv_incompleto_motivo text check (inv_incompleto_motivo in ('no_maneja','sin_tiempo','sin_acceso','otro')), add column if not exists inv_incompleto_nota text;
+-- Validado en bloque que se deshace: la vendedora guarda el motivo en su visita; motivo inválido bloqueado; otra vendedora no puede tocarla.
+-- Programación: quien tiene el permiso «rutas» puede justificar una visita por la vendedora (política vj_crear de 044).

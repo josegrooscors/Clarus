@@ -657,3 +657,23 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 /* Ruta: enlace para justificar una tienda que no se va a visitar */
 .nov-l{font-size:12.5px;color:var(--gris);margin-top:6px;line-height:1.35}
 .nov-l a{color:var(--azul-osc);font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer;display:inline-block;padding:4px 0}
+/* Categorías de producto en inventario y pedido: un selector que despliega la lista (sirve igual con 3 que con 15) */
+.inv[hidden],.cs-op[hidden],.cat-sel[hidden],.empty[hidden],.btn[hidden]{display:none!important}
+.cat-sel{width:100%;display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--azul);border-radius:14px;min-height:60px;padding:8px 14px;margin:0 0 8px;text-align:left;font:inherit;color:var(--tinta);cursor:pointer}
+.cat-sel .cs-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cat-sel .cs-l{font-size:11.5px;font-weight:600;color:var(--gris)}
+.cat-sel b{font:700 17px var(--font-t,var(--font));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat-sel .cs-a{font-size:13px;font-weight:600;background:var(--azul-cl);color:var(--azul-osc);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.cat-sel svg{color:var(--azul);flex:none;transform:rotate(-90deg)}
+.cat-av{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.cat-bar{flex:1;height:6px;background:var(--borde);border-radius:999px;overflow:hidden;display:block}
+.cat-bar i{display:block;height:100%;background:var(--azul);border-radius:999px;transition:width .2s}
+.cs-op{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid var(--borde);border-radius:12px;min-height:52px;padding:6px 14px;font:600 15px var(--font);color:var(--tinta);text-align:left;cursor:pointer}
+.cs-op .cs-oa{font-size:13px;color:var(--gris);white-space:nowrap}
+.cs-op.ok .cs-oa{color:#0F7A4F}
+.cs-op.on{background:var(--azul-cl);border-color:var(--azul)}
+.cs-op.on .cs-oa{color:var(--azul-osc)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#E9EDF5;border-radius:14px;padding:4px;margin:0 0 10px}
+.seg button{border:0;background:none;border-radius:10px;min-height:44px;font:600 14px var(--font);color:var(--gris);cursor:pointer}
+.seg button.on{background:#fff;color:var(--azul-osc);box-shadow:0 1px 3px rgba(20,40,90,.14)}
+.just-lk{border:0;background:none;color:var(--azul-osc);font:600 12.5px var(--font);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px 0 4px;display:inline-block}
