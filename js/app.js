@@ -11,7 +11,7 @@ const App = {
       if (p("ver_resumen")) m.push(["resumen", "resumen", "Resumen"]);
       if (p("visitar")) m.push(["hoy", "ruta", "Ruta"]);
       if (r === "vendedor" && p("visitar")) m.push(["mis-pedidos", "pedidos", "Pedidos"]);
-      if (p("ver_equipo")) m.push(["equipo", "equipo", "Equipo"]);
+      if (p("ver_equipo")) m.push(["equipo", "equipo", "Visitas"]);
       if (p("ver_agenda")) m.push(["programacion", "reloj", "Programación"]);
       if (p("ver_metas")) m.push(["objetivos", "ok", "Objetivos"]);
       if (!ops && p("ver_pedidos")) m.push(["pedidos", "pedidos", "Pedidos"]);
@@ -31,7 +31,7 @@ const App = {
     if (conRuta && (r === "vendedor" || r === "admin" || r === "supervisor")) m.push(["hoy", "ruta", "Ruta"]);
     if (r === "vendedor") m.push(["mis-pedidos", "pedidos", "Pedidos"]);
     if (r === "operaciones" || r === "administracion") m.push(["objetivos", "ok", "Objetivos"]);
-    else if (r !== "vendedor" && r !== "administracion") m.push(["equipo", "equipo", "Equipo"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
+    else if (r !== "vendedor" && r !== "administracion") m.push(["equipo", "equipo", "Visitas"], ["programacion", "reloj", "Programación"], ["objetivos", "ok", "Objetivos"], ["pedidos", "pedidos", "Pedidos"], ["mapa", "pin", "Mapa", true]);
     if (r === "admin" || r === "supervisor") m.push(["planogramas", "planograma", "Planogramas", true]);
     if (r === "admin") m.push(["picking", "caja", "Picking", true]);
     if (conRuta && (r === "admin" || r === "supervisor")) m.push(["mis-pedidos", "recibo", "Mis pedidos", true]);

@@ -82,7 +82,7 @@ const G = {
 
   // ---------------- EQUIPO (hoy) ----------------
   async equipo(root) {
-    root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Equipo hoy</h1></div></div><div id="eq" class="muted">Cargando…</div>`;
+    root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Visitas de hoy</h1></div></div><div id="eq" class="muted">Cargando…</div>`;
     const [{ data: vis, error }, { data: ped }] = await Promise.all([
       sb.from("v_visitas").select("*").eq("fecha", hoyISO()).order("checkin_at"),
       sb.from("v_pedidos").select("estado, documento"),
