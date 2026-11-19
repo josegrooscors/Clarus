@@ -96,7 +96,14 @@ const FICHA = {
   foto(url, pie) {
     const v = document.createElement("div");
     v.className = "fv-visor"; v.innerHTML = `<img src="${esc(url)}" alt=""><div class="fv-pie">${esc(pie || "")}</div><button class="x-btn" aria-label="Cerrar">✕</button>`;
-    v.onclick = () => v.remove(); document.body.appendChild(v);
+    // Abre con la foto completa a la vista. Tocar la foto la amplía (se desliza con el dedo) y otro toque la vuelve a mostrar completa; tocar fuera o la ✕ cierra.
+    v.onclick = (e) => {
+      if (e.target.tagName !== "IMG") return v.remove();
+      const r = e.target.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+      v.classList.toggle("zoom");
+      if (v.classList.contains("zoom")) { const n = e.target.getBoundingClientRect(); v.scrollLeft = n.width * fx - innerWidth / 2; v.scrollTop = n.height * fy - innerHeight / 2; }
+    };
+    document.body.appendChild(v);
   },
 };
 // Cualquier elemento con data-fv="<id de visita>" abre la ficha.
