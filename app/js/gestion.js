@@ -150,7 +150,8 @@ const G = {
       if (dSel.iso > hoyISO()) return `<span class="pill p-gris">Programada</span>`;
       const x = (vis || []).find((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
       if (x) return x.checkout_at ? `<span class="pill p-menta">✓ ${fmtHora(x.checkin_at)}–${fmtHora(x.checkout_at)}</span>` : `<span class="pill p-azul">En tienda desde ${fmtHora(x.checkin_at)}</span>`;
-      return dSel.iso < hoyISO() ? `<span class="pill p-rosa">No visitada</span>` : `<span class="pill p-durazno">Pendiente</span>`;
+      const suyas = (vis || []).filter((v) => v.vendedor_id === a.vendedor_id), prim = suyas.map((v) => v.checkin_at).sort()[0];
+      return JORNADA.fin(dSel.iso, prim, suyas.some((v) => !v.checkout_at)) ? `<span class="pill p-rosa">No visitada</span>` : `<span class="pill p-gris">Por visitar</span>`;
     };
     const tit = dSel.etiqueta === "Hoy" || dSel.etiqueta === "Mañana" ? `${dSel.etiqueta} · ${DIAS[dSel.dia].toLowerCase()} ${new Date(dSel.iso + "T12:00:00").getDate()}` : DIAS[dSel.dia] + " " + new Date(dSel.iso + "T12:00:00").getDate();
     $("#pg", root).outerHTML = `

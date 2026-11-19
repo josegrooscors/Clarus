@@ -124,7 +124,7 @@ const R = {
 
     const asistencia = R.asistencia(vend ? vendedoras.filter((v) => v.id === vend) : vendedoras, asigTodas, visMesR.data, mes0, hoy, justTodas);
     // ---------- Equipo hoy: cómo va cada vendedora en este momento (no depende del período elegido) ----------
-    const wHoy = this.dia(hoy), visHoy = visHoyR.error ? [] : visHoyR.data, horaAhora = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", hour12: false }).format(new Date()));
+    const wHoy = this.dia(hoy), visHoy = visHoyR.error ? [] : visHoyR.data, minAhora = JORNADA.min(), horaAhora = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", hour12: false }).format(new Date()));
     const equipo = vendedoras.map((u) => {
       const ag = asigTodas.filter((a) => a.vendedor_id === u.id && (a.dias_semana || []).includes(wHoy)), vs = visHoy.filter((v) => v.vendedor_id === u.id).sort((a, b) => a.checkin_at.localeCompare(b.checkin_at));
       if (!ag.length && !vs.length) return null;
@@ -133,10 +133,12 @@ const R = {
       const [est, tono, txt] = abierta ? ["ruta", "p-azul", `En ${abierta.tienda} · ${av}`]
         : ag.length && hechas + justs >= ag.length ? (hechas ? ["cerro", "p-menta", `Cerró a las ${fmtHora(ult.checkout_at)} · ${av}`] : ["just", "p-gris", `${plur(justs, "tienda")} justificada${justs === 1 ? "" : "s"}`])
         : vs.length ? ["ruta", "p-azul", `Última: ${ult ? ult.tienda : vs[0].tienda} · ${av}`]
-        : horaAhora < 10 ? ["espera", "p-gris", `Tiene ${plur(ag.length, "tienda")} · aún sin check-in`] : ["falta", "p-rosa", `Tenía ${plur(ag.length, "tienda")} · sin check-in`];
+        : minAhora <= 480 ? ["espera", "p-gris", `${plur(ag.length, "tienda")} por visitar`]
+        : JORNADA.fin(hoy, null, false) ? ["falta", "p-rosa", `No visitó ${ag.length === 1 ? "su tienda" : "sus " + ag.length + " tiendas"}`]
+        : ["falta", minAhora <= 510 ? "p-durazno" : "p-rosa", `Sin entrada (era a las 8:00) · ${plur(ag.length, "tienda")} por visitar`];
       return { u, est, tono, txt, conVis: vs.length > 0 };
     }).filter(Boolean);
-    const eqN = (k) => equipo.filter((e) => e.est === k).length, ETQ = { ruta: "En ruta", cerro: "Día cerrado", just: "Justificado", espera: "Sin empezar", falta: "Sin check-in" };
+    const eqN = (k) => equipo.filter((e) => e.est === k).length, ETQ = { ruta: "En ruta", cerro: "Día cerrado", just: "Justificado", espera: "Por iniciar", falta: "Sin entrada" };
     const ordenEq = { falta: 0, espera: 1, ruta: 2, just: 3, cerro: 4 };
     equipo.sort((a, b) => ordenEq[a.est] - ordenEq[b.est] || a.u.nombre.localeCompare(b.u.nombre));
 
@@ -208,7 +210,7 @@ const R = {
         <div class="desemp-top"><span class="desemp-pct">${equipo.filter((e) => e.conVis).length} de ${equipo.length}</span><span class="desemp-tag ${eqN("falta") ? "bajo" : eqN("ruta") + eqN("espera") ? "" : "ok"}">${eqN("falta") ? "Hay ausencias" : eqN("ruta") + eqN("espera") ? "En curso" : "Día completo"}</span></div>
         <div class="desemp-sub">vendedoras con visitas registradas hoy</div>
         <div class="barra"><i class="${eqN("falta") ? "medio" : "ok"}" style="width:${Math.round((equipo.filter((e) => e.conVis).length / equipo.length) * 100)}%"></i></div>
-        <div class="desemp-mini"><div><span>En ruta ahora</span><b>${eqN("ruta")}</b></div><div><span>Ya cerraron su día</span><b>${eqN("cerro")}</b></div>${eqN("just") ? `<div><span>Justificado</span><b>${eqN("just")}</b></div>` : ""}<div><span>Sin empezar</span><b>${eqN("espera")}</b></div><div><span>Sin check-in (posible falta)</span><b>${eqN("falta")}</b></div></div></div>
+        <div class="desemp-mini"><div><span>En ruta ahora</span><b>${eqN("ruta")}</b></div><div><span>Ya cerraron su día</span><b>${eqN("cerro")}</b></div>${eqN("just") ? `<div><span>Justificado</span><b>${eqN("just")}</b></div>` : ""}<div><span>Por iniciar</span><b>${eqN("espera")}</b></div><div><span>Sin entrada (posible falta)</span><b>${eqN("falta")}</b></div></div></div>
         <button type="button" class="btn sec block" style="margin-bottom:12px" onclick="document.getElementById('r-asis')?.scrollIntoView({behavior:'smooth',block:'start'})">Ver asistencia del mes</button>
         <div class="card">${DB.puede("aviso_cierre") && MSG.pushPosible() && Notification.permission !== "granted" ? `<div class="cd-est mal" style="margin-bottom:10px">${ic("alerta", 16)}<span><b>Este dispositivo no recibe el aviso de cierre.</b> Actívalo en Más › Configuración › Permisos.</span></div>` : ""}
           <div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">Cómo va cada una</h3><span class="tiny muted">toca para ver su cierre</span></div>
