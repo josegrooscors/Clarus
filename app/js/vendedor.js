@@ -83,6 +83,7 @@ const V = {
       <div id="porEscanear"></div>
       <div id="desemp">${V.tarjetaDesempeno(LS.get("desemp"), hoyProg(), Object.keys(hechas).length)}</div>
       ${V.tarjetaObjetivo(cat)}
+      ${V.tarjetaMerma(cat)}
       <h3 style="margin:18px 0 10px">Mi ruta</h3>
       <div class="steps">${dias.map((d) => `<div class="step ${d.iso === dSel.iso ? "on" : ""}" data-dia="${d.iso}">${d.etiqueta} <span class="tiny">· ${cat.ruta.filter((r) => (r.dias_semana || []).includes(d.dia)).length}</span></div>`).join("")}</div>
       <div class="list" id="ruta">${ruta.length ? "" : `<div class="empty card flat"><div class="ic">${ic("ruta", 34)}</div>${esHoy ? "Hoy no tienes tiendas asignadas." : "No tienes tiendas programadas para este día."}<br><span class="small">Puedes iniciar una visita desde "Otra tienda".</span></div>`}</div>
@@ -177,25 +178,34 @@ const V = {
         if (r.data?.alertas?.length) { v.alertas = r.data.alertas; v.ultima = r.data.ultima; Visita.set(v); }
       } catch {}
     }
+    // Merma de esta tienda: se muestra después de las alertas (o sola, si la tienda tiene merma). Sale de lo guardado en el teléfono, así que sirve sin señal.
+    const mt = MERMA.tienda(LS.get("cat"), c.id);
+    if (mt && (mt.mes.m > 0 || mt.ant.m > 0 || v.alertas?.length)) { v.merma = mt; Visita.set(v); }
     location.hash = "#visita";
   },
 
   // Pantalla de alertas al hacer check-in: no se puede empezar la visita sin tocar «Entendido»
   alertas(root, v) {
     const ICO = { inventario: "alerta", sin_conteo: "caja", sin_pedido: "pedidos", planograma: "planograma", comunicado: "msg" };
+    const als = v.alertas || [], mt = v.merma ? MERMA.textoTienda(v.merma) : null;
+    const cab = als.length ? (als.length === 1 ? "Esta tienda tiene 1 alerta pendiente" : `Esta tienda tiene ${als.length} alertas pendientes`) + (v.ultima ? ` · última visita ${fmtFecha(v.ultima.fecha)}` : "") : "Así va la merma de esta tienda";
     root.innerHTML = `<div class="top"><div><div class="small muted">Check-in ${fmtHora(v.at)} · ${esc(v.cadena || "")}</div><h1>${esc(v.tienda)}</h1></div></div>
-      <div class="chk-al"><div class="chk-al-cab">${ic("alerta", 22)}<div><b>Antes de empezar</b><div class="small">${v.alertas.length === 1 ? "Esta tienda tiene 1 alerta pendiente" : `Esta tienda tiene ${v.alertas.length} alertas pendientes`}${v.ultima ? ` · última visita ${fmtFecha(v.ultima.fecha)}` : ""}</div></div></div>
-        ${v.alertas.map((a) => `<div class="chk-al-i ${a.nivel === "alta" ? "alta" : ""}"><span class="chk-al-ic">${ic(ICO[a.tipo] || "alerta", 20)}</span><div class="grow"><b>${esc(a.titulo)}</b>
+      <div class="chk-al ${als.length ? "" : "solo-merma"}"><div class="chk-al-cab">${ic(als.length ? "alerta" : "caja", 22)}<div><b>Antes de empezar</b><div class="small">${cab}</div></div></div>
+        ${als.map((a) => `<div class="chk-al-i ${a.nivel === "alta" ? "alta" : ""}"><span class="chk-al-ic">${ic(ICO[a.tipo] || "alerta", 20)}</span><div class="grow"><b>${esc(a.titulo)}</b>
           <div class="small">${esc(a.detalle)}</div>
           ${a.productos?.length ? `<div class="al-p" style="margin:6px 0">${a.productos.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : p.bajo ? "p-durazno" : "p-gris"}">${esc(p.producto)}: ${p.agotado ? "AGOTADO" : fmtNum(p.kg, 1) + " kg" + (p.pct != null ? ` · ${p.pct}%` : "")}${!p.ultima && p.fecha ? ` <small>(${String(p.fecha).slice(8, 10)}/${String(p.fecha).slice(5, 7)})</small>` : ""}</span>`).join("")}</div>` : ""}
           </div></div>`).join("")}
+        ${mt ? `<div class="chk-al-i chk-merma ${mt.tono === "bajo" ? "alta" : ""}"><span class="chk-al-ic">${ic("caja", 20)}</span><div class="grow"><b>${esc(mt.titulo)}</b>
+          <div class="small">${esc(mt.detalle)}</div>
+          <div class="al-p" style="margin:6px 0"><span class="pill ${MERMA.pill(mt.ref)}">${mt.ref == null ? "Sin merma" : MERMA.etq(mt.ref)}</span></div>
+          <div class="small">${esc(mt.consejo)}</div></div></div>` : ""}
         <button class="btn block chk-al-ok" id="alOk">Entendido</button>
-        <p class="tiny muted" style="text-align:center;margin:8px 0 0">Al confirmar queda registrado que leíste estas alertas.</p></div>`;
+        <p class="tiny muted" style="text-align:center;margin:8px 0 0">${als.length ? "Al confirmar queda registrado que leíste estas alertas." : "Al confirmar queda registrado que viste la merma de la tienda."}</p></div>`;
     $("#alOk", root).onclick = async () => {
       v.alertasOk = new Date().toISOString(); Visita.set(v);
-      await DB.encolar({ t: "alertas", lid: v.lid, cliente_id: v.cliente_id, alertas: v.alertas, at: v.alertasOk,
-        comunicados: v.alertas.filter((a) => a.comunicado_id).map((a) => a.comunicado_id) });
-      toast("Alertas confirmadas ✓"); V.visita(root);
+      await DB.encolar({ t: "alertas", lid: v.lid, cliente_id: v.cliente_id, alertas: mt ? [...als, { tipo: "merma", titulo: mt.titulo, detalle: mt.detalle }] : als, at: v.alertasOk,
+        comunicados: als.filter((a) => a.comunicado_id).map((a) => a.comunicado_id) });
+      toast(als.length ? "Alertas confirmadas ✓" : "Confirmado ✓"); V.visita(root);
     };
   },
 
@@ -204,7 +214,7 @@ const V = {
     const v = Visita.get();
     if (!v) { location.hash = "#hoy"; return; }
     const cat = await DB.catalogos();
-    if (v.alertas?.length && !v.alertasOk) return this.alertas(root, v);
+    if ((v.alertas?.length || v.merma) && !v.alertasOk) return this.alertas(root, v);
     paso = paso || LS.get("paso") || "fotos";
     if (!PASOS.some((p) => p[0] === paso)) paso = "fotos";
     LS.set("paso", paso);
@@ -864,6 +874,23 @@ const V = {
         <div><span>${ic("reloj", 16)} Tiempo por tienda</span><b>${d?.tienda_min != null ? d.tienda_min + " min" : "—"}</b></div>
         <div><span>${ic("luna", 16)} Cierre promedio</span><b>${hm(d?.cierre_min)}</b></div>
       </div></div>`;
+  },
+  // Mi merma del mes: lo que mis tiendas devolvieron o descontaron (notas de crédito) sobre lo que se les facturó
+  tarjetaMerma(cat) {
+    const mias = new Set(cat.ruta.map((r) => r.cliente_id)), fs = (cat.merma?.filas || []).filter((f) => mias.has(f[1]));
+    if (!fs.length) return "";
+    const mes0 = mesActual(), r = MERMA.de(fs, mes0), din = conDinero(), lim = MERMA.lim();
+    if (!r.mes.m && !r.ant.m) return "";
+    const ref = r.mes.p, tono = MERMA.tono(ref), nom = Object.fromEntries(cat.clientes.map((c) => [c.id, c.nombre]));
+    const top = [...mias].map((id) => ({ id, ...MERMA.de(fs, mes0, (f) => f[1] === id) })).map((x) => ({ ...x, m: x.mes.m + x.ant.m, v: x.mes.v + x.ant.v })).filter((x) => x.m > 0 && nom[x.id]).map((x) => ({ ...x, p: MERMA.pc(x.m, x.v) })).sort((a, b) => b.m - a.m).slice(0, 3);
+    return `<div class="card desemp panel indigo">
+      <div class="lbl">Mi merma de ${MERMA.nombreMes(mes0)}</div>
+      <div class="desemp-top"><b class="desemp-pct">${ref == null ? (din ? fmtUsd2(r.mes.m) : "–") : MERMA.fp(ref)}</b><span class="desemp-tag ${tono}">${ref == null ? (r.mes.m ? "Aún sin factura" : "Sin merma este mes") : MERMA.etq(ref)}</span></div>
+      <div class="desemp-sub">${ref == null ? "de mis tiendas" : "de la venta facturada a mis tiendas"} · límite ${fmtNum(lim, 0)}%</div>
+      <div class="barra"><i class="${tono || "ok"}" style="width:${Math.min(100, ((ref || 0) / (lim * 2)) * 100)}%"></i></div>
+      <div class="row small desemp-cifras"><span class="sp">${din && r.mes.m ? fmtUsd2(r.mes.m) + " en notas de crédito" : "Merma = producto que la tienda devolvió o descontó"}</span><b>3 meses anteriores: ${MERMA.fp(r.ant.p)}</b></div>
+      ${top.length ? `<div class="tiny desemp-cifras" style="margin-top:12px;border-top:1px solid rgba(255,255,255,.22);padding-top:10px">Tiendas con más merma (este mes y los 3 anteriores)</div>${top.map((x) => `<div class="row small" style="margin-top:6px"><span class="sp">${esc(nom[x.id])}</span>${din ? `<b>${fmtUsd(x.m)}</b>` : ""}<span class="pill ${MERMA.pill(x.p)}">${MERMA.fp(x.p)}</span></div>`).join("")}` : ""}
+      ${cat.merma?.corte ? `<p class="tiny desemp-cifras" style="margin:10px 0 0">Datos de facturación al ${fmtFecha(cat.merma.corte + "T12:00:00")}.</p>` : ""}</div>`;
   },
   tarjetaObjetivo(cat) {
     const mias = new Set(cat.ruta.map((r) => r.cliente_id));
