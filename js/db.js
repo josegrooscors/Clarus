@@ -97,7 +97,7 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua, vj, fa, uv] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua, vj, fa, uv, fm] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
@@ -112,11 +112,12 @@ const DB = {
       sb.from("visitas_justificadas").select("cliente_id, fecha, motivo, nota").eq("vendedor_id", this.user.id).gte("fecha", hoyISO()),
       sb.from("familias_producto").select("id, nombre").eq("activo", true).order("nombre"),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence"),
+      sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mesActual(), 4)[0] }), // venta facturada y merma por tienda: mes en curso y los 3 anteriores
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
     if (!pm.error) { this.permisos = pm.data.filter((x) => x.permitido !== false).map((x) => x.permiso); LS.set("permisos", this.permisos); this.permMap = Object.fromEntries(pm.data.map((x) => [x.permiso, x.permitido !== false])); LS.set("permMap", this.permMap); }
-    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data, familias: fa.error ? c?.familias || [] : fa.data, venc: uv.error ? c?.venc || [] : uv.data };
+    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data, familias: fa.error ? c?.familias || [] : fa.data, venc: uv.error ? c?.venc || [] : uv.data, merma: fm.error || !fm.data ? c?.merma || null : { corte: fm.data.corte, filas: DB.mermaPorTienda(fm.data.filas || []) } };
     LS.set("cat", out);
     if (!vj.error) { // justificaciones: manda el servidor, salvo lo que aún está en cola en este teléfono
       const loc = LS.get("just", {}), nuevo = {};
@@ -126,6 +127,9 @@ const DB = {
     }
     return out;
   },
+
+  // La merma se guarda en el teléfono sumada por tienda y mes (sin producto): pesa poco y alcanza para el check-in y el inicio
+  mermaPorTienda(filas) { const m = {}; filas.forEach(([mes, c, , kg, usd, me]) => { const x = (m[mes + "|" + c] = m[mes + "|" + c] || [mes, c, 0, 0, 0, 0]); x[3] += Number(kg || 0); x[4] += Number(usd || 0); x[5] += Number(me || 0); }); return Object.values(m).map((x) => [x[0], x[1], 0, Math.round(x[3] * 10) / 10, Math.round(x[4] * 100) / 100, Math.round(x[5] * 100) / 100]); },
 
   // ---------- Cola de sincronización ----------
   ids: LS.get("ids", {}),

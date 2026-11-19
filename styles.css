@@ -727,3 +727,29 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 @media(min-width:900px){.sem-g{grid-template-columns:repeat(3,1fr)}.rtabs{max-width:560px}}
 .eq-f{cursor:pointer}
 [data-rt][hidden]{display:none!important}
+
+/* Resumen con 5 vistas (se suma Merma), panel índigo de merma, semáforo de inventario por tienda */
+.rtabs{grid-template-columns:repeat(5,1fr)}
+@media(max-width:430px){.rtabs button{font-size:12px;letter-spacing:-.015em;padding:0}}
+@media(min-width:900px){.rtabs{max-width:680px}}
+.card.desemp.panel.indigo{background:#3A2E7A;border-color:#3A2E7A}
+.barra3{display:flex;gap:3px;height:8px;margin-top:12px}
+.barra3 i{display:block;border-radius:4px;min-width:6px}
+.barra3 i.ok{background:#5FD39B}.barra3 i.medio{background:#FFD39A}.barra3 i.bajo{background:#FFB4AE}
+.panel .desemp-mini .sem-d{display:inline-block;margin-right:8px}
+.panel .sem-d.ok{background:#5FD39B}.panel .sem-d.medio{background:#FFD39A}.panel .sem-d.bajo{background:#FFB4AE}.panel .sem-d.sin{background:#8E9BB5}
+.inv-f{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--borde)}
+.pag-i:first-child .inv-f{border-top:0}
+.inv-f .sem-d{width:12px;height:12px}
+.inv-f b{font-weight:600}
+.inv-v{font:700 15px var(--font);white-space:nowrap;text-align:right;color:var(--tinta)}
+.inv-v.ok{color:#0F7A4F}.inv-v.medio{color:#8A5A00}.inv-v.bajo{color:#B3261E}
+.inv-v small{display:block;font:500 12px var(--font);color:var(--gris)}
+.mb{padding:10px 0;border-top:1px solid var(--borde)}
+.mb:first-of-type{border-top:0}
+.mb-t{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.mb-v{font-weight:700;white-space:nowrap}.mb-v.ok{color:#0F7A4F}.mb-v.medio{color:#8A5A00}.mb-v.bajo{color:#B3261E}
+.mb-v small{font-weight:500;color:var(--gris)}
+.mb .barra i.medio{background:#B7791F}.mb .barra i.bajo{background:#B3261E}.mb .barra i.ok{background:#0F7A4F}
+.chk-al.solo-merma{border-color:var(--azul-med)}
+.chk-al.solo-merma .chk-al-cab{color:var(--azul)}
