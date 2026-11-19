@@ -810,3 +810,15 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .eqh-p{display:inline-block;width:8px;height:8px;border-radius:50%;background:#5FD39B;margin-right:6px;vertical-align:1px}
 .eqh-v{flex:none;text-align:right;font:700 22px var(--font-t)!important;color:#fff}
 .eqh-v small{display:block;font:500 11.5px var(--font);color:#C9D4EC}
+
+/* Computadora: los paneles de color usan las dos mitades (el indicador a la izquierda, el detalle a la derecha) */
+@media(min-width:900px){
+  .card.desemp.panel:not(.met-h):not(.hoja){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:44px;align-items:start}
+  .card.desemp.panel:not(.met-h):not(.hoja)>*{grid-column:1}
+  .card.desemp.panel:not(.met-h):not(.hoja)>.desemp-mini,.card.desemp.panel:not(.met-h):not(.hoja)>.eqh-r{grid-column:2;grid-row:1/span 12;align-self:center;margin-top:0;padding-top:0;border-top:0;border-left:1px solid rgba(255,255,255,.22);padding-left:44px}
+  .card.desemp.panel>.eqh-r .eqh-t{margin-top:0;padding-top:0;border-top:0}
+  .card.desemp.panel:not(.met-h):not(.hoja):has(>.eqh-r)>.desemp-mini{display:none}
+  .card.desemp.panel.met-h .desemp-mini{flex:1;width:auto!important;min-width:320px;margin-top:0;padding-top:0;border-top:0;border-left:1px solid rgba(255,255,255,.22);padding-left:32px}
+}
+.inv-f{width:100%}
+.inv-f>.grow,.eqh-f>.grow,.met-vt>.grow,.nov-foto>.grow{flex:1 1 auto;min-width:0}

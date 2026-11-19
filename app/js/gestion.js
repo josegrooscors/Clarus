@@ -34,7 +34,7 @@ const G = {
     const puedeAprobar = false; // el flujo no lleva aprobación
     const puedeImprimir = DB.puede("pedidos_imprimir") && !!p.documento && ["propuesto", "aprobado", "orden_escaneada"].includes(p.estado);
     const [{ data: items }, { data: ev }] = await Promise.all([
-      sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id"),
+      sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidad_conteo, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id"),
       sb.from("pedido_eventos").select("*, perfiles(nombre)").eq("pedido_id", p.id).order("at"),
     ]);
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
