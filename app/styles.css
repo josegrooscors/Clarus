@@ -677,3 +677,6 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .seg button{border:0;background:none;border-radius:10px;min-height:44px;font:600 14px var(--font);color:var(--gris);cursor:pointer}
 .seg button.on{background:#fff;color:var(--azul-osc);box-shadow:0 1px 3px rgba(20,40,90,.14)}
 .just-lk{border:0;background:none;color:var(--azul-osc);font:600 12.5px var(--font);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px 0 4px;display:inline-block}
+/* Ficha de visita: botón para compartirla como imagen */
+.fv-comp{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap}
+.fv-comp[disabled]{opacity:.55}
