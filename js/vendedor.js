@@ -13,6 +13,14 @@ const MOTIVOS_NO_VISITA = [
   ["otro", "Otro motivo"],
 ];
 const motivoNoVisita = (k) => (MOTIVOS_NO_VISITA.find((m) => m[0] === k) || [0, k])[1];
+// Motivos para cerrar el inventario sin contar todas las categorías (avisa a gerencia, no bloquea)
+const MOTIVOS_INV_INCOMPLETO = [
+  ["no_maneja", "La tienda no maneja esas categorías"],
+  ["sin_acceso", "No me dejaron entrar a la bodega o al área"],
+  ["sin_tiempo", "No me alcanzó el tiempo"],
+  ["otro", "Otro motivo"],
+];
+const motivoInvIncompleto = (k) => (MOTIVOS_INV_INCOMPLETO.find((m) => m[0] === k) || [0, k])[1];
 const MOTIVOS_SIN_PEDIDO = [
   ["sin_stock", "No tenemos producto en bodega (empresa)"],
   ["tienda_bodega", "La tienda tiene producto en su bodega"],
@@ -310,13 +318,66 @@ const V = {
     return prods.map((p) => ({ ...p, regla: ap.find((a) => a.producto_id === p.id) || null }));
   },
 
+  // Categorías (familias de producto) de lo que vende la tienda. Con una sola, inventario y pedido quedan como siempre.
+  categorias(prods, cat) {
+    const nom = Object.fromEntries((cat.familias || []).map((f) => [f.id, f.nombre])), m = new Map();
+    prods.forEach((p) => { const k = p.familia_id && nom[p.familia_id] ? String(p.familia_id) : "0"; if (!m.has(k)) m.set(k, { id: k, nombre: k === "0" ? "Sin categoría" : nom[p.familia_id], prods: [] }); m.get(k).prods.push(p); });
+    return [...m.values()].sort((a, b) => (a.id === "0") - (b.id === "0") || a.nombre.localeCompare(b.nombre));
+  },
+  contado(v, p) { return !!v.agot?.[p.id] || ["bodega", "exhibicion"].some((u) => (v.inv[p.id + ":" + u] ?? "") !== ""); },
+  filasInv(v, prods) {
+    const rows = [];
+    prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.agot?.[p.id] ? 0 : v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }); }));
+    return rows;
+  },
+  // Botón que muestra la categoría actual y su avance; al tocarlo se despliega la lista completa
+  botonCategoria(c, avance) {
+    return `<span class="cs-t"><span class="cs-l">Categoría</span><b>${esc(c.nombre)}</b></span><span class="cs-a">${esc(avance)}</span>${ic("chev", 18)}`;
+  },
+  // Lista desplegable de categorías con su avance; primero las pendientes. Buscador cuando son muchas.
+  elegirCategoria(cats, actualId, info, alElegir) {
+    const orden = [...cats].sort((a, b) => info(a).listo - info(b).listo);
+    modal(`<h2 style="margin-bottom:2px">Elige la categoría</h2><p class="muted small" style="margin:0 0 10px">${cats.filter((c) => info(c).listo).length} de ${cats.length} listas. Primero salen las pendientes.</p>
+      ${cats.length > 8 ? `<input class="in" id="csq" placeholder="Buscar categoría…" style="margin-bottom:10px">` : ""}
+      <div class="list" id="csl">${orden.map((c) => { const i = info(c); return `<button type="button" class="cs-op ${c.id === actualId ? "on" : ""} ${i.listo ? "ok" : ""}" data-cs="${c.id}" data-n="${esc(sinAcentos(c.nombre))}"><span>${esc(c.nombre)}</span><span class="cs-oa">${i.listo ? "✓ " : ""}${esc(i.texto)}${c.id === actualId ? " · aquí estás" : ""}</span></button>`; }).join("")}</div>`,
+      (m, close) => {
+        const q = $("#csq", m); if (q) q.oninput = () => { const t = sinAcentos(q.value.trim()); $$("[data-cs]", m).forEach((b) => (b.hidden = !!t && !b.dataset.n.includes(t))); };
+        $$("[data-cs]", m).forEach((b) => (b.onclick = () => { close(); alElegir(cats.find((c) => c.id === b.dataset.cs)); }));
+      });
+  },
+  // Cerrar el inventario dejando categorías sin contar: pide el motivo (le queda a gerencia) y deja seguir
+  invIncompleto(v, faltan, alGuardar) {
+    let sel = "";
+    modal("", (m, close) => {
+      const sheet = $(".sheet", m);
+      const pintar = (nota = "") => {
+        sheet.innerHTML = `<h2 style="margin-bottom:4px">Seguir sin contar todo</h2>
+          <p class="muted small" style="margin:0 0 12px">Falta contar <b>${esc(faltan.map((c) => c.nombre).join(", "))}</b>. Puedes seguir, pero el motivo le queda registrado a tu supervisor.</p>
+          <div class="list">${MOTIVOS_INV_INCOMPLETO.map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
+          <label class="f">${sel === "otro" ? "Escribe el motivo" : 'Comentario <span class="tiny muted">(opcional)</span>'}</label><input class="in" id="iin" maxlength="140" value="${esc(nota)}" placeholder="Ej.: el encargado de bodega no estaba">
+          <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>Volver a contar</button><button class="btn sp" data-ok>Seguir</button></div>`;
+        $$("[data-mot]", sheet).forEach((el) => (el.onclick = () => { sel = el.dataset.mot; pintar($("#iin", sheet).value); }));
+        $("[data-no]", sheet).onclick = close;
+        $("[data-ok]", sheet).onclick = () => {
+          const nota = $("#iin", sheet).value.trim();
+          if (!sel) return toast("Elige el motivo");
+          if (sel === "otro" && !nota) return toast("Escribe el motivo");
+          close(); alGuardar(sel, nota);
+        };
+      };
+      pintar();
+    });
+  },
+
   pInventario(box, v, cat, siguiente) {
     const prods = this.productosTienda(v, cat);
+    const cats = this.categorias(prods, cat), multi = cats.length > 1, famDe = {};
+    cats.forEach((c) => c.prods.forEach((x) => (famDe[x.id] = c.id)));
     if (!prods.length) { box.innerHTML = `<div class="empty card flat"><div class="ic">${ic("caja", 34)}</div>No hay productos cargados todavía.</div><button class="btn block" data-ok>Seguir</button>`; $("[data-ok]", box).onclick = siguiente; return; }
     const val = (p, u) => v.inv[p + ":" + u] ?? "";
     box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta las unidades. La app las convierte a kilos.</p>
       <div class="list">${prods.map((p) => `
-        <div class="inv ${v.agot?.[p.id] ? "agotado" : ""}" data-p="${p.id}"><div class="row"><div class="grow"><div class="nm">${esc(p.nombre)}</div>
+        <div class="inv ${v.agot?.[p.id] ? "agotado" : ""}" data-p="${p.id}" data-fam="${famDe[p.id]}"><div class="row"><div class="grow"><div class="nm">${esc(p.nombre)}</div>
           <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div>
           <button type="button" class="agot ${v.agot?.[p.id] ? "on" : ""}" data-agot="${p.id}">${v.agot?.[p.id] ? "✕ Agotado" : "Agotado"}</button></div>
           <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(p.unidad_conteo)}s)</div>
@@ -353,6 +414,7 @@ const V = {
       v.inv[i.closest(".inv").dataset.p + ":" + i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
     };
     calc();
+    if (multi) return this.invPorCategoria(box, v, prods, cats, calc, siguiente);
     $("[data-ok]", box).onclick = async () => {
       const rows = [];
       const sinContar = prods.filter((p) => !v.agot?.[p.id] && ["bodega", "exhibicion"].every((u) => (v.inv[p.id + ":" + u] ?? "") === ""));
@@ -361,6 +423,52 @@ const V = {
       await DB.encolar({ t: "inventario", lid: v.lid, rows });
       v.guardado.inventario = true; Visita.set(v); toast("Inventario guardado ✓"); siguiente();
     };
+  },
+
+  // Inventario con varias categorías: una a la vez, con selector desplegable, buscador y avance. Las tarjetas de las demás quedan ocultas (no se pierden los datos).
+  invPorCategoria(box, v, prods, cats, calc, siguiente) {
+    const lista = (c) => c.prods.every((x) => this.contado(v, x));
+    const info = (c) => { const n = c.prods.filter((x) => this.contado(v, x)).length; return { listo: n === c.prods.length, texto: `${n} de ${c.prods.length}` }; };
+    let actual = cats.find((c) => c.id === v.invCat) || cats.find((c) => !lista(c)) || cats[0], q = "";
+    $("p.muted", box).outerHTML = `<p class="muted small" style="margin-top:0">Cuenta una categoría a la vez. Solo ves lo que vende esta tienda.</p>
+      <button type="button" class="cat-sel" data-catbtn></button>
+      <div class="cat-av"><span class="cat-bar"><i></i></span><span class="tiny muted" data-catav></span></div>
+      <input class="in" id="invq" placeholder="Buscar producto o código…" style="margin-bottom:10px">`;
+    const okBtn = $("[data-ok]", box);
+    okBtn.insertAdjacentHTML("afterend", `<button type="button" class="btn ghost block" style="margin-top:8px" data-saltar>Seguir sin contar lo que falta</button>`);
+    const saltar = $("[data-saltar]", box);
+    const pintar = () => {
+      const listas = cats.filter(lista).length, sig = cats.find((c) => c.id !== actual.id && !lista(c));
+      $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto);
+      $("[data-catav]", box).textContent = `${listas} de ${cats.length} categorías listas`;
+      $(".cat-bar i", box).style.width = Math.round((listas / cats.length) * 100) + "%";
+      $$(".inv", box).forEach((el) => { const x = prods.find((y) => y.id == el.dataset.p); el.hidden = q ? !sinAcentos(x.nombre + " " + (x.sku || "")).includes(q) : el.dataset.fam !== actual.id; });
+      okBtn.textContent = sig ? `Guardar y seguir con ${sig.nombre}` : "Guardar inventario";
+      saltar.hidden = cats.every(lista);
+    };
+    $("[data-catbtn]", box).onclick = () => this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.invCat = c.id; Visita.set(v); q = ""; $("#invq", box).value = ""; pintar(); });
+    $("#invq", box).oninput = (e) => { q = sinAcentos(e.target.value.trim()); pintar(); };
+    const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); };
+    okBtn.onclick = async () => {
+      const falta = actual.prods.filter((x) => !this.contado(v, x));
+      if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}, o márcalos como agotados`, 4000); return; }
+      await guardarContados();
+      const sig = cats.find((c) => !lista(c));
+      if (sig) { toast(`${actual.nombre} guardada ✓`); actual = sig; v.invCat = sig.id; Visita.set(v); q = ""; $("#invq", box).value = ""; pintar(); box.scrollIntoView({ block: "start" }); return; }
+      if (v.invIncompleto) { delete v.invIncompleto; await DB.encolar({ t: "inv_incompleto", lid: v.lid, motivo: null, nota: null }); }
+      v.guardado.inventario = true; Visita.set(v); toast("Inventario guardado ✓"); siguiente();
+    };
+    saltar.onclick = () => {
+      const faltan = cats.filter((c) => !lista(c));
+      this.invIncompleto(v, faltan, async (motivo, nota) => {
+        await guardarContados();
+        const txt = "Faltó contar: " + faltan.map((c) => c.nombre).join(", ") + (nota ? " · " + nota : "");
+        await DB.encolar({ t: "inv_incompleto", lid: v.lid, motivo, nota: txt });
+        v.invIncompleto = { motivo, nota, cats: faltan.map((c) => c.nombre) }; v.guardado.inventario = true; Visita.set(v);
+        toast("Inventario guardado con aviso a tu supervisor"); siguiente();
+      });
+    };
+    pintar();
   },
 
   pPromos(box, v, cat, siguiente) {
@@ -453,7 +561,7 @@ const V = {
     box.innerHTML = `${!v.guardado.inventario ? `<div class="card flat" style="background:var(--durazno);border-color:#F6DDBB"><b>Primero guarda el inventario</b><div class="small">Así la app calcula el pedido sugerido.</div></div>` : ""}
       ${previo ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med)"><b>Editando el pedido</b><div class="small">Cambia las cantidades y guarda.</div></div>` : ""}
       <p class="muted small" style="margin-top:0">${bajos ? `${plur(bajos, "producto")} con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
-      <div class="list">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
+      <div class="list" id="pedl">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
           <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div></div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
@@ -476,6 +584,34 @@ const V = {
     };
     box.oninput = calcKg;
     calcKg();
+    // Varias categorías: primero lo sugerido (de todas), y un selector para agregar de una categoría. Es un solo pedido.
+    const catsP = this.categorias(prods, cat);
+    if (catsP.length > 1) {
+      const famP = {}; catsP.forEach((c) => c.prods.forEach((x) => (famP[x.id] = c.id)));
+      const cant = (f) => parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0;
+      const esSug = (f) => f.bajo || f.sug > 0 || !!v.agot?.[f.p.id];
+      let vista = filas.some(esSug) ? "sug" : "cat", actualP = catsP.find((c) => c.id === v.pedCat) || catsP[0], qp = "";
+      $("#pedl", box).insertAdjacentHTML("beforebegin", `<div class="seg"><button type="button" data-pv="sug"></button><button type="button" data-pv="cat">Por categoría</button></div>
+        <button type="button" class="cat-sel" data-pcat></button>
+        <input class="in" id="pedq" placeholder="Buscar otro producto para agregar…" style="margin-bottom:10px">
+        <div class="empty card flat" id="pedvacio" hidden>No hay productos sugeridos. Toca «Por categoría» para agregar.</div>`);
+      const infoP = (c) => { const n = filas.filter((f) => famP[f.p.id] === c.id && cant(f) > 0).length; return { listo: false, texto: n ? `${n} en el pedido` : `${c.prods.length} productos` }; };
+      const pintarP = () => {
+        const nSug = filas.filter(esSug).length; let visibles = 0;
+        $("[data-pv=sug]", box).textContent = `Sugeridos · ${nSug}`;
+        $$("[data-pv]", box).forEach((b) => b.classList.toggle("on", b.dataset.pv === vista));
+        $("[data-pcat]", box).hidden = vista !== "cat" || !!qp;
+        $("[data-pcat]", box).innerHTML = this.botonCategoria(actualP, infoP(actualP).texto);
+        filas.forEach((f) => { const el = $(`[data-p="${f.p.id}"]`, box);
+          const ver = qp ? sinAcentos(f.p.nombre + " " + (f.p.sku || "")).includes(qp) : vista === "sug" ? esSug(f) || cant(f) > 0 : famP[f.p.id] === actualP.id;
+          el.hidden = !ver; if (ver) visibles++; });
+        $("#pedvacio", box).hidden = visibles > 0;
+      };
+      $$("[data-pv]", box).forEach((b) => (b.onclick = () => { vista = b.dataset.pv; qp = ""; $("#pedq", box).value = ""; pintarP(); }));
+      $("[data-pcat]", box).onclick = () => this.elegirCategoria(catsP, actualP.id, infoP, (c) => { actualP = c; v.pedCat = c.id; Visita.set(v); pintarP(); });
+      $("#pedq", box).oninput = (e) => { e.stopPropagation(); qp = sinAcentos(e.target.value.trim()); pintarP(); };
+      pintarP();
+    }
     const no = $("[data-no]", box); if (no) no.onclick = () => this.pSinPedido(box, v, cat, siguiente, bajos > 0 || filas.some((f) => v.agot?.[f.p.id]));
     const cn = $("[data-cancel]", box); if (cn) cn.onclick = () => { v.editandoPedido = false; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
     $("[data-ok]", box).onclick = async () => {
@@ -536,7 +672,7 @@ const V = {
     const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
       ["fotos", `Fotos de evidencia · ${nFotos} de ${req.length} (${v.fotos.length} foto${v.fotos.length === 1 ? "" : "s"})`, e.fotos],
-      ["inventario", `Inventario contado${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.inventario],
+      ["inventario", `${v.invIncompleto ? "Inventario · faltó " + plur(v.invIncompleto.cats.length, "categoría") : "Inventario contado"}${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.inventario],
       ["promos", "Promociones revisadas", e.promos],
       ["pedido", v.pedido?.ninguno ? `Sin pedido${v.pedido.motivo ? " · " + (MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") : ""}` : v.pedido?.items?.length ? `Pedido enviado · ${fmtKg(kgPed)}` : "Pedido", e.pedido],
       ...(pls.length ? [["gestion", `Planograma revisado${pls.length > 1 ? " (" + pls.length + ")" : ""}`, e.gestion]] : []),
@@ -559,6 +695,9 @@ const V = {
             : `<div class="small" style="margin-top:4px">Le aparecerá a tu supervisor. Si no pediste porque no hay producto o por otra razón, indica el motivo.</div>
           <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-motag>Indicar motivo</button><button class="btn ghost sm" data-ir="pedido">Agregar al pedido</button></div>`}</div>`;
       })()}
+      ${v.invIncompleto ? `<div class="card flat" style="background:#FFF7EC;border-color:#F5D9AE"><div class="row" style="gap:8px"><b class="sp">Aviso: faltó contar ${esc(v.invIncompleto.cats.join(", "))}</b><span class="pill p-gris">No bloquea</span></div>
+        <div class="small" style="margin-top:4px">Motivo: <b>${esc(motivoInvIncompleto(v.invIncompleto.motivo))}</b>${v.invIncompleto.nota ? " · " + esc(v.invIncompleto.nota) : ""}. Le aparecerá a tu supervisor.</div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" data-ir="inventario">Contar ahora</button></div></div>` : ""}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
       <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>`;
     $$("[data-ir]", box).forEach((el) => (el.onclick = () => ir(el.dataset.ir)));

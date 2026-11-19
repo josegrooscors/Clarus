@@ -22,6 +22,7 @@ const FICHA = {
     if (v.checkout_at && v.minutos_en_tienda != null && v.minutos_en_tienda < 10) o.push(["durazno", `Visita muy corta: ${FICHA.dur(v.minutos_en_tienda)}.`]);
     if (v.checkout_at && !d.fotos.some((f) => f.tipo !== "bodega")) o.push(["durazno", "No hay fotos de la exhibición."]);
     if (v.checkout_at && !d.inv.length) o.push(["durazno", "No registró inventario."]);
+    if (d.vx?.inv_incompleto_motivo) o.push(["durazno", `Inventario incompleto. ${d.vx.inv_incompleto_nota || ""} Motivo: ${motivoInvIncompleto(d.vx.inv_incompleto_motivo)}.`.replace(/\s+/g, " ")]);
     if (v.checkout_at && !d.pedidos.length && !d.vx?.sin_pedido_motivo) o.push(["durazno", "Cerró sin pedido y sin indicar el motivo."]);
     d.plano.filter((r) => r.cumple === false).forEach((r) => o.push(["durazno", `Planograma no cumplido${r.nota ? ": " + r.nota : "."}`]));
     return o;
@@ -30,7 +31,7 @@ const FICHA = {
   async datos(id) {
     const [vR, vxR, fR, iR, pR, aR, plR, prR] = await Promise.all([
       sb.from("v_visitas").select("*").eq("id", id).limit(1),
-      sb.from("visitas").select("comentario, sin_pedido_motivo, sin_pedido_nota").eq("id", id).limit(1),
+      sb.from("visitas").select("comentario, sin_pedido_motivo, sin_pedido_nota, inv_incompleto_motivo, inv_incompleto_nota").eq("id", id).limit(1),
       sb.from("fotos").select("id, tipo, mueble, storage_path, tomada_at").eq("visita_id", id).order("tomada_at"),
       sb.from("inventarios").select("producto_id, ubicacion, unidades, kg, agotado, productos(nombre)").eq("visita_id", id),
       sb.from("v_pedidos").select("id, estado, total_cajas, total_kg, numero_orden, nota_vendedor").eq("visita_id", id),
