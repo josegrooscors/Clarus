@@ -830,3 +830,7 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
   .met-fil{top:0}
   .rtabs::before,.met-fil::before{left:-32px;right:-32px;top:-32px;bottom:-10px}
 }
+
+/* El fondo de las barras fijas no sube más que el espacio libre que tienen encima: antes tapaba el borde inferior del selector de vendedora */
+.rtabs::before,.met-fil::before{top:-6px}
+@media(min-width:900px){.rtabs::before,.met-fil::before{top:-6px}}
