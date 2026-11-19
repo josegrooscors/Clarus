@@ -211,8 +211,9 @@ const R = {
         <div class="desemp-mini"><div><span>En ruta ahora</span><b>${eqN("ruta")}</b></div><div><span>Ya cerraron su día</span><b>${eqN("cerro")}</b></div>${eqN("just") ? `<div><span>Justificado</span><b>${eqN("just")}</b></div>` : ""}<div><span>Sin empezar</span><b>${eqN("espera")}</b></div><div><span>Sin check-in (posible falta)</span><b>${eqN("falta")}</b></div></div></div>
         <button type="button" class="btn sec block" style="margin-bottom:12px" onclick="document.getElementById('r-asis')?.scrollIntoView({behavior:'smooth',block:'start'})">Ver asistencia del mes</button>
         <div class="card">${DB.puede("aviso_cierre") && MSG.pushPosible() && Notification.permission !== "granted" ? `<div class="cd-est mal" style="margin-bottom:10px">${ic("alerta", 16)}<span><b>Este dispositivo no recibe el aviso de cierre.</b> Actívalo en Más › Configuración › Permisos.</span></div>` : ""}
-          <div class="row" style="margin-bottom:6px"><h3 class="sp" style="margin:0">Cómo va cada una</h3><span class="tiny muted">toca para ver su cierre</span></div>
-          <div class="list">${equipo.map((e) => `<div class="item eq-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(e.u.nombre))}</div><div class="grow"><div class="t">${esc(e.u.nombre)}</div><div class="small muted">${esc(e.txt)}</div></div><span class="pill ${e.tono}">${ETQ[e.est]}</span></div>`).join("")}</div></div>`
+          <div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">Cómo va cada una</h3><span class="tiny muted">toca para ver su cierre</span></div>
+          <div class="eq-dia"><button type="button" class="on" data-eqd="${hoy}">Hoy</button><button type="button" data-eqd="${hace(1)}">Ayer</button><label class="eq-otro"><span>Otro día</span><input type="date" id="eq-f" max="${hoy}" value="" aria-label="Elegir otro día"></label></div>
+          <div class="list" id="eq-lista">${equipo.map((e) => `<div class="item eq-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(e.u.nombre))}</div><div class="grow"><div class="t">${esc(e.u.nombre)}</div><div class="small muted">${esc(e.txt)}</div></div><span class="pill ${e.tono}">${ETQ[e.est]}</span></div>`).join("")}</div></div>`
         : `<div class="empty card flat">Hoy ninguna vendedora tiene tiendas agendadas.</div>`}
 
       <h3 class="sec-t" data-g="vendedora">Hoja de la vendedora</h3>
@@ -345,9 +346,35 @@ const R = {
         ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la vendedora avisó que no haría. No cuentan en el cumplimiento.</div>${R.lista(justif.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : "")]))}</div>` : ""}
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
+    // Equipo: ver cómo le fue a cada una hoy, ayer o cualquier otro día (tocar la fila abre su cierre de ese día)
+    const eqL = $("#eq-lista", root);
+    if (eqL) { const hoyHtml = eqL.innerHTML, marca = (f) => { $$("[data-eqd]", root).forEach((b) => b.classList.toggle("on", b.dataset.eqd === f)); const i = $("#eq-f", root); i.value = f === hoy || f === hace(1) ? "" : f; i.parentElement.classList.toggle("on", !!i.value); };
+      const ver = (f) => { marca(f); if (f === hoy) { eqL.innerHTML = hoyHtml; return; } R.equipoDia(eqL, f, vendedoras, asigTodas, justTodas); };
+      $$("[data-eqd]", root).forEach((b) => (b.onclick = () => ver(b.dataset.eqd)));
+      $("#eq-f", root).onchange = (e) => { if (e.target.value) ver(e.target.value > hoy ? hoy : e.target.value); };
+    }
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
     R.pestanas(root);
+  },
+
+  // Cómo le fue a cada vendedora en un día anterior: visitas hechas de las agendadas y su horario. La fila abre el cierre de ese día.
+  async equipoDia(el, fecha, vendedoras, asig, just) {
+    el.innerHTML = `<div class="small muted" style="padding:10px 0">Cargando…</div>`; el.dataset.f = fecha;
+    const { data, error } = await sb.from("v_visitas").select("id, vendedor_id, cliente_id, tienda, checkin_at, checkout_at").eq("fecha", fecha).order("checkin_at").limit(2000);
+    if (el.dataset.f !== fecha || !el.isConnected) return; // eligió otro día mientras cargaba
+    if (error) { el.innerHTML = `<div class="small" style="color:var(--rosa-t);padding:10px 0">${esc(error.message)}</div>`; return; }
+    const w = R.dia(fecha), filas = vendedoras.map((u) => {
+      const ag = asig.filter((a) => a.vendedor_id === u.id && (a.dias_semana || []).includes(w)), vs = data.filter((v) => v.vendedor_id === u.id);
+      if (!ag.length && !vs.length) return null;
+      const nj = ag.filter((a) => just.some((x) => x.vendedor_id === u.id && x.cliente_id === a.cliente_id && x.fecha === fecha) && !vs.some((v) => v.cliente_id === a.cliente_id)).length, prog = ag.length - nj;
+      const hechas = ag.filter((a) => vs.some((v) => v.cliente_id === a.cliente_id)).length, sal = vs.filter((v) => v.checkout_at).map((v) => v.checkout_at).sort().pop();
+      const [o, tono, etq, txt] = vs.length ? [hechas >= prog ? 2 : 1, hechas >= prog ? "p-menta" : "p-durazno", hechas >= prog ? "Completo" : "Parcial", `${ag.length ? `${hechas} de ${prog} visitas` : plur(vs.length, "visita") + " fuera de agenda"} · ${fmtHora(vs[0].checkin_at)}${sal ? " a " + fmtHora(sal) : ""}`]
+        : prog ? [0, "p-rosa", "Sin visitas", `Tenía ${plur(prog, "tienda")} y no registró ninguna`] : [3, "p-gris", "Justificado", `${plur(nj, "tienda")} justificada${nj === 1 ? "" : "s"}`];
+      return { u, o, html: `<div class="item eq-f" data-cierre="${u.id}|${fecha}" role="button" tabindex="0"><div class="ava">${esc(iniciales(u.nombre))}</div><div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${esc(txt)}</div></div><span class="pill ${tono}">${etq}</span></div>` };
+    }).filter(Boolean).sort((a, b) => a.o - b.o || a.u.nombre.localeCompare(b.u.nombre));
+    const tit = new Date(fecha + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
+    el.innerHTML = `<div class="tiny muted" style="padding:2px 0 6px;text-transform:capitalize">${esc(tit)}</div>` + (filas.map((x) => x.html).join("") || `<div class="small muted" style="padding:10px 0">Ese día ninguna vendedora tenía tiendas agendadas ni registró visitas.</div>`);
   },
 
   // El Resumen se ve por vistas: Equipo · Vendedora · Inventario · Ventas · Merma. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
@@ -400,14 +427,15 @@ const R = {
         else if (!prog && nj && d.iso <= hoy) { c = "libre"; x = "J"; t += ` · ${plur(nj, "visita")} justificada${nj === 1 ? "" : "s"}, sin falta`; }
         else if (prog) { c = "falta"; x = "0"; faltas++; t += ` · FALTA: tenía ${plur(prog, "visita")} y no registró ninguna`; }
         else { c = "libre"; t += " · sin ruta"; }
-        return `<td><span class="asi ${c}${d.iso === hoy ? " es-hoy" : ""}" title="${esc(t)}">${x}</span></td>`;
+        const abre = (n || c === "falta") && d.iso <= hoy; // días con visitas o con falta: se puede abrir el cierre de ese día
+        return `<td><span class="asi ${c}${d.iso === hoy ? " es-hoy" : ""}${abre ? " toca" : ""}" title="${esc(t)}"${abre ? ` data-cierre="${u.id}|${d.iso}" role="button" tabindex="0"` : ""}>${x}</span></td>`;
       }).join("");
       return `<tr><td class="asi-n">${esc(u.nombre)}</td>${celdas}<td class="asi-t"><b style="color:var(--azul-osc)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
     }).join("");
     const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
     setTimeout(() => { const h = document.querySelector(".asis th.hoyc"), sx = h?.closest(".scroll-x"); if (sx) sx.scrollLeft = Math.max(0, h.offsetLeft - sx.clientWidth + h.offsetWidth * 2.2); }, 60); // abre mostrando hoy y los días anteriores
     return `<h3 class="sec-t" id="r-asis" data-g="equipo">Asistencia · ${esc(mes)}</h3>
-      <div class="card"><div class="tiny muted" style="margin-bottom:8px">El número es la cantidad de visitas registradas ese día. «5 ·1» = 5 hechas y 1 programada sin hacer. «J» = no visitó, pero justificó sus tiendas.</div>
+      <div class="card"><div class="tiny muted" style="margin-bottom:8px">El número es la cantidad de visitas registradas ese día. «5 ·1» = 5 hechas y 1 programada sin hacer. «J» = no visitó, pero justificó sus tiendas. <b>Toca un día para ver el cierre de esa vendedora.</b></div>
       <div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
       <div class="asi-ley tiny muted"><span><span class="asi ok"></span> Cumplió</span><span><span class="asi parcial"></span> Dejó visitas sin hacer</span><span><span class="asi falta"></span> No asistió</span><span><span class="asi libre">F</span> Feriado o libre</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },

@@ -753,3 +753,13 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .mb .barra i.medio{background:#B7791F}.mb .barra i.bajo{background:#B3261E}.mb .barra i.ok{background:#0F7A4F}
 .chk-al.solo-merma{border-color:var(--azul-med)}
 .chk-al.solo-merma .chk-al-cab{color:var(--azul)}
+
+/* Equipo: elegir el día (hoy, ayer u otro) y abrir el cierre desde la asistencia */
+.eq-dia{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:4px;background:#E9EDF5;border-radius:14px;padding:4px;margin:0 0 8px}
+.eq-dia button,.eq-otro{border:0;background:none;border-radius:10px;min-height:44px;font:600 14px var(--font);color:var(--gris);cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.eq-dia button.on,.eq-otro.on{background:#fff;color:var(--azul-osc);box-shadow:0 1px 3px rgba(20,40,90,.14)}
+.eq-otro input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0}
+.eq-otro.on span{display:none}
+.eq-otro.on input{opacity:1;position:static;background:none;font:600 13px var(--font);color:var(--azul-osc);text-align:center;padding:0 4px}
+.asi.toca{cursor:pointer}
+.asi.toca:hover{outline:2px solid var(--azul-med)}
