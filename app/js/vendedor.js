@@ -961,7 +961,7 @@ const V = {
   },
 
   async detallePedido(p, recargar) {
-    const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id");
+    const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id");
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${fmtFechaHora(p.creado_at)}</div>
       <table class="t"><tr><th>Producto</th><th>Cajas</th><th style="text-align:right">Kilos</th></tr>

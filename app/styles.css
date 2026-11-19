@@ -801,3 +801,41 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 /* Tienda cerrada: foto obligatoria */
 .nov-foto{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1px solid var(--azul-med);background:var(--azul-cl);border-radius:12px}
 .nov-foto img{width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none}
+
+/* Equipo hoy: el panel muestra quién está en campo, dónde y cuánto lleva */
+.eqh-ch{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.eqh-ch span{padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff;font:600 12.5px var(--font)}
+.eqh-ch span.mal{background:#FFB4AE;color:#4A1512}
+.eqh-t{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.22);font:600 12px var(--font);letter-spacing:.05em;text-transform:uppercase;color:#C9D4EC}
+.eqh-f{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.14);cursor:pointer}
+.eqh-f:last-of-type{border-bottom:0;padding-bottom:2px}
+.eqh-f b{display:block;font-size:16px;color:#fff}
+.eqh-s{display:block;font-size:13px;line-height:1.4;color:#D9E2F5;overflow-wrap:anywhere}
+.eqh-f .barra{margin:6px 0 4px}
+.eqh-p{display:inline-block;width:8px;height:8px;border-radius:50%;background:#5FD39B;margin-right:6px;vertical-align:1px}
+.eqh-v{flex:none;text-align:right;font:700 22px var(--font-t)!important;color:#fff}
+.eqh-v small{display:block;font:500 11.5px var(--font);color:#C9D4EC}
+
+/* Computadora: los paneles de color usan las dos mitades (el indicador a la izquierda, el detalle a la derecha) */
+@media(min-width:900px){
+  .card.desemp.panel:not(.met-h):not(.hoja){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);column-gap:44px;align-items:start}
+  .card.desemp.panel:not(.met-h):not(.hoja)>*{grid-column:1}
+  .card.desemp.panel:not(.met-h):not(.hoja)>.desemp-mini,.card.desemp.panel:not(.met-h):not(.hoja)>.eqh-r{grid-column:2;grid-row:1/span 12;align-self:center;margin-top:0;padding-top:0;border-top:0;border-left:1px solid rgba(255,255,255,.22);padding-left:44px}
+  .card.desemp.panel>.eqh-r .eqh-t{margin-top:0;padding-top:0;border-top:0}
+  .card.desemp.panel:not(.met-h):not(.hoja):has(>.eqh-r)>.desemp-mini{display:none}
+  .card.desemp.panel.met-h .desemp-mini{flex:1;width:auto!important;min-width:320px;margin-top:0;padding-top:0;border-top:0;border-left:1px solid rgba(255,255,255,.22);padding-left:32px}
+}
+.inv-f{width:100%}
+.inv-f>.grow,.eqh-f>.grow,.met-vt>.grow,.nov-foto>.grow{flex:1 1 auto;min-width:0}
+
+/* Computadora: no hay barra de marca arriba, así que las barras fijas (vistas del Resumen y filtro de Metas) se pegan al borde superior
+   y su fondo tapa todo el ancho; así la página no se ve pasar por encima ni por los lados */
+@media(min-width:900px){
+  .rtabs{top:0;max-width:none}
+  .met-fil{top:0}
+  .rtabs::before,.met-fil::before{left:-32px;right:-32px;top:-32px;bottom:-10px}
+}
+
+/* El fondo de las barras fijas no sube más que el espacio libre que tienen encima: antes tapaba el borde inferior del selector de vendedora */
+.rtabs::before,.met-fil::before{top:-6px}
+@media(min-width:900px){.rtabs::before,.met-fil::before{top:-6px}}
