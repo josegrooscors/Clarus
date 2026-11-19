@@ -318,6 +318,63 @@ const V = {
     return prods.map((p) => ({ ...p, regla: ap.find((a) => a.producto_id === p.id) || null }));
   },
 
+  // ---------- Vencimiento: una sola pregunta por producto («¿cuál vence primero?»), con un toque si sigue igual ----------
+  vencPrev(v, p, cat) { return (cat.venc || []).find((x) => x.cliente_id === v.cliente_id && x.producto_id === p.id)?.vence || null; },
+  vencHtml(v, p, cat) {
+    if (!p.controla_vencimiento || v.agot?.[p.id]) return "";
+    const st = (v.venc || {})[p.id], prev = this.vencPrev(v, p, cat), plazo = p.dias_alerta_vencimiento || 15;
+    const cab = `<div class="venc-t">${ic("reloj", 15)} Fecha más próxima a vencer</div>`;
+    if (!st) return prev
+      ? `${cab}<div class="venc-f"><div><b>${esc(fmtDia(prev))}</b><span class="tiny muted">${esc(faltan(prev))} · según la visita anterior</span></div><div class="venc-b"><button type="button" class="btn sm ok" data-vi="${p.id}">Sigue igual</button><button type="button" class="btn sm sec" data-vc="${p.id}">Cambió</button></div></div>`
+      : `${cab}<button type="button" class="btn sm sec" data-vc="${p.id}">Indicar la fecha</button>`;
+    if (st.sin_fecha) return `${cab}<div class="venc-f"><span class="small muted">No se pudo ver la fecha en el empaque.</span><button type="button" class="venc-lk" data-vc="${p.id}">Cambiar</button></div>`;
+    const d = diasPara(st.fecha), alerta = d <= plazo;
+    return `${cab}<div class="venc-f"><div><b class="${alerta ? "venc-r" : ""}">${esc(fmtDia(st.fecha))}</b><span class="tiny muted">${esc(faltan(st.fecha))}${st.igual ? " · confirmada" : ""}</span></div><button type="button" class="venc-lk" data-vc="${p.id}">Cambiar</button></div>
+      ${alerta ? `<div class="venc-al"><b>${d < 0 ? "Producto vencido" : "Vence pronto"}.</b> ¿Cuántas unidades (${esc(plural(2, p.unidad_conteo))}) tienen esa fecha?
+        <input class="in" inputmode="numeric" data-vu="${p.id}" value="${st.unidades ?? ""}" placeholder="0">
+        <span class="small">${d < 0 ? "Retíralas de la exhibición y avisa al encargado." : "Pásalas al frente y pide al encargado una rebaja."} Queda avisado tu supervisor.</span></div>` : ""}`;
+  },
+  // Hoja para escribir la fecha: la anterior como atajo y tres casillas Día / Mes / Año
+  vencFecha(v, p, cat, alGuardar) {
+    const prev = this.vencPrev(v, p, cat), st = (v.venc || {})[p.id], ini = st?.fecha || "";
+    modal(`<h2 style="margin-bottom:4px">¿Cuál vence primero?</h2>
+      <p class="muted small" style="margin:0 0 12px"><b>${esc(p.nombre)}.</b> Mira el empaque con la fecha más vieja, en exhibición o en bodega.</p>
+      ${prev ? `<div class="tiny muted" style="margin-bottom:6px">Fecha de la visita anterior</div><button type="button" class="cs-op" data-atajo="${prev}"><span>${esc(fmtDia(prev))}</span><span class="cs-oa">${esc(faltan(prev))}</span></button>` : ""}
+      <div class="tiny muted" style="margin:12px 0 6px">${prev ? "O escribe otra fecha" : "Escribe la fecha del empaque"}</div>
+      <div class="venc-dma"><div><label class="f" style="margin-top:0">Día</label><input class="in" id="vd" inputmode="numeric" maxlength="2" placeholder="DD" value="${ini ? ini.slice(8, 10) : ""}"></div><div><label class="f" style="margin-top:0">Mes</label><input class="in" id="vm" inputmode="numeric" maxlength="2" placeholder="MM" value="${ini ? ini.slice(5, 7) : ""}"></div><div><label class="f" style="margin-top:0">Año</label><input class="in" id="va" inputmode="numeric" maxlength="4" placeholder="AAAA" value="${ini ? ini.slice(0, 4) : ""}"></div></div>
+      <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>Cancelar</button><button class="btn sp" data-ok>Guardar fecha</button></div>
+      <button type="button" class="venc-lk" data-sin style="display:block;margin:12px auto 0">No se ve la fecha en el empaque</button>`, (m, close) => {
+      const pasar = (a, b, n) => ($(a, m).oninput = (e) => { e.target.value = e.target.value.replace(/\D/g, ""); if (e.target.value.length >= n) $(b, m).focus(); });
+      pasar("#vd", "#vm", 2); pasar("#vm", "#va", 2); $("#va", m).oninput = (e) => (e.target.value = e.target.value.replace(/\D/g, ""));
+      $("[data-no]", m).onclick = close;
+      const at = $("[data-atajo]", m); if (at) at.onclick = () => { close(); alGuardar({ fecha: at.dataset.atajo, igual: true }); };
+      $("[data-sin]", m).onclick = () => { close(); alGuardar({ sin_fecha: true }); };
+      $("[data-ok]", m).onclick = () => {
+        const d = Number($("#vd", m).value), mes = Number($("#vm", m).value); let a = Number($("#va", m).value);
+        if (a > 0 && a < 100) a += 2000;
+        const f = new Date(Date.UTC(a, mes - 1, d));
+        if (!d || !mes || !a || f.getUTCDate() !== d || f.getUTCMonth() !== mes - 1 || a < 2020 || a > 2040) return toast("Revisa la fecha: día, mes y año");
+        const iso = `${a}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        close(); alGuardar({ fecha: iso, igual: iso === prev });
+      };
+    });
+  },
+  // Qué falta de vencimiento en una lista de productos (para no dejar guardar a medias)
+  vencFalta(v, prods) {
+    for (const p of prods) {
+      if (!p.controla_vencimiento || v.agot?.[p.id]) continue;
+      const stock = (Number(v.inv[p.id + ":bodega"]) || 0) + (Number(v.inv[p.id + ":exhibicion"]) || 0); if (!stock) continue;
+      const st = (v.venc || {})[p.id];
+      if (!st) return `Confirma la fecha de vencimiento de ${p.nombre}`;
+      if (st.fecha && diasPara(st.fecha) <= (p.dias_alerta_vencimiento || 15) && (st.unidades ?? "") === "") return `Indica cuántas unidades de ${p.nombre} vencen el ${fmtDia(st.fecha)}`;
+    }
+    return null;
+  },
+  async vencGuardar(v, prods) {
+    const rows = prods.filter((p) => p.controla_vencimiento && !v.agot?.[p.id] && (v.venc || {})[p.id]).map((p) => { const st = v.venc[p.id]; return { producto_id: p.id, vence: st.fecha || null, unidades: st.fecha && (st.unidades ?? "") !== "" ? Number(st.unidades) : null, confirmada: !!st.igual, sin_fecha: !!st.sin_fecha }; });
+    if (rows.length) await DB.encolar({ t: "vencimientos", lid: v.lid, cliente_id: v.cliente_id, rows });
+  },
+
   // Categorías (familias de producto) de lo que vende la tienda. Con una sola, inventario y pedido quedan como siempre.
   categorias(prods, cat) {
     const nom = Object.fromEntries((cat.familias || []).map((f) => [f.id, f.nombre])), m = new Map();
@@ -382,7 +439,7 @@ const V = {
           <button type="button" class="agot ${v.agot?.[p.id] ? "on" : ""}" data-agot="${p.id}">${v.agot?.[p.id] ? "✕ Agotado" : "Agotado"}</button></div>
           <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(p.unidad_conteo)}s)</div>
             <div class="stepper"><button data-m="${u}">−</button><input inputmode="decimal" data-u="${u}" value="${val(p.id, u)}" placeholder="0"><button data-s="${u}">+</button></div></div>`).join("")}</div>
-          <div class="kg"></div></div>`).join("")}</div>
+          <div class="kg"></div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
       <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total contado</span><b id="totkg"></b></div></div>
       <button class="btn block" style="margin-top:4px" data-ok>Guardar inventario</button>`;
     const calc = () => {
@@ -396,20 +453,30 @@ const V = {
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
     // una sola acción por pantalla (onclick reemplaza; addEventListener se acumulaba al volver a dibujar y sumaba de a 2)
+    const pintarVenc = (pid) => { const el = $(`[data-venc="${pid}"]`, box), pr = prods.find((x) => x.id == pid); if (el && pr) el.innerHTML = this.vencHtml(v, pr, cat); };
     box.onclick = (e) => {
+      const vi = e.target.closest("[data-vi]"), vc = e.target.closest("[data-vc]");
+      if (vi || vc) {
+        const pid = (vi || vc).dataset.vi || (vi || vc).dataset.vc, pr = prods.find((x) => x.id == pid); v.venc = v.venc || {};
+        if (vi) { v.venc[pid] = { fecha: this.vencPrev(v, pr, cat), igual: true }; Visita.set(v); pintarVenc(pid); }
+        else this.vencFecha(v, pr, cat, (st) => { v.venc[pid] = st; Visita.set(v); pintarVenc(pid); });
+        return;
+      }
       const ag = e.target.closest("[data-agot]");
       if (ag) {
         const pid = ag.dataset.agot, card = ag.closest(".inv"); v.agot = v.agot || {};
         v.agot[pid] = !v.agot[pid];
         card.classList.toggle("agotado", v.agot[pid]); ag.classList.toggle("on", v.agot[pid]); ag.textContent = v.agot[pid] ? "✕ Agotado" : "Agotado";
         if (v.agot[pid]) $$("[data-u]", card).forEach((i) => { i.value = 0; v.inv[pid + ":" + i.dataset.u] = 0; });
-        Visita.set(v); calc(); return;
+        Visita.set(v); calc(); pintarVenc(pid); return;
       }
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
       const u = b.dataset.m || b.dataset.s, inp = $(`[data-u=${u}]`, b.closest(".inv"));
       inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (b.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true }));
     };
     box.oninput = (e) => {
+      const vu = e.target.closest("[data-vu]");
+      if (vu) { vu.value = vu.value.replace(/[^0-9.]/g, ""); v.venc = v.venc || {}; if (v.venc[vu.dataset.vu]) { v.venc[vu.dataset.vu].unidades = vu.value; Visita.set(v); } return; }
       const i = e.target.closest("[data-u]"); if (!i) return;
       v.inv[i.closest(".inv").dataset.p + ":" + i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
     };
@@ -419,6 +486,8 @@ const V = {
       const rows = [];
       const sinContar = prods.filter((p) => !v.agot?.[p.id] && ["bodega", "exhibicion"].every((u) => (v.inv[p.id + ":" + u] ?? "") === ""));
       if (sinContar.length) { toast(`Cuenta ${sinContar.map((p) => p.nombre).join(" y ")} o márcalo como agotado`, 4000); return; }
+      const fv = this.vencFalta(v, prods); if (fv) { toast(fv, 4000); return; }
+      await this.vencGuardar(v, prods);
       prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.agot?.[p.id] ? 0 : v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }); }));
       await DB.encolar({ t: "inventario", lid: v.lid, rows });
       v.guardado.inventario = true; Visita.set(v); toast("Inventario guardado ✓"); siguiente();
@@ -448,10 +517,11 @@ const V = {
     };
     $("[data-catbtn]", box).onclick = () => this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.invCat = c.id; Visita.set(v); q = ""; $("#invq", box).value = ""; pintar(); });
     $("#invq", box).oninput = (e) => { q = sinAcentos(e.target.value.trim()); pintar(); };
-    const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); };
+    const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); await this.vencGuardar(v, hechos); };
     okBtn.onclick = async () => {
       const falta = actual.prods.filter((x) => !this.contado(v, x));
       if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}, o márcalos como agotados`, 4000); return; }
+      const fv = this.vencFalta(v, actual.prods); if (fv) { toast(fv, 4000); return; }
       await guardarContados();
       const sig = cats.find((c) => !lista(c));
       if (sig) { toast(`${actual.nombre} guardada ✓`); actual = sig; v.invCat = sig.id; Visita.set(v); q = ""; $("#invq", box).value = ""; pintar(); box.scrollIntoView({ block: "start" }); return; }

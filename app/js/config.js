@@ -209,6 +209,8 @@ const C = {
         <div><label class="f">Kg por caja</label><input class="in" name="kgcaja" type="number" step="0.01" inputmode="decimal" value="${p.kg_por_pedido ?? ""}"></div></div>
       <div class="grid2c"><div><label class="f">Precio por kg ($)</label><input class="in" name="precio" type="number" step="0.01" inputmode="decimal" value="${p.precio_kg ?? ""}"></div>
         <div><label class="f">Estado</label><select class="in" name="activo"><option value="1">Activo</option><option value="0" ${p.activo ? "" : "selected"}>Inactivo</option></select></div></div>
+      <div class="grid2c"><div><label class="f">Fecha de vencimiento</label><select class="in" name="venc"><option value="0">No se controla</option><option value="1" ${p.controla_vencimiento ? "selected" : ""}>Se revisa en cada visita</option></select></div>
+        <div><label class="f">Avisar cuando falten (días)</label><input class="in" name="vdias" type="number" inputmode="numeric" min="1" max="365" value="${p.dias_alerta_vencimiento ?? 15}"></div></div>
       <button class="btn block" style="margin-top:20px" data-ok>${p.id ? "Guardar cambios" : "Crear producto"}</button>`, (m, close) => {
       $("[data-ok]", m).onclick = async () => {
         const f = (n) => $(`[name=${n}]`, m).value.trim(), num = (n) => (f(n) === "" ? null : Number(f(n)));
@@ -217,7 +219,8 @@ const C = {
         const kgc = num("kgcaja");
         const datos = { nombre: f("nombre"), sku: f("sku") || null, categoria: f("categoria") || null, familia_id: num("familia_id"), unidad_id: num("unidad_id"), unidad_conteo: f("unidad_conteo") || "barra",
           peso_kg_unidad: num("peso"), unidad_pedido: f("unidad_pedido") || "caja", kg_por_pedido: kgc,
-          unidades_por_pedido: kgc ? Math.round((kgc / num("peso")) * 100) / 100 : p.unidades_por_pedido || 1, precio_kg: num("precio"), activo: f("activo") === "1" };
+          unidades_por_pedido: kgc ? Math.round((kgc / num("peso")) * 100) / 100 : p.unidades_por_pedido || 1, precio_kg: num("precio"), activo: f("activo") === "1",
+          controla_vencimiento: f("venc") === "1", dias_alerta_vencimiento: Math.min(365, Math.max(1, Math.round(num("vdias") || 15))) };
         const r = p.id ? await sb.from("productos").update(datos).eq("id", p.id) : await sb.from("productos").insert(datos);
         if (r.error) return toast(r.error.code === "23505" ? "Ya existe un producto con ese SKU" : r.error.message, 4500);
         close(); toast(p.id ? "Producto actualizado ✓" : "Producto creado ✓"); DB.catalogos(true).catch(() => {}); recargar();

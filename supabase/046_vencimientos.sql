@@ -1,0 +1,11 @@
+-- 046 · Vencimiento por excepción (18-nov-2026, aprobado por José).
+-- Una sola pregunta por producto en el inventario: «¿cuál vence primero?». Viene de la visita anterior («Sigue igual» / «Cambió»).
+-- Solo si falta poco (productos.dias_alerta_vencimiento, 15 por defecto) pide cuántas unidades tienen esa fecha.
+-- Se activa por producto (productos.controla_vencimiento, apagado por defecto: Viejo Cántaro no cambia hasta que José lo encienda).
+-- El lote NO se pide en tienda: va al despachar (Picking), pendiente de construir.
+alter table public.productos add column if not exists controla_vencimiento boolean not null default false, add column if not exists dias_alerta_vencimiento integer not null default 15 check (dias_alerta_vencimiento between 1 and 365);
+-- Tabla public.vencimientos (visita_id, cliente_id, producto_id, vence, unidades, confirmada, sin_fecha; única por visita y producto),
+-- con RLS: ver = empresa; crear/editar/borrar = solo en la visita propia (private.visita_mia).
+-- Vista public.v_ultimo_vencimiento (security_invoker): última fecha conocida por tienda y producto; alimenta el «Sigue igual» y «Producto por vencer» del Resumen.
+-- Validado en bloque que se deshace: la vendedora guarda y corrige en su visita; fila sin fecha ni marca bloqueada; no puede cambiar productos;
+-- otra vendedora no puede escribir ni editar en visita ajena; el administrador ve todo y activa el control en el producto.
