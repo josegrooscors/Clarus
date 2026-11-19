@@ -699,3 +699,9 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .venc-al .in{background:#fff}
 .venc-dma{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px}
 .venc-dma .in{font:700 18px var(--font-t);text-align:center}
+/* Estado de los avisos en este dispositivo */
+.cd-disp{margin-top:12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.cd-est{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;border-radius:12px;padding:10px 12px;width:100%;box-sizing:border-box}
+.cd-est svg{flex:none;margin-top:2px}
+.cd-est.ok{background:var(--menta);color:#0F5A3C}
+.cd-est.mal{background:var(--durazno);color:#6B4300}

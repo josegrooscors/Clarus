@@ -43,6 +43,13 @@ Deno.serve(async (req) => {
   };
   const ahora = new Date();
 
+  // Aviso de prueba a los dispositivos de quien lo pide (para comprobar que este teléfono o computadora recibe avisos)
+  if (quien && body.push_prueba) {
+    const subs = await subsDe(quien);
+    await push(quien, { title: "🔔 Aviso de prueba de Clarus", body: "Si ves esto, este dispositivo recibe los avisos.", tag: "prueba", url: "./#resumen", renotify: true });
+    return json({ ok: true, dispositivos: subs.length, enviados });
+  }
+
   // Soporte: avisa a la otra parte cuando llega un mensaje
   if (body.soporte) {
     const { data: m } = await db.from("soporte_mensajes").select("id, autor_id, texto, soporte_tickets(id, user_id, empresa_id, asunto)").eq("id", body.soporte).maybeSingle();
