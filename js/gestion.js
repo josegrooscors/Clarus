@@ -209,6 +209,18 @@ const G = {
   },
 
   // ---------------- OBJETIVOS ----------------
+  // Velocímetro de avance: arco de 0 a 100 %, con una marca donde debería ir según el día del mes (ritmo)
+  velocimetro(pc, esperado, tono, ancho = 150, oscuro = false) {
+    const r = 64, L = Math.PI * r, v = Math.max(0, Math.min(100, pc || 0)), col = oscuro ? { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[tono] : { ok: "#0F7A4F", medio: "#B7791F", bajo: "#B3261E", "": "#2F5BEA" }[tono];
+    const a = Math.PI * (1 - Math.max(0, Math.min(100, esperado || 0)) / 100), px = (k) => 80 + k * Math.cos(a), py = (k) => 76 - k * Math.sin(a);
+    return `<svg class="velo" role="img" aria-label="${pc ?? 0} por ciento del objetivo" width="${ancho}" height="${Math.round(ancho * 0.6)}" viewBox="0 0 160 96">
+      <path d="M16 76 A64 64 0 0 1 144 76" fill="none" stroke="${oscuro ? "rgba(255,255,255,.22)" : "#E9EDF5"}" stroke-width="14" stroke-linecap="round"></path>
+      <path d="M16 76 A64 64 0 0 1 144 76" fill="none" stroke="${col}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(v / 100) * L} ${L}"></path>
+      ${esperado != null ? `<line x1="${px(r - 11)}" y1="${py(r - 11)}" x2="${px(r + 11)}" y2="${py(r + 11)}" stroke="${oscuro ? "#FFFFFF" : "#0B1B33"}" stroke-width="3" stroke-linecap="round"></line>` : ""}
+      <text x="80" y="74" text-anchor="middle" fill="${oscuro ? "#FFFFFF" : "#0B1B33"}" font-size="30" font-weight="700">${pc ?? 0}%</text>
+      <text x="80" y="92" text-anchor="middle" fill="${oscuro ? "#D6E0FF" : "#5B6577"}" font-size="10.5">del objetivo</text></svg>`;
+  },
+
   async objetivos(root, sel) {
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date(mesActual() + "T12:00:00").toLocaleDateString("es-PA", { month: "long", year: "numeric" })}</div><h1>Objetivos de venta</h1></div></div><div id="ob" class="muted">Cargando…</div>`;
     const [{ data, error }, { data: prods }] = await Promise.all([
@@ -217,41 +229,41 @@ const G = {
     ]);
     if (error) { $("#ob", root).textContent = error.message; return; }
     if (!data.length) { $("#ob", root).outerHTML = `<div class="empty card flat"><div class="ic">${ic("ok", 34)}</div>Todavía no hay objetivos cargados para este mes.</div>`; return; }
-    const P = Object.fromEntries(prods.map((p) => [p.id, p]));
     const grupo = (o) => o.vendedora || "Sin vendedora · " + (o.zona || "—");
     const sum = (xs, k) => xs.reduce((a, o) => a + Number(o[k] || 0), 0);
     // Gerencia (o quien tenga «Ver montos en dólares») mide en dólares y además ve los kilos; los demás ven solo kilos.
     const din = conDinero(), KO = din ? "objetivo_usd" : "objetivo_kg", KV = din ? "venta_usd" : "venta_kg", fM = din ? fmtUsd : fmtKilos;
-    const kilos = (xs) => `${fmtKilos(sum(xs, "venta_kg"))} / ${fmtKilos(sum(xs, "objetivo_kg"))}`;
     const corte = data.map((o) => o.corte).filter(Boolean).sort().pop();
     const G = {}; data.forEach((o) => (G[grupo(o)] = G[grupo(o)] || []).push(o));
-    const tot = { obj: sum(data, KO), ven: sum(data, KV) };
     const prodCols = prods.filter((p) => data.some((o) => o.producto_id === p.id));
-    const celdaProd = (xs, p) => { const x = xs.filter((o) => o.producto_id === p.id), ok = sum(x, "objetivo_kg"), vk = sum(x, "venta_kg"), pc = pct(vk, ok);
-      return `<td>${fmtNum(cajas(vk, p), 1)} / ${fmtNum(cajas(ok, p), 0)} <span class="pill ${colorPct(pc)}">${pc ?? 0}%</span></td>`; };
+    // Ritmo: a la fecha del corte de facturación debería ir este porcentaje del mes. El color compara el avance contra ese ritmo.
+    const m0 = mesActual(), dMes = new Date(Number(m0.slice(0, 4)), Number(m0.slice(5, 7)), 0).getDate(), esperado = corte ? Math.round((Number(corte.slice(8, 10)) / dMes) * 100) : null;
+    const tonoDe = (pc) => { if (pc == null) return ""; if (pc >= 100) return "ok"; const r = esperado ? (pc / esperado) * 100 : 100; return r >= 95 ? "ok" : r >= 75 ? "medio" : "bajo"; };
+    const etqDe = (pc) => ({ ok: pc >= 100 ? "Objetivo cumplido" : "Al ritmo del mes", medio: "Un poco atrás", bajo: "Atrás del ritmo", "": "Sin objetivo" }[tonoDe(pc)]);
+    const grupos = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, KO), ven: sum(xs, KV) })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
+    const xsSel = sel && G[sel] ? G[sel] : data, obj = sum(xsSel, KO), ven = sum(xsSel, KV), pcT = pct(ven, obj), nT = new Set(xsSel.map((o) => o.cliente_id)).size;
+    const prodDe = (xs, p) => { const x = xs.filter((o) => o.producto_id === p.id), ok = sum(x, "objetivo_kg"), vk = sum(x, "venta_kg"); return { n: p.nombre.replace(/^Queso /, ""), ok, vk, pc: pct(vk, ok), cv: cajas(vk, p), co: cajas(ok, p) }; };
+    const barraP = (q) => `<div class="mb"><div class="mb-t"><span><b>${esc(q.n)}</b><span class="tiny muted"> · ${fmtNum(q.cv, 1)} de ${fmtNum(q.co, 0)} cajas</span></span><span class="mb-v ${tonoDe(q.pc)}">${q.pc ?? 0}%</span></div><div class="barra"><i class="${tonoDe(q.pc) || "ok"}" style="width:${Math.min(100, q.pc ?? 0)}%"></i></div></div>`;
+    const cab = `<select class="in" id="ob-v" style="margin-bottom:14px" aria-label="Vendedora"><option value="">Todas las vendedoras</option>${grupos.map((r) => `<option value="${esc(r.g)}" ${r.g === sel ? "selected" : ""}>${esc(r.g)}</option>`).join("")}</select>
+      <div class="card desemp panel met-h">${this.velocimetro(pcT, esperado, tonoDe(pcT), 168, true)}
+        <div class="met-ht"><div class="lbl">${sel && G[sel] ? esc(sel) : "Toda la empresa"}</div><span class="desemp-tag ${tonoDe(pcT)}">${etqDe(pcT)}</span>
+          <div class="met-cif"><b>${fM(ven)}</b> de ${fM(obj)}</div>${din ? `<div class="tiny desemp-cifras" style="margin-top:2px">${fmtKilos(sum(xsSel, "venta_kg"))} de ${fmtKilos(sum(xsSel, "objetivo_kg"))}</div>` : ""}</div>
+        <div class="desemp-mini" style="width:100%"><div><span>${din ? "Facturado" : "Vendido"} al</span><b>${corte ? fmtFecha(corte + "T12:00:00") : "–"}</b></div><div><span>Ritmo esperado a esa fecha</span><b>${esperado ?? "–"}%</b></div><div><span>Falta para el objetivo</span><b>${fM(Math.max(0, obj - ven))}</b></div><div><span>Tiendas con objetivo</span><b>${nT}</b></div></div></div>
+      <div class="met-pg">${prodCols.map((p) => { const q = prodDe(xsSel, p); return `<div class="card met-pc">${this.velocimetro(q.pc, esperado, tonoDe(q.pc), 124)}<b>${esc(q.n)}</b><span class="tiny muted">${fmtNum(q.cv, 1)} de ${fmtNum(q.co, 0)} cajas</span></div>`; }).join("")}</div>`;
+    let cuerpo;
     if (sel && G[sel]) {
-      const xs = G[sel], tiendas = [...new Set(xs.map((o) => o.cliente_id))];
-      const filas = tiendas.map((id) => { const t = xs.filter((o) => o.cliente_id === id); return { t, n: t[0].tienda, obj: sum(t, KO), ven: sum(t, KV) }; })
-        .sort((a, b) => (pct(a.ven, a.obj) ?? 0) - (pct(b.ven, b.obj) ?? 0));
-      $("#ob", root).outerHTML = `<button class="btn ghost sm" data-volver style="margin-bottom:12px">← Todas</button>
-        <div class="card"><div class="row"><div class="grow"><h2>${esc(sel)}</h2><div class="small muted">${tiendas.length} tiendas · ${din ? "facturado" : "ventas"} al ${fmtFecha(corte + "T12:00:00")}</div></div><span class="pill ${colorPct(pct(sum(xs, KV), sum(xs, KO)))}" style="font-size:14px">${pct(sum(xs, KV), sum(xs, KO)) ?? 0}%</span></div>
-        <div style="margin-top:6px"><b>${fM(sum(xs, KV))}</b> <span class="muted">de ${fM(sum(xs, KO))}</span></div>${barra(pct(sum(xs, KV), sum(xs, KO)))}</div>
-        <div class="card scroll-x lim5"><table class="t"><tr><th>Tienda</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}${din ? "<th>Kilos</th>" : ""}<th>${din ? "Venta / objetivo" : "Kilos"}</th></tr>
-        ${filas.map((f) => `<tr><td>${esc(f.n)}</td>${prodCols.map((p) => celdaProd(f.t, p)).join("")}${din ? `<td>${kilos(f.t)}</td>` : ""}<td>${fM(f.ven)} / ${fM(f.obj)}</td></tr>`).join("")}</table></div>`;
-      $("[data-volver]", root).onclick = () => G.objetivos(root);
-      return;
+      const tiendas = [...new Set(xsSel.map((o) => o.cliente_id))].map((id) => { const t = xsSel.filter((o) => o.cliente_id === id), pc = pct(sum(t, KV), sum(t, KO)); return { t, n: t[0].tienda, pc, ven: sum(t, KV), obj: sum(t, KO) }; }).sort((a, b) => (a.pc ?? 0) - (b.pc ?? 0));
+      cuerpo = `<div class="card"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Sus tiendas</h3><span class="tiny muted">de menor a mayor avance</span></div>
+        ${R.paginar(tiendas.map((f) => `<div class="inv-f"><i class="sem-d ${tonoDe(f.pc) || "sin"}"></i><div class="grow"><b>${esc(f.n)}</b><div class="tiny muted">${prodCols.map((p) => prodDe(f.t, p)).filter((q) => q.ok > 0).map((q) => `${esc(q.n)} ${fmtNum(q.cv, 1)} de ${fmtNum(q.co, 0)} cj`).join(" · ")}</div></div><b class="inv-v ${tonoDe(f.pc)}">${f.pc ?? 0}%<small>${fM(f.ven)} de ${fM(f.obj)}</small></b></div>`), "mett")}</div>`;
+    } else {
+      cuerpo = `<h3 class="sec-t">Por vendedora</h3>${grupos.map((r) => { const pc = pct(r.ven, r.obj); return `<div class="card met-v" data-g="${esc(r.g)}" role="button" tabindex="0">
+          <div class="met-vt">${this.velocimetro(pc, esperado, tonoDe(pc), 112)}<div class="grow"><b class="met-n">${esc(r.g)}</b><div class="small muted">${plur(new Set(r.xs.map((o) => o.cliente_id)).size, "tienda")}</div><div class="small" style="margin-top:4px"><b>${fM(r.ven)}</b> <span class="muted">de ${fM(r.obj)}</span></div><span class="tiny" style="color:var(--azul)">Ver sus tiendas ›</span></div></div>
+          ${prodCols.map((p) => prodDe(r.xs, p)).filter((q) => q.ok > 0).map(barraP).join("")}</div>`; }).join("")}`;
     }
-    const lista = Object.entries(G).map(([g, xs]) => ({ g, xs, obj: sum(xs, KO), ven: sum(xs, KV) })).sort((a, b) => (a.g.startsWith("Sin") - b.g.startsWith("Sin")) || b.obj - a.obj);
-    $("#ob", root).outerHTML = `<div class="kpis">
-        <div class="kpi"><div class="v">${fM(tot.ven)}</div><div class="l">${din ? "Facturado" : "Vendido"} al ${fmtFecha(corte + "T12:00:00")}</div>${din ? `<div class="tiny muted" style="margin-top:4px">${fmtKilos(sum(data, "venta_kg"))}</div>` : ""}</div>
-        <div class="kpi"><div class="v">${fM(tot.obj)}</div><div class="l">Objetivo del mes</div>${din ? `<div class="tiny muted" style="margin-top:4px">${fmtKilos(sum(data, "objetivo_kg"))}</div>` : ""}</div>
-        <div class="kpi"><div class="v">${pct(tot.ven, tot.obj) ?? 0}%</div><div class="l">Avance</div></div>
-        <div class="kpi"><div class="v">${new Set(data.map((o) => o.cliente_id)).size}</div><div class="l">Tiendas con objetivo</div></div></div>
-      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora / grupo</th>${prodCols.map((p) => `<th>${esc(p.nombre.replace(/^Queso /, ""))} (cajas)</th>`).join("")}${din ? "<th>Kilos</th>" : ""}<th>${din ? "Venta / objetivo" : "Kilos"}</th><th>Avance</th></tr>
-      ${lista.map((r) => `<tr data-g="${esc(r.g)}" style="cursor:pointer"><td><b>${esc(r.g)}</b><div class="tiny muted">${plur(new Set(r.xs.map((o) => o.cliente_id)).size, "tienda")}</div></td>${prodCols.map((p) => celdaProd(r.xs, p)).join("")}${din ? `<td>${kilos(r.xs)}</td>` : ""}
-        <td>${fM(r.ven)} / ${fM(r.obj)}</td><td style="min-width:90px"><span class="pill ${colorPct(pct(r.ven, r.obj))}">${pct(r.ven, r.obj) ?? 0}%</span>${barra(pct(r.ven, r.obj))}</td></tr>`).join("")}</table></div>
-      <p class="tiny muted">Toca una vendedora para ver sus tiendas, de menor a mayor avance.</p>`;
-    $$("[data-g]", root).forEach((tr) => (tr.onclick = () => this.objetivos(root, tr.dataset.g)));
+    $("#ob", root).outerHTML = cab + cuerpo + `<p class="tiny muted" style="margin:4px 2px 14px">La raya del velocímetro marca dónde debería ir el avance a la fecha del corte (${esperado ?? "–"}% del mes). Verde: al ritmo o cumplido. Ámbar: un poco atrás. Rojo: atrás del ritmo.</p>`;
+    $("#ob-v", root).onchange = (e) => this.objetivos(root, e.target.value || undefined);
+    $$(".met-v[data-g]", root).forEach((c) => (c.onclick = () => { this.objetivos(root, c.dataset.g); window.scrollTo({ top: 0 }); }));
+    if (typeof LIM5 !== "undefined") LIM5.aplicar();
   },
 
   gps(v) {
