@@ -131,30 +131,41 @@ const R = {
         ${DB.puede("avisar") ? `<button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button>` : ""}</div>` : ""}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
+      ${objKg && DB.puede("ver_metas") ? (() => { // Panel principal de Ventas (solo quien puede ver Metas; la supervisión no ve el objetivo de la empresa): objetivo del mes, en el azul de la marca
+        const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esperado = (dHoy / dMes) * 100, ritmo = esperado ? ((pcObj ?? 0) / esperado) * 100 : 100;
+        const cl = ritmo >= 95 ? "ok" : ritmo >= 75 ? "medio" : "bajo", tag = ritmo >= 95 ? "Al ritmo del mes" : ritmo >= 75 ? "Un poco atrás" : "Atrás del ritmo";
+        return `<div class="card desemp panel"><div class="lbl">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}</div>
+          <div class="desemp-top"><span class="desemp-pct">${pcObj ?? 0}%</span><span class="desemp-tag ${cl}">${tag}</span></div>
+          <div class="desemp-sub"><b>${fmtNum(avance, 0)} kg</b> de ${fmtNum(objKg, 0)} kg</div>
+          <div class="barra"><i class="${cl}" style="width:${Math.min(100, pcObj ?? 0)}%"></i></div>
+          <div class="tiny desemp-cifras">Va el ${Math.round(esperado)}% del mes (día ${dHoy} de ${dMes})</div>
+          <div class="desemp-mini"><div><span>Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}</span><b>${fmtNum(factKg, 0)} kg</b></div><div><span>Pedidos capturados después</span><b>${fmtNum(pedPost, 0)} kg</b></div><div><span>Falta para el objetivo</span><b>${fmtNum(Math.max(0, objKg - avance), 0)} kg</b></div></div></div>`; })() : ""}
       <div class="kpis">
         ${kpi(fmtNum(kgPer, 0) + " kg", "Pedidos capturados · " + esc(etPer), "", `${plur(ped.length, "pedido")}`)}
         ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
         ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
       </div>
-      ${objKg ? `<div class="card"><div class="row"><div class="grow"><div class="small muted">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}</div>
-          <h2>${fmtNum(avance, 0)} kg <span class="muted" style="font-weight:500;font-size:15px">de ${fmtNum(objKg, 0)} kg</span></h2></div><span class="pill ${colorPct(pcObj)}" style="font-size:15px">${pcObj ?? 0}%</span></div>${barra(pcObj)}
-        <div class="row small" style="margin-top:10px;flex-wrap:wrap;gap:16px"><span>Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}: <b>${fmtNum(factKg, 0)} kg</b></span><span>Pedidos capturados después: <b>${fmtNum(pedPost, 0)} kg</b></span><span>Falta: <b>${fmtNum(Math.max(0, objKg - avance), 0)} kg</b></span></div></div>` : ""}
-
+      <h3 class="sec-t">Efectividad de visitas · ${esc(etPer)}</h3>
+      ${(() => { // Panel principal de Visitas: cumplimiento de agenda, en azul noche
+        const pc = pct(progOk, progN), enCurso = hasta >= hoy, cl = pc == null ? "" : pc >= 90 ? "ok" : pc >= 70 ? "medio" : "bajo";
+        const tag = pc == null ? "Sin agenda" : pc >= 90 ? "Excelente" : enCurso ? "En curso" : pc >= 70 ? "Puede mejorar" : "Atención";
+        const ef = pct(visConPedido, visPT.length);
+        return `<div class="card desemp panel noche"><div class="lbl">Cumplimiento de agenda · ${esc(etPer)}</div>
+          <div class="desemp-top"><span class="desemp-pct">${pc ?? 0}%</span><span class="desemp-tag ${pc != null && pc < 90 && enCurso ? "" : cl}">${tag}</span></div>
+          <div class="desemp-sub"><b>${progOk} de ${progN}</b> visitas programadas realizadas${dias.length < this.fechas(desde, hasta).length ? " (hasta hoy)" : ""}</div>
+          <div class="barra"><i class="${cl || "ok"}" style="width:${Math.min(100, pc ?? 0)}%"></i></div>
+          <div class="desemp-mini"><div><span>Visitas realizadas</span><b>${vis.length}${fueraAgenda ? ` <small>· ${fueraAgenda} fuera de agenda</small>` : ""}</b></div>
+            <div><span>Efectividad (visitas con pedido)</span><b>${ef ?? 0}% <small>· ${visConPedido} de ${visPT.length}</small></b></div>
+            <div><span>Tiempo promedio en tienda</span><b>${minProm != null ? fmtNum(minProm, 0) + " min" : "–"}</b></div></div></div>`; })()}
+      <div class="kpis">
+        ${kpi(sinVisita.length, "Clientes programados sin visita", sinVisita.length ? "alerta" : "")}
+        ${kpi(sinPedido.length, "Clientes sin pedido", "", periodo === "hoy" ? "de la ruta de hoy" : "de sus tiendas asignadas")}
+        ${kpi(abiertas, "Visitas sin cerrar (días anteriores)", abiertas ? "alerta" : "")}
+      </div>
       ${vendedoras.length ? `<h3 class="sec-t">Cierre del día por vendedora</h3><div class="card">${DB.puede("aviso_cierre") && MSG.pushPosible() && Notification.permission !== "granted" ? `<div class="cd-est mal" style="margin-bottom:10px">${ic("alerta", 16)}<span><b>Este dispositivo no recibe el aviso de cierre.</b> Actívalo en Más › Configuración › Permisos.</span></div>` : ""}
         <div class="tiny muted" style="margin-bottom:8px">Toca una vendedora para ver su tarjeta de hoy y compartirla.</div>
         <div class="list lim5">${(vend ? vendedoras.filter((u) => u.id === vend) : vendedoras).map((u) => { const pr = prog.filter((p) => p.vendedor_id === u.id && p.fecha === hoy), ok = pr.filter((p) => p.hecha).length;
           return `<div class="item" data-cierre="${u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(u.nombre))}</div><div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${pr.length ? `Hoy: ${ok} de ${pr.length} visitas agendadas` : "Ver su cierre de hoy"}</div></div><span class="pill ${!pr.length ? "p-gris" : ok === pr.length ? "p-menta" : "p-azul"}">${!pr.length ? "Ver" : ok === pr.length ? "Cerrado" : "En ruta"}</span></div>`; }).join("")}</div></div>` : ""}
-      <h3 class="sec-t">Efectividad de visitas · ${esc(etPer)}</h3>
-      <div class="kpis">
-        ${kpi(progN, "Visitas programadas", "", dias.length < this.fechas(desde, hasta).length ? "hasta hoy" : "")}
-        ${kpi(`${pct(progOk, progN) ?? 0}%`, "Cumplimiento de agenda", "", `${progOk} de ${progN} realizadas`)}
-        ${kpi(vis.length, "Visitas realizadas", "", fueraAgenda ? `${fueraAgenda} fuera de agenda` : "")}
-        ${kpi(`${pct(visConPedido, visPT.length) ?? 0}%`, "Efectividad (visitas con pedido)", "", `${visConPedido} de ${visPT.length}${vis.length > visPT.length ? ` · ${vis.length - visPT.length} sin pedido en tienda (Machetazo)` : ""}`)}
-        ${kpi(sinVisita.length, "Clientes programados sin visita", sinVisita.length ? "alerta" : "")}
-        ${kpi(sinPedido.length, "Clientes sin pedido", "", periodo === "hoy" ? "de la ruta de hoy" : "de sus tiendas asignadas")}
-        ${kpi(minProm != null ? fmtNum(minProm, 0) + " min" : "–", "Tiempo promedio en tienda")}
-        ${kpi(abiertas, "Visitas sin cerrar (días anteriores)", abiertas ? "alerta" : "")}
-      </div>
 
       ${periodo === "hoy" ? "" : `<div class="grid2">
         <div class="card"><div class="row" style="flex-wrap:wrap;gap:8px"><h3 class="grow" style="margin:0">Agenda por día</h3>${R.leyenda([["#DCE5FB", "Programadas"], ["#2F5BEA", "Realizadas"]])}</div>${R.barras(serie, [["prog", "#DCE5FB"], ["ok", "#2F5BEA"]], (s) => `${s.ok}/${s.prog}`)}</div>

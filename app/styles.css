@@ -705,3 +705,8 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .cd-est svg{flex:none;margin-top:2px}
 .cd-est.ok{background:var(--menta);color:#0F5A3C}
 .cd-est.mal{background:var(--durazno);color:#6B4300}
+/* Resumen: un panel de color por pestaña (objetivo en azul de marca, agenda en azul noche) */
+.card.desemp.panel{margin-bottom:12px}
+.card.desemp.panel.noche{background:var(--noche);border-color:var(--noche)}
+.desemp.panel .desemp-mini small{font-weight:400;color:#C9D4F2;font-size:12.5px}
+.desemp.panel .desemp-sub b{color:#fff}
