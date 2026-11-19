@@ -387,6 +387,33 @@ const C = {
   },
 
   // ---------------- PERMISOS POR ROL (solo administrador) ----------------
+  // ¿Este teléfono o computadora recibe los avisos? Lo muestra, permite activarlo y mandarse un aviso de prueba.
+  async dispositivoAvisos(el) {
+    if (!el) return;
+    const esTel = (a) => /Android|iPhone|iPad|Mobile/i.test(a || "");
+    const pintar = async () => {
+      if (!MSG.pushPosible()) { el.innerHTML = `<div class="cd-est mal">${ic("alerta", 16)}<span>Este navegador no admite avisos. En el teléfono, abre Clarus con Chrome e instálalo (⋮ › Instalar app).</span></div>`; return; }
+      const perm = Notification.permission;
+      if (perm === "granted") await MSG.activarPush(false).catch(() => {});
+      const { data: subs } = await sb.from("push_suscripciones").select("agente").eq("user_id", DB.user.id);
+      const tel = (subs || []).filter((s) => esTel(s.agente)).length, pc = (subs || []).length - tel;
+      const mios = `Tus dispositivos registrados: ${plur(tel, "teléfono")} y ${plur(pc, "computadora")}.`;
+      el.innerHTML = perm === "granted"
+        ? `<div class="cd-est ok">${ic("ok", 16)}<span><b>Este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"} recibe los avisos.</b> ${mios}</span></div><button type="button" class="btn sm sec" data-probar>Enviarme un aviso de prueba</button>`
+        : perm === "denied"
+          ? `<div class="cd-est mal">${ic("alerta", 16)}<span><b>Los avisos están bloqueados en este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"}.</b> Actívalos en Chrome: ⋮ › Configuración › Configuración de sitios › Notificaciones › Clarus › Permitir. ${mios}</span></div>`
+          : `<div class="cd-est mal">${ic("alerta", 16)}<span><b>Este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"} todavía no recibe avisos.</b> ${mios}</span></div><button type="button" class="btn sm" data-activar>Activar avisos en este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"}</button>`;
+      const a = $("[data-activar]", el); if (a) a.onclick = async () => { const r = await MSG.activarPush(true); toast(r === "ok" ? "Avisos activados ✓" : r === "denegado" ? "No diste permiso" : "No se pudo activar en este dispositivo", 3000); pintar(); };
+      const pr = $("[data-probar]", el); if (pr) pr.onclick = async () => {
+        pr.disabled = true; pr.textContent = "Enviando…";
+        const { data, error } = await sb.functions.invoke("avisos", { body: { push_prueba: true } });
+        pr.disabled = false; pr.textContent = "Enviarme un aviso de prueba";
+        toast(error ? "No se pudo enviar: " + error.message : data?.enviados ? `Enviado a ${plur(data.enviados, "dispositivo")}. Debe aparecer en unos segundos.` : "No tienes dispositivos registrados", 4500);
+      };
+    };
+    pintar();
+  },
+
   async permisos(box) {
     const { data, error } = await sb.from("permisos_rol").select("*");
     if (error) throw error;
@@ -396,14 +423,15 @@ const C = {
     box.innerHTML = `${emp ? `<div class="card" style="margin-bottom:14px"><h3 style="margin:0 0 4px">Cierre del día de cada vendedora</h3>
         <p class="small muted" style="margin:0 0 10px">Aviso al teléfono cuando cada vendedora termina sus tiendas agendadas. Si no las termina, llega a la hora de corte como «día sin cerrar». Lo reciben los administradores y los roles con el permiso «Recibir el cierre del día».</p>
         <div class="grid2c"><div><label class="f" style="margin-top:0">Avisos</label><select class="in" id="cd-on"><option value="1">Encendidos</option><option value="0" ${emp.cierre_diario ? "" : "selected"}>Apagados</option></select></div>
-        <div><label class="f" style="margin-top:0">Hora de corte</label><select class="in" id="cd-h">${[16, 17, 18, 19, 20, 21].map((h) => `<option value="${h}" ${h === emp.cierre_hora_corte ? "selected" : ""}>${h - 12}:00 p. m.</option>`).join("")}</select></div></div></div>` : ""}
+        <div><label class="f" style="margin-top:0">Hora de corte</label><select class="in" id="cd-h">${[16, 17, 18, 19, 20, 21].map((h) => `<option value="${h}" ${h === emp.cierre_hora_corte ? "selected" : ""}>${h - 12}:00 p. m.</option>`).join("")}</select></div></div>
+        <div id="cd-disp" class="cd-disp"></div></div>` : ""}
       <p class="small muted" style="margin-top:0">Elige qué puede hacer cada rol. El administrador siempre puede todo. Los cambios aplican la próxima vez que cada persona abra la app.</p>
       <div class="card flat scroll-x" style="padding:0"><table class="t perm"><tr><th>Permiso</th>${roles.map((r) => `<th>${ROLES_TXT[r]}</th>`).join("")}</tr>
       ${PERMISOS_GRUPOS.map(([g, ps]) => `<tr class="perm-g"><td colspan="${roles.length + 1}">${g}</td></tr>` + ps.map((p) => { const [t, d] = PERMISOS_TXT[p]; return `<tr><td><b>${t}</b><div class="tiny muted">${d}</div></td>
         ${roles.map((r) => `<td><label class="sw"><input type="checkbox" data-r="${r}" data-p="${p}" ${tiene(r, p) ? "checked" : ""} aria-label="${t} — ${ROLES_TXT[r]}"><span></span></label></td>`).join("")}</tr>`; }).join("")).join("")}
       </table></div>`;
     const guardarCierre = async () => { const r = await sb.from("empresas").update({ cierre_diario: $("#cd-on", box).value === "1", cierre_hora_corte: Number($("#cd-h", box).value) }).eq("id", emp.id); toast(r.error ? r.error.message : "Guardado ✓", r.error ? 4000 : 1500); };
-    if (emp) { $("#cd-on", box).onchange = guardarCierre; $("#cd-h", box).onchange = guardarCierre; }
+    if (emp) { $("#cd-on", box).onchange = guardarCierre; $("#cd-h", box).onchange = guardarCierre; this.dispositivoAvisos($("#cd-disp", box)); }
     $$("input[data-r]", box).forEach((el) => (el.onchange = async () => {
       const r = await sb.from("permisos_rol").upsert({ empresa_id: DB.perfil.empresa_id, rol: el.dataset.r, permiso: el.dataset.p, permitido: el.checked });
       if (r.error) { el.checked = !el.checked; return toast(r.error.message, 4000); }
