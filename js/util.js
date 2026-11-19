@@ -11,6 +11,10 @@ const minutos = (a, b) => (a && b ? Math.round((new Date(b) - new Date(a)) / 600
 // Singular o plural según la cantidad: plur(1, "tienda") → "1 tienda", plur(4, "tienda") → "4 tiendas".
 const plur = (n, palabra) => `${n} ${palabra}${Number(n) === 1 ? "" : "s"}`;
 const iniciales = (s) => String(s || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+// Vencimientos: días que faltan (negativo = ya venció) y texto legible
+const diasPara = (iso) => Math.round((new Date(iso + "T12:00:00") - new Date(hoyISO() + "T12:00:00")) / 864e5);
+const fmtDia = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long", year: "numeric" });
+const faltan = (iso) => { const d = diasPara(iso); return d < 0 ? `venció hace ${plur(-d, "día")}` : d === 0 ? "vence hoy" : `faltan ${plur(d, "día")}`; };
 const hoyISO = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Panama" });
 const diaSemana = () => { const d = new Date().getDay(); return d === 0 ? 7 : d; }; // 1=lunes
 

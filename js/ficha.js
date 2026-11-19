@@ -22,6 +22,11 @@ const FICHA = {
     if (v.checkout_at && v.minutos_en_tienda != null && v.minutos_en_tienda < 10) o.push(["durazno", `Visita muy corta: ${FICHA.dur(v.minutos_en_tienda)}.`]);
     if (v.checkout_at && !d.fotos.some((f) => f.tipo !== "bodega")) o.push(["durazno", "No hay fotos de la exhibición."]);
     if (v.checkout_at && !d.inv.length) o.push(["durazno", "No registró inventario."]);
+    (d.venc || []).forEach((x) => {
+      if (x.sin_fecha) o.push(["durazno", `${x.nombre}: no se pudo ver la fecha de vencimiento.`]);
+      else if (x.dias != null && x.dias < 0) o.push(["rosa", `${x.nombre} está vencido (${faltan(x.vence)})${x.unidades != null ? ": " + fmtNum(x.unidades, 0) + " " + plural(Number(x.unidades), x.uni) : ""}.`]);
+      else if (x.dias != null && x.dias <= x.plazo) o.push(["durazno", `${x.nombre} vence el ${fmtDia(x.vence)} (${faltan(x.vence)})${x.unidades != null ? ": " + fmtNum(x.unidades, 0) + " " + plural(Number(x.unidades), x.uni) : ""}.`]);
+    });
     if (d.vx?.inv_incompleto_motivo) o.push(["durazno", `Inventario incompleto. ${d.vx.inv_incompleto_nota || ""} Motivo: ${motivoInvIncompleto(d.vx.inv_incompleto_motivo)}.`.replace(/\s+/g, " ")]);
     if (v.checkout_at && !d.pedidos.length && !d.vx?.sin_pedido_motivo) o.push(["durazno", "Cerró sin pedido y sin indicar el motivo."]);
     d.plano.filter((r) => r.cumple === false).forEach((r) => o.push(["durazno", `Planograma no cumplido${r.nota ? ": " + r.nota : "."}`]));
@@ -29,7 +34,7 @@ const FICHA = {
   },
 
   async datos(id) {
-    const [vR, vxR, fR, iR, pR, aR, plR, prR] = await Promise.all([
+    const [vR, vxR, fR, iR, pR, aR, plR, prR, veR] = await Promise.all([
       sb.from("v_visitas").select("*").eq("id", id).limit(1),
       sb.from("visitas").select("comentario, sin_pedido_motivo, sin_pedido_nota, inv_incompleto_motivo, inv_incompleto_nota").eq("id", id).limit(1),
       sb.from("fotos").select("id, tipo, mueble, storage_path, tomada_at").eq("visita_id", id).order("tomada_at"),
@@ -38,6 +43,7 @@ const FICHA = {
       sb.from("auditorias_espacio").select("pct, nuestro, competencia, otra, vacio").eq("visita_id", id).order("creado_at", { ascending: false }).limit(1),
       sb.from("planograma_revisiones").select("cumple, nota, planogramas(nombre)").eq("visita_id", id),
       sb.from("promociones").select("tipo, precio_regular, precio_oferta, nota, productos(nombre)").eq("visita_id", id),
+      sb.from("vencimientos").select("producto_id, vence, unidades, confirmada, sin_fecha, productos(nombre, unidad_conteo, dias_alerta_vencimiento)").eq("visita_id", id),
     ]);
     if (vR.error) throw vR.error;
     if (!vR.data?.[0]) throw new Error("No se encontró la visita o no tienes acceso a ella.");
@@ -56,7 +62,8 @@ const FICHA = {
     });
     const inv = Object.values(porProd).map((p) => ({ ...p, total: (p.bod || 0) + (p.exh || 0) })).sort((a, b) => a.nombre.localeCompare(b.nombre));
     return { v: vR.data[0], vx: (vxR.data || [])[0], fotos: fotos.map((f) => ({ ...f, url: url[f.storage_path] })), inv, pedidos, items: itR.data || [], analisis: anR.data || [],
-      aud: (aR.data || [])[0], plano: plR.data || [], promos: prR.data || [] };
+      aud: (aR.data || [])[0], plano: plR.data || [], promos: prR.data || [],
+      venc: (veR.error ? [] : veR.data || []).map((x) => ({ ...x, nombre: (x.productos?.nombre || "Producto").replace(/^Queso /, ""), dias: x.vence ? diasPara(x.vence) : null, plazo: x.productos?.dias_alerta_vencimiento || 15, uni: x.productos?.unidad_conteo || "unidad" })) };
   },
 
   html(d) {
@@ -70,6 +77,7 @@ const FICHA = {
       ${op.length ? sec("Áreas de oportunidad", `<div class="fv-op">${op.map(([c, t]) => `<div class="fv-o ${c}">${ic("alerta", 16)}<span>${esc(t)}</span></div>`).join("")}</div>`, op.length) : v.checkout_at ? `<div class="fv-o menta" style="margin-bottom:16px">${ic("ok", 16)}<span>Visita completa, sin observaciones.</span></div>` : ""}
       ${sec("Fotos", d.fotos.length ? `<div class="fv-fotos">${d.fotos.map((f) => { const g = FICHA.mueble(f.tipo, f.mueble); return `<figure class="fv-fig">${f.url ? `<button class="fv-f" data-foto="${esc(f.url)}" data-pie="${esc(g + " · " + fmtHora(f.tomada_at))}"><img src="${esc(f.url)}" alt="${esc(g)}" loading="lazy"></button>` : `<div class="fv-f pend">Subiendo…</div>`}<figcaption>${esc(g)}<span>${fmtHora(f.tomada_at)}</span></figcaption></figure>`; }).join("")}</div>` : `<p class="muted small">Todavía no hay fotos.</p>`, d.fotos.length)}
       ${sec("Inventario", d.inv.length ? `<table class="fv-t"><tr><th>Producto</th><th>Bodega</th><th>Exhibición</th><th>Total</th></tr>${d.inv.map((p) => `<tr><td><b>${esc(p.nombre)}</b>${p.total === 0 || p.agot ? ` <span class="pill p-rosa">Agotado</span>` : ""}</td><td>${p.bod == null ? "–" : fmtNum(p.bod, 0)}</td><td>${p.exh == null ? "–" : fmtNum(p.exh, 0)}</td><td><b>${fmtNum(p.total, 0)}</b><div class="tiny muted">${fmtKg(p.kg)}</div></td></tr>`).join("")}</table>` : `<p class="muted small">Todavía no registró inventario.</p>`)}
+      ${(d.venc || []).length ? sec("Vencimiento", `<table class="fv-t"><tr><th>Producto</th><th>Vence primero</th><th>Unidades</th></tr>${d.venc.map((x) => `<tr><td><b>${esc(x.nombre)}</b></td><td>${x.sin_fecha ? "No se vio la fecha" : esc(fmtDia(x.vence)) + `<div class="tiny ${x.dias <= x.plazo ? "" : "muted"}" ${x.dias <= x.plazo ? 'style="color:var(--rosa-t)"' : ""}>${esc(faltan(x.vence))}${x.confirmada ? " · sigue igual" : ""}</div>`}</td><td>${x.unidades == null ? "–" : fmtNum(x.unidades, 0)}</td></tr>`).join("")}</table>`) : ""}
       ${sec("Pedido", d.pedidos.length ? d.pedidos.map((p) => `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px">${pillPedido(p.estado)}<span class="small">${plur(fmtNum(p.total_cajas, 0), "caja")}${p.total_kg != null ? " · " + fmtKg(p.total_kg) : ""}${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</span></div>
           <table class="fv-t"><tr><th>Producto</th><th>Sugerido</th><th>Pedido</th></tr>${d.items.filter((i) => i.pedido_id === p.id).map((i) => `<tr><td>${esc((i.productos?.nombre || "").replace(/^Queso /, ""))}</td><td>${fmtNum(i.sugerido, 0)}</td><td><b>${fmtNum(i.propuesto, 0)}</b></td></tr>`).join("")}</table>${p.nota_vendedor ? `<p class="small muted" style="margin-top:6px">Nota: ${esc(p.nota_vendedor)}</p>` : ""}`).join("")
         : motivo ? `<p class="small"><b>Sin pedido.</b> Motivo: ${esc(motivo)}${vx.sin_pedido_nota ? " · " + esc(vx.sin_pedido_nota) : ""}</p>` : `<p class="muted small">${v.checkout_at ? "Cerró sin pedido y sin motivo." : "Todavía no hay pedido."}</p>`)}
@@ -159,6 +167,7 @@ const FICHA = {
       y += 30;
     };
     if (d.inv.length) { titulo("Inventario"); tabla(["Producto", "Bodega", "Exhibición", "Total"], d.inv.map((p) => [p.nombre + (p.total === 0 || p.agot ? "  (agotado)" : ""), p.bod == null ? "–" : fmtNum(p.bod, 0), p.exh == null ? "–" : fmtNum(p.exh, 0), fmtNum(p.total, 0)]), [0.46, 0.18, 0.2, 0.16]); }
+    if ((d.venc || []).length) { titulo("Vencimiento"); tabla(["Producto", "Vence primero", "Unidades"], d.venc.map((z) => [z.nombre, z.sin_fecha ? "No se vio la fecha" : `${fmtDia(z.vence)} (${faltan(z.vence)})`, z.unidades == null ? "–" : fmtNum(z.unidades, 0)]), [0.3, 0.52, 0.18]); }
     titulo("Pedido");
     if (d.pedidos.length) d.pedidos.forEach((p) => {
       y = texto(`${plur(fmtNum(p.total_cajas, 0), "caja")}${p.total_kg != null ? " · " + fmtKg(p.total_kg) : ""}${p.numero_orden ? " · Orden " + p.numero_orden : ""}`, 25, y, { color: GR }) + 8;

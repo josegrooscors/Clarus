@@ -680,3 +680,17 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 /* Ficha de visita: botón para compartirla como imagen */
 .fv-comp{display:inline-flex;align-items:center;gap:6px;flex:none;white-space:nowrap}
 .fv-comp[disabled]{opacity:.55}
+/* Vencimiento dentro de la tarjeta de inventario */
+.venc:empty{display:none}
+.venc{border-top:1px solid var(--borde);margin-top:10px;padding-top:10px}
+.venc-t{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--gris);margin-bottom:8px}
+.venc-f{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.venc-f>div:first-child{display:flex;flex-direction:column;min-width:0}
+.venc-f b{font:700 16px var(--font-t)}
+.venc-b{display:flex;gap:6px}
+.venc-r{color:var(--rosa-t)}
+.venc-lk{border:0;background:none;color:var(--azul-osc);font:600 13px var(--font);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:10px 0;min-height:44px}
+.venc-al{background:var(--rosa);border-radius:12px;padding:10px 12px;margin-top:8px;display:flex;flex-direction:column;gap:8px;font-size:13.5px}
+.venc-al .in{background:#fff}
+.venc-dma{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:8px}
+.venc-dma .in{font:700 18px var(--font-t);text-align:center}
