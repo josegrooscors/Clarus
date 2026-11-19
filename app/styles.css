@@ -788,3 +788,11 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .met-vt{display:flex;align-items:center;gap:12px;margin-bottom:4px}
 .met-n{font-size:16px;line-height:1.2;overflow-wrap:anywhere}
 .met-v .mb:first-of-type{border-top:1px solid var(--borde)}
+
+/* Metas: el filtro de vendedora queda fijo arriba; la lista por vendedora es corta y abre la tarjeta */
+.met-fil{position:sticky;top:62px;z-index:5;margin:0 0 14px;isolation:isolate}
+.met-fil::before{content:"";position:absolute;left:-16px;right:-16px;top:-16px;bottom:-8px;background:var(--fondo);z-index:-1}
+.inv-f.met-v{cursor:pointer}
+.inv-f.met-v .barra{margin-top:6px}
+.inv-f.met-v .barra i.medio{background:#B7791F}.inv-f.met-v .barra i.bajo{background:#B3261E}.inv-f.met-v .barra i.ok{background:#0F7A4F}
+.inv-f.met-v .inv-v small{color:var(--azul)}
