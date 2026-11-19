@@ -67,6 +67,7 @@ const App = {
     const [base, sub] = ruta.split("/");
     if (base === "mensajes") ruta = "mensajes";
     if (base === "soporte") ruta = "soporte";
+    if (base === "cierre") { const [, vidC, fC] = (location.hash.replace("#", "")).split("/"); location.hash = "#" + (menu.some((x) => x[0] === "resumen") ? "resumen" : menu[0][0]); if (vidC) setTimeout(() => CIERRE.abrir(vidC, fC || null), 400); return; }
     if (base === "ficha") { const idF = Number(sub); location.hash = "#" + (menu.some((x) => x[0] === "equipo") ? "equipo" : menu[0][0]); if (idF) setTimeout(() => FICHA.abrir(idF), 400); return; }
     if (base === "facturacion") { location.hash = "#picking" + (sub ? "/" + sub : ""); return; }
     if (["planogramas", "picking"].includes(base)) ruta = base;
