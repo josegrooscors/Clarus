@@ -822,3 +822,11 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 }
 .inv-f{width:100%}
 .inv-f>.grow,.eqh-f>.grow,.met-vt>.grow,.nov-foto>.grow{flex:1 1 auto;min-width:0}
+
+/* Computadora: no hay barra de marca arriba, así que las barras fijas (vistas del Resumen y filtro de Metas) se pegan al borde superior
+   y su fondo tapa todo el ancho; así la página no se ve pasar por encima ni por los lados */
+@media(min-width:900px){
+  .rtabs{top:0;max-width:none}
+  .met-fil{top:0}
+  .rtabs::before,.met-fil::before{left:-32px;right:-32px;top:-32px;bottom:-10px}
+}
