@@ -129,12 +129,16 @@ const R = {
       const ag = asigTodas.filter((a) => a.vendedor_id === u.id && (a.dias_semana || []).includes(wHoy)), vs = visHoy.filter((v) => v.vendedor_id === u.id).sort((a, b) => a.checkin_at.localeCompare(b.checkin_at));
       if (!ag.length && !vs.length) return null;
       const hechas = ag.filter((a) => vs.some((v) => v.cliente_id === a.cliente_id && v.checkout_at)).length, justs = ag.filter((a) => justKey.has(u.id + "|" + a.cliente_id + "|" + hoy) && !vs.some((v) => v.cliente_id === a.cliente_id)).length;
-      const abierta = vs.find((v) => !v.checkout_at), ult = vs.filter((v) => v.checkout_at).slice(-1)[0], av = `${hechas} de ${ag.length}`;
+      const abierta = vs.find((v) => !v.checkout_at), ult = vs.filter((v) => v.checkout_at).slice(-1)[0], fueraAg = vs.filter((v) => !ag.some((a) => a.cliente_id === v.cliente_id)).length;
+      const av = ag.length ? `${hechas} de ${ag.length}` : plur(vs.length, "visita") + " fuera de agenda";
       const [est, tono, txt] = abierta ? ["ruta", "p-azul", `En ${abierta.tienda} · ${av}`]
         : ag.length && hechas + justs >= ag.length ? (hechas ? ["cerro", "p-menta", `Cerró a las ${fmtHora(ult.checkout_at)} · ${av}`] : ["just", "p-gris", `${plur(justs, "tienda")} justificada${justs === 1 ? "" : "s"}`])
         : vs.length ? ["ruta", "p-azul", `Última: ${ult ? ult.tienda : vs[0].tienda} · ${av}`]
         : horaAhora < 10 ? ["espera", "p-gris", `Tiene ${plur(ag.length, "tienda")} · aún sin check-in`] : ["falta", "p-rosa", `Tenía ${plur(ag.length, "tienda")} · sin check-in`];
-      return { u, est, tono, txt, conVis: vs.length > 0 };
+      // Para el panel: dónde está ahora, su avance y lo que hizo fuera de agenda
+      const ahora = abierta ? `En ${abierta.tienda} desde las ${fmtHora(abierta.checkin_at)}` : est === "cerro" ? `Cerró su día a las ${fmtHora(ult.checkout_at)}` : ult ? `Salió de ${ult.tienda} a las ${fmtHora(ult.checkout_at)}` : "";
+      const det = [ag.length ? `${hechas} de ${ag.length - justs} visitas` : plur(vs.length, "visita"), vs.length ? "entró " + fmtHora(vs[0].checkin_at) : "", fueraAg ? (ag.length ? `${fueraAg} fuera de agenda` : "todas fuera de agenda") : "", justs && ag.length ? plur(justs, "justificada") : ""].filter(Boolean).join(" · ");
+      return { u, est, tono, txt, conVis: vs.length > 0, ahora, det, enTienda: !!abierta, pcA: ag.length - justs > 0 ? Math.round((hechas / (ag.length - justs)) * 100) : null, nVis: vs.length };
     }).filter(Boolean);
     const eqN = (k) => equipo.filter((e) => e.est === k).length, ETQ = { ruta: "En ruta", cerro: "Día cerrado", just: "Justificado", espera: "Sin empezar", falta: "Sin check-in" };
     const ordenEq = { falta: 0, espera: 1, ruta: 2, just: 3, cerro: 4 };
@@ -208,7 +212,9 @@ const R = {
         <div class="desemp-top"><span class="desemp-pct">${equipo.filter((e) => e.conVis).length} de ${equipo.length}</span><span class="desemp-tag ${eqN("falta") ? "bajo" : eqN("ruta") + eqN("espera") ? "" : "ok"}">${eqN("falta") ? "Hay ausencias" : eqN("ruta") + eqN("espera") ? "En curso" : "Día completo"}</span></div>
         <div class="desemp-sub">vendedoras con visitas registradas hoy</div>
         <div class="barra"><i class="${eqN("falta") ? "medio" : "ok"}" style="width:${Math.round((equipo.filter((e) => e.conVis).length / equipo.length) * 100)}%"></i></div>
-        <div class="desemp-mini"><div><span>En ruta ahora</span><b>${eqN("ruta")}</b></div><div><span>Ya cerraron su día</span><b>${eqN("cerro")}</b></div>${eqN("just") ? `<div><span>Justificado</span><b>${eqN("just")}</b></div>` : ""}<div><span>Sin empezar</span><b>${eqN("espera")}</b></div><div><span>Sin check-in (posible falta)</span><b>${eqN("falta")}</b></div></div></div>
+        <div class="eqh-ch"><span>${eqN("ruta")} en ruta</span><span>${eqN("cerro")} ${eqN("cerro") === 1 ? "cerró" : "cerraron"} su día</span>${eqN("just") ? `<span>${plur(eqN("just"), "justificada")}</span>` : ""}${eqN("espera") ? `<span>${eqN("espera")} sin empezar</span>` : ""}${eqN("falta") ? `<span class="mal">${eqN("falta")} sin check-in</span>` : ""}</div>
+        ${(() => { const act = equipo.filter((e) => e.conVis).sort((a, b) => b.enTienda - a.enTienda || a.u.nombre.localeCompare(b.u.nombre)); if (!act.length) return "";
+          return `<div class="eqh-t">En campo hoy · toca para ver el detalle</div>${act.slice(0, 5).map((e) => `<div class="eqh-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="grow"><b>${esc(e.u.nombre)}</b><span class="eqh-s">${e.enTienda ? `<i class="eqh-p"></i>` : ""}${esc(e.ahora)}</span>${e.pcA != null ? `<div class="barra"><i class="${e.pcA >= 100 ? "ok" : ""}" style="width:${Math.min(100, e.pcA)}%"></i></div>` : ""}<span class="eqh-s">${esc(e.det)}</span></div><b class="eqh-v">${e.pcA != null ? e.pcA + "%" : e.nVis}<small>${e.pcA != null ? "de su ruta" : e.nVis === 1 ? "visita" : "visitas"}</small></b></div>`).join("")}${act.length > 5 ? `<div class="eqh-s" style="margin-top:8px">Y ${act.length - 5} más en «Cómo va cada una».</div>` : ""}`; })()}</div>
         <button type="button" class="btn sec block" style="margin-bottom:12px" onclick="document.getElementById('r-asis')?.scrollIntoView({behavior:'smooth',block:'start'})">Ver asistencia del mes</button>
         <div class="card">${DB.puede("aviso_cierre") && MSG.pushPosible() && Notification.permission !== "granted" ? `<div class="cd-est mal" style="margin-bottom:10px">${ic("alerta", 16)}<span><b>Este dispositivo no recibe el aviso de cierre.</b> Actívalo en Más › Configuración › Permisos.</span></div>` : ""}
           <div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">Cómo va cada una</h3><span class="tiny muted">toca para ver su cierre</span></div>
