@@ -45,7 +45,7 @@ const R = {
       sb.from("productos").select("id, nombre, kg_por_pedido, unidad_conteo").eq("activo", true).order("nombre"),
       sb.from("clientes").select("id, nombre, modalidad").limit(5000),
       sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
-      sb.from("visitas_justificadas").select("vendedor_id, cliente_id, fecha, motivo, nota, clientes(nombre)").gte("fecha", mes0 < desde ? mes0 : desde).lte("fecha", finMes > hasta ? finMes : hasta).limit(5000),
+      sb.from("visitas_justificadas").select("vendedor_id, cliente_id, fecha, motivo, nota, foto_path, foto_at, dist_m, dentro, clientes(nombre)").gte("fecha", mes0 < desde ? mes0 : desde).lte("fecha", finMes > hasta ? finMes : hasta).limit(5000),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, unidades, fecha_visita, visita_id").lte("vence", new Date(Date.now() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" })).order("vence").limit(500),
       sb.from("v_visitas").select("id, vendedor_id, cliente_id, tienda, checkin_at, checkout_at").eq("fecha", hoy).limit(2000),
       sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mes0 < hoy.slice(0, 8) + "01" ? mes0 : hoy.slice(0, 8) + "01", 6)[0] }), // venta facturada y merma por tienda y producto (Tablero Comercial)
@@ -220,7 +220,7 @@ const R = {
       ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
         const frase = h.nota == null ? "Sin visitas en este período" : h.nota >= 90 ? "Ejecución excelente en punto de venta" : h.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
         const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
-        const tT = h.tv == null ? "" : h.tv >= 30 ? "ok" : h.tv >= 15 ? "medio" : "bajo", tE = h.jv.e == null ? "" : h.jv.e <= 480 ? "ok" : h.jv.e <= 510 ? "medio" : "bajo";
+        const tT = h.tv == null ? "" : h.tv >= 30 ? "ok" : h.tv >= 15 ? "medio" : "bajo", tEn = h.jv.e == null ? "" : h.jv.e <= 480 ? "ok" : h.jv.e <= 510 ? "medio" : "bajo", tSa = h.jv.s == null ? "" : h.jv.s >= 960 ? "ok" : h.jv.s >= 930 ? "medio" : "bajo", tE = [tEn, tSa].includes("bajo") ? "bajo" : [tEn, tSa].includes("medio") ? "medio" : tEn || tSa; // jornada de la empresa: 8:00 a 16:00
         return `<div class="card desemp panel hoja"><svg class="aro" role="img" aria-label="${h.nota ?? 0} por ciento de ejecución" width="112" height="112" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"></circle><circle cx="60" cy="60" r="50" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${((h.nota ?? 0) / 100) * C} ${C}" transform="rotate(-90 60 60)"></circle><text x="60" y="69" text-anchor="middle" fill="#fff" font-size="28" font-weight="700">${h.nota ?? "–"}${h.nota == null ? "" : "%"}</text></svg>
             <div class="hoja-t"><div class="lbl">Ejecución · ${esc(etPer)}</div><b>${frase}</b><span>Promedio de asistencia, ruta cumplida, reporte con fotos e inventario.</span></div></div>
           <div class="sem-g">
@@ -229,7 +229,7 @@ const R = {
             ${tj("Reporte con fotos", h.pFot != null ? h.pFot + "%" : "–", `${h.conFotos} de ${h.cerradas} visitas`, h.sem(h.pFot))}
             ${tj("Inventario físico", h.pInv != null ? h.pInv + "%" : "–", `${h.conInv} de ${h.cerradas} visitas`, h.sem(h.pInv))}
             ${tj("Tiempo por tienda", h.tv != null ? FICHA.dur(h.tv) : "–", `equipo ${h.te != null ? FICHA.dur(h.te) : "–"}${h.cortas ? ` · ${plur(h.cortas, "visita")} de menos de 10 min` : ""}`, tT)}
-            ${tj("Entrada · salida", `${h.hhmm(h.jv.e)} · ${h.hhmm(h.jv.s)}`, `equipo ${h.hhmm(h.je.e)} · ${h.hhmm(h.je.s)}`, tE)}
+            ${tj("Entrada · salida", `${h.hhmm(h.jv.e)} · ${h.hhmm(h.jv.s)}`, `jornada 08:00 a 16:00 · equipo ${h.hhmm(h.je.e)} · ${h.hhmm(h.je.s)}`, tE)}
           </div>
           ${mTot.mes.m || mTot.ant.m ? `<div class="card"><div class="row" style="gap:10px"><div class="grow"><b>Merma de sus tiendas · ${MERMA.nombreMes(mes0)}</b><div class="tiny muted">${din ? fmtUsd(mTot.mes.m) + " en notas de crédito · " : ""}3 meses anteriores: ${MERMA.fp(mTot.ant.p)} · límite ${fmtNum(MERMA.lim(), 0)}%</div></div><span class="pill ${MERMA.pill(mTot.mes.p)}" style="font-size:15px">${MERMA.fp(mTot.mes.p)}</span></div></div>` : ""}
           ${DB.puede("ver_metas") && h.porProd.length ? `<div class="card"><h3 style="margin:0 0 8px">Venta del mes</h3>${h.porProd.map((x) => { const pc = pct(x.v, x.o) ?? 0; return `<div class="mb"><div class="mb-t"><span><b>${esc(x.n)}</b></span><span class="mb-v">${pc}%</span></div><div class="barra"><i class="${pc >= 100 ? "ok" : ""}" style="width:${Math.min(100, pc)}%"></i></div><div class="tiny muted" style="margin-top:4px">${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg · ${x.v >= x.o ? "objetivo cumplido" : "faltan " + fmtNum(x.o - x.v, 0) + " kg"}</div></div>`; }).join("")}<p class="tiny muted" style="margin:8px 0 0">Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}. Los pedidos posteriores se ven en Ventas.</p></div>` : ""}`; })()
@@ -343,7 +343,7 @@ const R = {
 
       <div class="grid2" data-g="equipo">
         <div class="card"><h3>Clientes programados sin visita</h3>${R.lista(sinVisita.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00")]))}</div>
-        ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la vendedora avisó que no haría. No cuentan en el cumplimiento.</div>${R.lista(justif.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : "")]))}</div>` : ""}
+        ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la vendedora avisó que no haría. No cuentan en el cumplimiento.</div>${R.paginar(justif.map((p) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(p.clientes?.nombre || "—")}</div><div class="tiny muted">${esc((vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : ""))}</div>${p.j.foto_path ? `<a href="#" class="tiny" data-jfoto="${esc(p.j.foto_path)}" data-jt="${esc((p.clientes?.nombre || "") + " · " + fmtHora(p.j.foto_at) + (p.j.dist_m != null ? " · " + (p.j.dentro ? "en la tienda" : "a " + fmtDist(p.j.dist_m) + " de la tienda") : " · sin ubicación"))}">Ver foto de la tienda cerrada ›</a>${p.j.dentro === false ? ` <span class="pill p-rosa">Fuera del radio</span>` : ""}` : p.j.motivo === "tienda_cerrada" ? `<span class="pill p-durazno">Sin foto</span>` : ""}</div>`))}</div>` : ""}
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
     // Equipo: ver cómo le fue a cada una hoy, ayer o cualquier otro día (tocar la fila abre su cierre de ese día)
@@ -541,3 +541,13 @@ const R = {
   },
 
 };
+
+// Foto de una tienda cerrada (justificación): cualquier elemento con data-jfoto="<ruta en el almacén>" la abre
+document.addEventListener("click", async (e) => {
+  const el = e.target.closest("[data-jfoto]"); if (!el) return; e.preventDefault();
+  const m = modal(`<div class="muted" style="padding:30px 0;text-align:center">Cargando la foto…</div>`);
+  const { data, error } = await sb.storage.from("fotos").createSignedUrl(el.dataset.jfoto, 600);
+  $(".sheet", m).innerHTML = error || !data?.signedUrl ? `<p class="muted">No se pudo abrir la foto.</p><button class="btn block" data-x>Cerrar</button>`
+    : `<div class="row" style="margin-bottom:10px"><div class="grow"><b>Tienda cerrada</b><div class="tiny muted">${esc(el.dataset.jt || "")}</div></div><button class="x-btn" data-x aria-label="Cerrar">✕</button></div><img src="${data.signedUrl}" alt="Foto de la tienda cerrada" style="width:100%;border-radius:12px;display:block">`;
+  $("[data-x]", m).onclick = () => m.remove();
+});

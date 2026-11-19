@@ -796,3 +796,7 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .inv-f.met-v .barra{margin-top:6px}
 .inv-f.met-v .barra i.medio{background:#B7791F}.inv-f.met-v .barra i.bajo{background:#B3261E}.inv-f.met-v .barra i.ok{background:#0F7A4F}
 .inv-f.met-v .inv-v small{color:var(--azul)}
+
+/* Tienda cerrada: foto obligatoria */
+.nov-foto{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1px solid var(--azul-med);background:var(--azul-cl);border-radius:12px}
+.nov-foto img{width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none}

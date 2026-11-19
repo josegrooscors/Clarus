@@ -15,6 +15,10 @@ const CIERRE = {
     const o = [];
     r.tiendas.filter((t) => t.estado === "pendiente").forEach((t) => o.push(["rosa", `No visitó ${t.nombre}.`]));
     if (r.abiertas) o.push(["rosa", `${plur(r.abiertas, "visita")} sin check-out.`]);
+    // Jornada de la empresa: 8:00 a 16:00 (hora de Panamá). La salida solo se evalúa con el día terminado.
+    const minPa = (t) => { const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date(t)); return (Number(p.find((x) => x.type === "hour").value) % 24) * 60 + Number(p.find((x) => x.type === "minute").value); };
+    if (r.primera && minPa(r.primera) > 480) o.push([minPa(r.primera) > 510 ? "rosa" : "durazno", `Primera entrada a las ${fmtHora(r.primera)}: la jornada empieza a las 8:00 a. m.`]);
+    if (r.ultima && r.hechas && (r.fecha < hoyISO() || (r.pendientes === 0 && r.en_curso === 0)) && minPa(r.ultima) < 960) o.push([minPa(r.ultima) < 930 ? "rosa" : "durazno", `Última salida a las ${fmtHora(r.ultima)}: la jornada termina a las 4:00 p. m.`]);
     if (r.fuera_radio) o.push(["rosa", `${plur(r.fuera_radio, "visita")} marcada${r.fuera_radio === 1 ? "" : "s"} fuera del radio de la tienda.`]);
     if (r.cortas) o.push(["durazno", `${plur(r.cortas, "visita")} de menos de 10 minutos.`]);
     if (r.agotados) o.push(["durazno", `${plur(r.agotados, "producto")} agotado${r.agotados === 1 ? "" : "s"} en tienda.`]);
