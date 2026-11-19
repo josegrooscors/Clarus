@@ -109,7 +109,7 @@ const DB = {
       sb.from("planograma_tiendas").select("planograma_id, cliente_id"),
       sb.from("tienda_muebles").select("cliente_id, orden, mueble, niveles, posiciones, celdas, por_nivel"),
       sb.from("v_ultima_auditoria").select("cliente_id, fecha, pct, nuestro, competencia"),
-      sb.from("visitas_justificadas").select("cliente_id, fecha, motivo, nota").eq("vendedor_id", this.user.id).gte("fecha", hoyISO()),
+      sb.from("visitas_justificadas").select("cliente_id, fecha, motivo, nota, foto_path").eq("vendedor_id", this.user.id).gte("fecha", hoyISO()),
       sb.from("familias_producto").select("id, nombre").eq("activo", true).order("nombre"),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence"),
       sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mesActual(), 4)[0] }), // venta facturada y merma por tienda: mes en curso y los 3 anteriores
@@ -121,7 +121,7 @@ const DB = {
     LS.set("cat", out);
     if (!vj.error) { // justificaciones: manda el servidor, salvo lo que aún está en cola en este teléfono
       const loc = LS.get("just", {}), nuevo = {};
-      vj.data.forEach((x) => (nuevo[x.fecha + "|" + x.cliente_id] = { motivo: x.motivo, nota: x.nota || "" }));
+      vj.data.forEach((x) => (nuevo[x.fecha + "|" + x.cliente_id] = { motivo: x.motivo, nota: x.nota || "", ...(x.foto_path ? { foto: true } : {}) }));
       Object.entries(loc).forEach(([k, x]) => { if (x.p) nuevo[k] = x; else if (x.t && Date.now() - x.t < 3 * 60 * 1000 && !nuevo[k]) nuevo[k] = x; }); // recién guardadas: se conservan aunque esta consulta haya salido antes de que llegaran al servidor
       LS.set("just", nuevo);
     }
@@ -219,7 +219,11 @@ const DB = {
         return;
       }
       case "no_visita": {
-        ok(await sb.from("visitas_justificadas").upsert(op.rows.map((x) => ({ vendedor_id: this.user.id, cliente_id: x.cliente_id, fecha: x.fecha, motivo: op.motivo, nota: op.nota || null })), { onConflict: "vendedor_id,cliente_id,fecha" }));
+        // «Tienda cerrada»: primero sube la foto de la tienda; la justificación se guarda con ella (sin foto no justifica)
+        let ft = {};
+        if (op.foto) { const path = await this.subir("fotos", op.foto.blob, "cerrada", "jpg", "image/jpeg"); ft = { foto_path: path, foto_at: op.foto.at, lat: op.foto.lat, lng: op.foto.lng, dist_m: op.foto.dist, dentro: op.foto.dentro }; }
+        ok(await sb.from("visitas_justificadas").upsert(op.rows.map((x) => ({ vendedor_id: this.user.id, cliente_id: x.cliente_id, fecha: x.fecha, motivo: op.motivo, nota: op.nota || null, ...ft })), { onConflict: "vendedor_id,cliente_id,fecha" }));
+        if (op.foto) await IDB.delBlob(op.foto.blob);
         const j = LS.get("just", {}); op.rows.forEach((x) => { const k = x.fecha + "|" + x.cliente_id; if (j[k]?.p === 1) { delete j[k].p; j[k].t = Date.now(); } }); LS.set("just", j);
         return;
       }

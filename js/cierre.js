@@ -1,4 +1,17 @@
 // Cierre del día de una vendedora: la tarjeta que abre el aviso «Yerenis cerró su día». También se abre desde el Resumen.
+// Fase del día: mientras la jornada corre, lo que falta es trabajo en curso («En tienda», «Por visitar»), no una falta.
+// Se vuelve falta cuando la jornada terminó: 8 horas desde la primera entrada (4:00 p. m. si nunca entró) o las 6:00 p. m., y siempre en días anteriores.
+const JORNADA = {
+  CORTE: 18 * 60, SIN_ENTRADA: 16 * 60,
+  min(t) { const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(t ? new Date(t) : new Date()); return (Number(p.find((x) => x.type === "hour").value) % 24) * 60 + Number(p.find((x) => x.type === "minute").value); },
+  tarde(fecha) { return fecha < hoyISO() || (fecha === hoyISO() && JORNADA.min() >= JORNADA.CORTE); },
+  // ¿Ya terminó la jornada de esa vendedora ese día? Con una visita abierta sigue trabajando hasta el corte de las 6.
+  fin(fecha, primera, abierta) {
+    if (fecha < hoyISO()) return true; if (fecha > hoyISO()) return false;
+    const m = JORNADA.min(); if (m >= JORNADA.CORTE) return true; if (abierta) return false;
+    return m >= (primera ? JORNADA.min(primera) + 480 : JORNADA.SIN_ENTRADA);
+  },
+};
 const CIERRE = {
   async datos(vid, fecha) {
     const { data, error } = await sb.rpc("cierre_dia", { p_vendedor: vid, p_fecha: fecha || null });
@@ -11,10 +24,25 @@ const CIERRE = {
     if (r.pendientes === 0 && r.en_curso === 0 && r.abiertas === 0) return r.hechas ? ["menta", "Día cerrado"] : ["gris", "Día justificado"];
     return r.fecha < hoyISO() ? ["rosa", "Día sin cerrar"] : ["azul", "En ruta"];
   },
+  fin(r) { return JORNADA.fin(r.fecha, r.primera, r.abiertas > 0 || r.en_curso > 0); },
+  // Lo que está en curso (no es falta): dónde está y cuántas tiendas le quedan.
+  curso(r) {
+    const o = [];
+    if (r.abiertas && !JORNADA.tarde(r.fecha)) r.visitas.filter((v) => !v.salida).forEach((v) => o.push(`${v.tienda}: en tienda desde las ${fmtHora(v.entrada)}`));
+    const pv = CIERRE.fin(r) ? 0 : r.tiendas.filter((t) => t.estado === "pendiente").length;
+    if (pv) o.push(`${plur(pv, "tienda")} por visitar.`);
+    return o;
+  },
+  est(r) { return { hecha: ["p-menta", "Visitada"], en_curso: JORNADA.tarde(r.fecha) ? ["p-rosa", "Sin cerrar"] : ["p-azul", "En tienda"], justificada: ["p-gris", "Justificada"], pendiente: CIERRE.fin(r) ? ["p-rosa", "No visitada"] : ["p-gris", "Por visitar"] }; },
   areas(r) {
     const o = [];
-    r.tiendas.filter((t) => t.estado === "pendiente").forEach((t) => o.push(["rosa", `No visitó ${t.nombre}.`]));
-    if (r.abiertas) o.push(["rosa", `${plur(r.abiertas, "visita")} sin check-out.`]);
+    if (CIERRE.fin(r)) r.tiendas.filter((t) => t.estado === "pendiente").forEach((t) => o.push(["rosa", `No visitó ${t.nombre}.`]));
+    if (r.abiertas && JORNADA.tarde(r.fecha)) o.push(["rosa", `${plur(r.abiertas, "visita")} sin cerrar.`]);
+    // Jornada de la empresa: entrada a más tardar a las 8:00 a. m. y 8 horas desde la entrada (quien entra a las 7 sale a las 3). La salida solo se evalúa con el día terminado.
+    const minPa = (t) => { const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date(t)); return (Number(p.find((x) => x.type === "hour").value) % 24) * 60 + Number(p.find((x) => x.type === "minute").value); };
+    if (r.primera && minPa(r.primera) > 480) o.push([minPa(r.primera) > 510 ? "rosa" : "durazno", `Primera entrada a las ${fmtHora(r.primera)}: la entrada es a más tardar a las 8:00 a. m.`]);
+    const jor = r.primera && r.ultima ? Math.round((new Date(r.ultima) - new Date(r.primera)) / 60000) : null;
+    if (jor != null && r.hechas && (r.fecha < hoyISO() || (r.pendientes === 0 && r.en_curso === 0)) && jor < 480) o.push([jor < 450 ? "rosa" : "durazno", `Jornada de ${FICHA.dur(jor)} (de ${fmtHora(r.primera)} a ${fmtHora(r.ultima)}): son 8 horas desde la entrada.`]);
     if (r.fuera_radio) o.push(["rosa", `${plur(r.fuera_radio, "visita")} marcada${r.fuera_radio === 1 ? "" : "s"} fuera del radio de la tienda.`]);
     if (r.cortas) o.push(["durazno", `${plur(r.cortas, "visita")} de menos de 10 minutos.`]);
     if (r.agotados) o.push(["durazno", `${plur(r.agotados, "producto")} agotado${r.agotados === 1 ? "" : "s"} en tienda.`]);
@@ -25,13 +53,14 @@ const CIERRE = {
   html(r) {
     const [tono, txt] = CIERRE.estado(r), op = CIERRE.areas(r), pc = CIERRE.pct(r);
     const fecha = new Date(r.fecha + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
-    const est = { hecha: ["p-menta", "Visitada"], en_curso: ["p-azul", "En tienda"], justificada: ["p-gris", "Justificada"], pendiente: ["p-rosa", "Sin visitar"] };
+    const est = CIERRE.est(r), cur = CIERRE.curso(r);
     const sec = (t, cuerpo, n = "") => `<section class="fv-sec"><h3>${t}${n !== "" ? ` <span class="muted">· ${n}</span>` : ""}</h3>${cuerpo}</section>`;
     return `<div class="fv-cab"><div class="grow"><div class="muted small">Cierre del día · ${esc(fecha)}</div><h2>${esc(r.vendedor)}</h2></div><button class="btn sm fv-comp" data-compartir disabled>${ic("compartir", 16)}<span>Preparando…</span></button><button class="x-btn" data-cerrar aria-label="Cerrar">✕</button></div>
       <div class="item-pie" style="margin:0 0 14px"><span class="pill p-${tono}">${esc(txt)}</span>${pc != null ? `<span class="pill ${colorPct(pc)}">${pc}% de la ruta</span>` : ""}${r.pedidos ? `<span class="pill p-menta">${plur(r.pedidos, "pedido")} · ${fmtKg(r.kg)}</span>` : ""}</div>
       <div class="fv-kpis"><div><b>${r.hechas} de ${r.agendadas}</b><span>Visitas agendadas</span></div><div><b>${r.primera ? fmtHora(r.primera) : "–"}</b><span>Primera entrada</span></div><div><b>${r.ultima ? fmtHora(r.ultima) : "–"}</b><span>Última salida</span></div></div>
       <div class="fv-kpis"><div><b>${r.min_prom != null ? FICHA.dur(r.min_prom) : "–"}</b><span>Promedio por tienda</span></div><div><b>${r.justificadas}</b><span>Justificadas</span></div><div><b>${r.fuera_agenda}</b><span>Fuera de agenda</span></div></div>
-      ${op.length ? sec("Áreas de oportunidad", `<div class="fv-op">${op.map(([c, t]) => `<div class="fv-o ${c}">${ic("alerta", 16)}<span>${esc(t)}</span></div>`).join("")}</div>`, op.length) : r.agendadas ? `<div class="fv-o menta" style="margin:16px 0">${ic("ok", 16)}<span>Día completo, sin observaciones.</span></div>` : ""}
+      ${cur.length ? sec("En proceso", `<div class="fv-op">${cur.map((t) => `<div class="fv-o azul">${ic("reloj", 16)}<span>${esc(t)}</span></div>`).join("")}</div>`) : ""}
+      ${op.length ? sec("Áreas de oportunidad", `<div class="fv-op">${op.map(([c, t]) => `<div class="fv-o ${c}">${ic("alerta", 16)}<span>${esc(t)}</span></div>`).join("")}</div>`, op.length) : r.agendadas && !cur.length ? `<div class="fv-o menta" style="margin:16px 0">${ic("ok", 16)}<span>Día completo, sin observaciones.</span></div>` : ""}
       ${sec("Visitas del día", r.visitas.length ? `<p class="tiny muted" style="margin:0 0 6px">Toca una tienda para ver su ficha: fotos, entrada y salida, inventario y pedido.</p><table class="fv-t cd-vis"><tr><th>Tienda</th><th>Horario</th><th>Tiempo</th></tr>${r.visitas.map((v) => `<tr class="fv-link" data-fv="${v.id}" role="button" tabindex="0"><td>${esc(v.tienda)}<div class="tiny" style="color:var(--azul)">Ver ficha ›</div>${v.agendada ? "" : `<div class="tiny muted">Fuera de agenda</div>`}</td><td>${fmtHora(v.entrada)}<br>${v.salida ? fmtHora(v.salida) : "en tienda"}${v.dentro ? "" : `<div class="tiny" style="color:var(--rosa-t)">Fuera del radio</div>`}</td><td>${v.min != null ? FICHA.dur(v.min) : "En curso"}</td></tr>`).join("")}</table>` : `<p class="muted small">No registró visitas.</p>`, r.visitas.length)}
       ${sec("Tiendas agendadas", r.tiendas.length ? `<table class="fv-t"><tr><th>Tienda</th><th>Estado</th></tr>${r.tiendas.map((t) => { const vz = r.visitas.find((v) => v.tienda === t.nombre); return `<tr ${vz ? `class="fv-link" data-fv="${vz.id}" role="button" tabindex="0"` : ""}><td>${esc(t.nombre)}</td><td><span class="pill ${est[t.estado][0]}">${est[t.estado][1]}</span>${t.estado === "justificada" && t.motivo ? `<div class="tiny muted">${esc(motivoNoVisita(t.motivo))}</div>` : ""}</td></tr>`; }).join("")}</table>` : `<p class="muted small">No tenía tiendas agendadas.</p>`, r.tiendas.length)}`;
   },
@@ -97,7 +126,7 @@ const CIERRE = {
       filas.forEach((f) => { f.forEach((t, i) => { F(i === 0 ? 600 : 400, 24); x.fillStyle = TI; let s = String(t); const max = (AN - 40) * anchos[i] - 16; while (x.measureText(s).width > max && s.length > 4) s = s.slice(0, -2); x.fillText(s === String(t) ? s : s + "…", X[i], y + 8); }); y += 46; x.fillStyle = BD; x.fillRect(M, y - 2, AN, 1.5); });
       y += 30;
     };
-    const est = { hecha: "Visitada", en_curso: "En tienda", justificada: "Justificada", pendiente: "Sin visitar" };
+    const est = Object.fromEntries(Object.entries(CIERRE.est(r)).map(([k, v]) => [k, v[1]]));
     if (r.tiendas.length) { titulo(`Tiendas agendadas · ${r.tiendas.length}`); tabla(["Tienda", "Estado"], r.tiendas.map((t) => [t.nombre, est[t.estado] + (t.estado === "justificada" && t.motivo ? ": " + motivoNoVisita(t.motivo) : "")]), [0.56, 0.44]); }
     if (r.visitas.length) { titulo(`Visitas del día · ${r.visitas.length}`); tabla(["Tienda", "Horario", "Tiempo"], r.visitas.map((v) => [v.tienda, `${fmtHora(v.entrada)}–${v.salida ? fmtHora(v.salida) : "…"}`, (v.min != null ? FICHA.dur(v.min) : "En curso") + (v.dentro ? "" : " · fuera del radio")]), [0.36, 0.34, 0.3]); }
     x.fillStyle = BD; x.fillRect(M, y, AN, 1.5); y += 22;

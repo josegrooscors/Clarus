@@ -621,6 +621,7 @@ details.acord>summary .grow{flex:1;min-width:0}
 .fv-o.rosa{background:var(--rosa);color:var(--rosa-t)}
 .fv-o.durazno{background:#FDEBCB;color:var(--durazno-t)}
 .fv-o.menta{background:var(--menta);color:var(--menta-t)}
+.fv-o.azul{background:var(--azul-cl);color:var(--azul-osc)}
 .fv-g{margin-bottom:10px}
 .fv-fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:6px}
 .fv-f{aspect-ratio:1;border:0;padding:0;border-radius:12px;overflow:hidden;background:#EEF1F5;cursor:zoom-in;display:grid;place-items:center;font-size:12px;color:var(--gris)}
@@ -796,6 +797,10 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .inv-f.met-v .barra{margin-top:6px}
 .inv-f.met-v .barra i.medio{background:#B7791F}.inv-f.met-v .barra i.bajo{background:#B3261E}.inv-f.met-v .barra i.ok{background:#0F7A4F}
 .inv-f.met-v .inv-v small{color:var(--azul)}
+
+/* Tienda cerrada: foto obligatoria */
+.nov-foto{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border:1px solid var(--azul-med);background:var(--azul-cl);border-radius:12px}
+.nov-foto img{width:72px;height:72px;object-fit:cover;border-radius:10px;flex:none}
 
 /* Equipo hoy: el panel muestra quién está en campo, dónde y cuánto lleva */
 .eqh-ch{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}

@@ -826,7 +826,8 @@ const V = {
   },
   // Justificar una tienda programada que no se va a visitar (queda registrado para gerencia y no baja el cumplimiento)
   noVisita(c, dSel, pendientes, actual, alTerminar) {
-    let sel = actual?.motivo || "", todas = false;
+    let sel = actual?.motivo || "", todas = false, foto = null; // foto = { key, thumb, at, lat, lng, dist, dentro } de la tienda cerrada
+    const esHoyNV = dSel.iso === hoyISO();
     const otras = pendientes.filter((x) => x.id !== c.id);
     const cuando = dSel.etiqueta === "Hoy" ? "hoy" : dSel.etiqueta === "Mañana" ? "mañana" : "el " + dSel.etiqueta;
     modal("", (m, close) => {
@@ -836,9 +837,21 @@ const V = {
           <p class="muted small" style="margin:0 0 12px"><b>${esc(c.nombre)}</b> · ${esc(cuando)}. El motivo le queda registrado a tu supervisor y esta tienda no cuenta en tu cumplimiento de ruta.</p>
           <div class="list">${MOTIVOS_NO_VISITA.map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
           <label class="f">${sel === "otro" ? "Escribe el motivo" : 'Comentario <span class="tiny muted">(opcional)</span>'}</label><input class="in" id="novn" maxlength="140" value="${esc(nota)}" placeholder="${sel === "tienda_cerrada" ? "Ej.: cerrada por inventario" : sel === "reunion_oficina" ? "Ej.: reunión con gerencia a las 2 p. m." : "Ej.: vía cerrada por protesta"}">
-          ${!actual && otras.length ? `<div class="check ${todas ? "on" : ""}" data-todas style="margin-top:10px"><div class="box">✓</div><div>Aplicar también a ${otras.length === 1 ? "la otra tienda" : "las otras " + otras.length + " tiendas"} sin visitar de ${esc(cuando)}</div></div>` : ""}
+          ${sel === "tienda_cerrada" ? (esHoyNV ? `<div class="nov-foto">${foto ? `<img src="${foto.thumb}" alt="Foto de la tienda cerrada"><div class="grow"><b>Foto tomada ✓</b><div class="tiny muted">${fmtHora(foto.at)}${foto.dist != null ? " · " + (foto.dentro ? "en la tienda" : "a " + fmtDist(foto.dist) + " de la tienda") : " · sin ubicación"}</div><a href="#" class="tiny" data-foto>Repetir foto</a></div>` : actual?.foto ? `<div class="grow"><b>Foto ya enviada ✓</b><div class="tiny muted">Puedes cambiar el comentario.</div></div>` : `<div class="grow"><b>Foto de la tienda cerrada</b><div class="tiny muted">Obligatoria. Sin la foto, la tienda queda como no visitada.</div></div><button type="button" class="btn sm" data-foto>${ic("camara", 16)} Tomar foto</button>`}</div>`
+            : `<div class="nov-foto"><div class="grow"><b>Solo el mismo día y en la tienda</b><div class="tiny muted">«Tienda cerrada» pide una foto de la tienda, así que se marca al llegar y encontrarla cerrada.</div></div></div>`) : ""}
+          ${!actual && otras.length && sel !== "tienda_cerrada" ? `<div class="check ${todas ? "on" : ""}" data-todas style="margin-top:10px"><div class="box">✓</div><div>Aplicar también a ${otras.length === 1 ? "la otra tienda" : "las otras " + otras.length + " tiendas"} sin visitar de ${esc(cuando)}</div></div>` : ""}
           <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>${actual ? "Quitar justificación" : "Cancelar"}</button><button class="btn sp" data-ok>Guardar</button></div>`;
         $$("[data-mot]", sheet).forEach((el) => (el.onclick = () => { sel = el.dataset.mot; pintar($("#novn", sheet).value); }));
+        const bf = $("[data-foto]", sheet);
+        if (bf) bf.onclick = async (e) => {
+          e.preventDefault(); const nt = $("#novn", sheet).value;
+          const r = await Camara.evidencia({ titulo: "Tienda cerrada", marca: c.nombre + " · cerrada" }); if (!r) return;
+          let pos = null; try { toast("Obteniendo ubicación…", 6000); pos = await ubicacion(); } catch {}
+          const dist = pos && c.lat != null ? Math.round(distanciaM(pos, { lat: c.lat, lng: c.lng })) : null;
+          const key = uid(); await IDB.putBlob(key, r.blob);
+          foto = { key, thumb: r.thumb, at: r.at, lat: pos?.lat ?? null, lng: pos?.lng ?? null, dist, dentro: dist == null ? null : dist <= (c.radio_m || 100) };
+          pintar(nt);
+        };
         const t = $("[data-todas]", sheet); if (t) t.onclick = () => { todas = !todas; pintar($("#novn", sheet).value); };
         $("[data-no]", sheet).onclick = async () => {
           if (actual) { const j = LS.get("just", {}); j[dSel.iso + "|" + c.id] = { ...actual, p: -1 }; LS.set("just", j); await DB.encolar({ t: "no_visita_quitar", cliente_id: c.id, fecha: dSel.iso }); toast("Justificación quitada: la tienda vuelve a tu ruta"); }
@@ -848,9 +861,11 @@ const V = {
           const nota = $("#novn", sheet).value.trim();
           if (!sel) return toast("Elige el motivo");
           if (sel === "otro" && !nota) return toast("Escribe el motivo");
-          const filas = (todas ? [c, ...otras] : [c]).map((x) => ({ cliente_id: x.id, fecha: dSel.iso }));
-          const j = LS.get("just", {}); filas.forEach((x) => (j[x.fecha + "|" + x.cliente_id] = { motivo: sel, nota, p: 1 })); LS.set("just", j);
-          await DB.encolar({ t: "no_visita", rows: filas, motivo: sel, nota });
+          if (sel === "tienda_cerrada" && !esHoyNV) return toast("«Tienda cerrada» se marca el mismo día, en la tienda", 4000);
+          if (sel === "tienda_cerrada" && !foto && !actual?.foto) return toast("Toma la foto de la tienda cerrada", 3500);
+          const filas = (todas && sel !== "tienda_cerrada" ? [c, ...otras] : [c]).map((x) => ({ cliente_id: x.id, fecha: dSel.iso }));
+          const j = LS.get("just", {}); filas.forEach((x) => (j[x.fecha + "|" + x.cliente_id] = { motivo: sel, nota, p: 1, ...(sel === "tienda_cerrada" ? { foto: true } : {}) })); LS.set("just", j);
+          await DB.encolar({ t: "no_visita", rows: filas, motivo: sel, nota, ...(sel === "tienda_cerrada" && foto ? { foto: { blob: foto.key, at: foto.at, lat: foto.lat, lng: foto.lng, dist: foto.dist, dentro: foto.dentro } } : {}) });
           close(); toast(filas.length === 1 ? "Justificada: " + motivoNoVisita(sel) : filas.length + " tiendas justificadas: " + motivoNoVisita(sel)); alTerminar();
         };
       };
