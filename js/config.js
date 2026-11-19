@@ -394,11 +394,14 @@ const C = {
     const pintar = async () => {
       if (!MSG.pushPosible()) { el.innerHTML = `<div class="cd-est mal">${ic("alerta", 16)}<span>Este navegador no admite avisos. En el teléfono, abre Clarus con Chrome e instálalo (⋮ › Instalar app).</span></div>`; return; }
       const perm = Notification.permission;
-      if (perm === "granted") await MSG.activarPush(false).catch(() => {});
-      const { data: subs } = await sb.from("push_suscripciones").select("agente").eq("user_id", DB.user.id);
+      const reg = perm === "granted" ? await MSG.activarPush(false).catch(() => "error") : "";
+      const { data: subs } = await sb.from("push_suscripciones").select("agente, endpoint").eq("user_id", DB.user.id);
+      const aqui = reg === "ok" && (subs || []).some((s) => s.endpoint === MSG.pushEndpoint); // comprobado en el servidor, no solo el permiso del navegador
       const tel = (subs || []).filter((s) => esTel(s.agente)).length, pc = (subs || []).length - tel;
       const mios = `Tus dispositivos registrados: ${plur(tel, "teléfono")} y ${plur(pc, "computadora")}.`;
-      el.innerHTML = perm === "granted"
+      el.innerHTML = perm === "granted" && !aqui
+        ? `<div class="cd-est mal">${ic("alerta", 16)}<span><b>Este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"} dio permiso, pero no quedó registrado.</b> ${esc(MSG.pushError || "Revisa la conexión e inténtalo de nuevo.")} ${mios}</span></div><button type="button" class="btn sm" data-activar>Reintentar</button>`
+        : perm === "granted"
         ? `<div class="cd-est ok">${ic("ok", 16)}<span><b>Este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"} recibe los avisos.</b> ${mios}</span></div><button type="button" class="btn sm sec" data-probar>Enviarme un aviso de prueba</button>`
         : perm === "denied"
           ? `<div class="cd-est mal">${ic("alerta", 16)}<span><b>Los avisos están bloqueados en este ${esTel(navigator.userAgent) ? "teléfono" : "equipo"}.</b> Actívalos en Chrome: ⋮ › Configuración › Configuración de sitios › Notificaciones › Clarus › Permitir. ${mios}</span></div>`

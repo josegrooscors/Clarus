@@ -90,9 +90,12 @@ const MSG = {
       let sub = await reg.pushManager.getSubscription();
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: this.b64(this.VAPID) });
       const j = sub.toJSON();
-      await sb.from("push_suscripciones").upsert({ endpoint: j.endpoint, user_id: DB.user.id, p256dh: j.keys.p256dh, auth: j.keys.auth, agente: navigator.userAgent.slice(0, 200) });
+      // El registro es del dispositivo: quien tiene la sesión abierta pasa a recibir sus avisos (aunque antes haya entrado otra persona en este teléfono)
+      const r = await sb.rpc("registrar_push", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_agente: navigator.userAgent.slice(0, 200) });
+      if (r.error) { console.warn(r.error); this.pushError = r.error.message; return "error"; }
+      this.pushEndpoint = j.endpoint; this.pushError = null;
       return "ok";
-    } catch (e) { console.warn(e); return "error"; }
+    } catch (e) { console.warn(e); this.pushError = e.message || String(e); return "error"; }
   },
   b64(s) { const p = "=".repeat((4 - (s.length % 4)) % 4), r = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from([...r].map((c) => c.charCodeAt(0))); },
   bannerPush() {
