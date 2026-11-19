@@ -181,18 +181,54 @@ const C = {
 
   // ---------------- PRODUCTOS ----------------
   async productos(box) {
-    const [{ data, error }, fam, uni] = await Promise.all([sb.from("productos").select("*").order("nombre"),
-      sb.from("familias_producto").select("id, nombre, activo").order("nombre"), sb.from("unidades_medida").select("id, codigo, nombre, activo").order("nombre")]);
+    const [{ data, error }, fam, uni, sur, nTi] = await Promise.all([sb.from("productos").select("*").order("nombre"),
+      sb.from("familias_producto").select("id, nombre, activo").order("nombre"), sb.from("unidades_medida").select("id, codigo, nombre, activo").order("nombre"),
+      sb.from("asignacion_productos").select("producto_id").limit(20000), sb.from("clientes").select("id", { count: "exact", head: true }).eq("activo", true)]);
     if (error) throw error;
+    const enTiendas = {}; (sur.data || []).forEach((a) => (enTiendas[a.producto_id] = (enTiendas[a.producto_id] || 0) + 1));
     const cats = { familias: fam.data || [], unidades: uni.data || [] };
     box.innerHTML = `<div class="row" style="margin-bottom:10px"><span class="sp muted small">${data.filter((p) => p.activo).length} productos activos</span><button class="btn" data-nuevo>+ Nuevo producto</button></div>
       <div class="list">${data.map((p) => `<div class="item" data-p="${p.id}"><div class="ava">${ic("caja", 20)}</div>
         <div class="grow"><div class="t">${esc(p.nombre)}</div><div class="small muted">${esc([p.sku && "SKU " + p.sku, cats.familias.find((f) => f.id === p.familia_id)?.nombre, p.categoria, cats.unidades.find((u) => u.id === p.unidad_id)?.nombre].filter(Boolean).join(" · "))}</div>
         <div class="tiny muted">${fmtNum(p.peso_kg_unidad, 2)} kg por ${esc(p.unidad_conteo)} · ${p.kg_por_pedido != null ? fmtNum(p.kg_por_pedido, 2) + " kg por " + esc(p.unidad_pedido) : fmtNum(p.unidades_por_pedido, 0) + " por " + esc(p.unidad_pedido)}${p.precio_kg != null ? " · $" + fmtNum(p.precio_kg, 2) + "/kg" : ""}</div></div>
+        <div class="tiny" style="margin-top:2px;color:${enTiendas[p.id] ? "var(--gris)" : "var(--rosa-t)"}">${enTiendas[p.id] ? `Se vende en ${plur(enTiendas[p.id], "tienda")}${nTi.count ? " de " + nTi.count : ""}` : "Todavía no está en ninguna tienda: nadie lo verá en la visita"}${p.controla_vencimiento ? " · controla vencimiento" : ""}</div></div>
         ${p.activo ? "" : `<span class="pill p-gris">Inactivo</span>`}</div>`).join("") || `<div class="empty card flat">Aún no hay productos.</div>`}</div>`;
     const abrir = (p) => this.producto(p, () => this.productos(box), cats);
     $("[data-nuevo]", box).onclick = () => abrir(null);
     $$("[data-p]", box).forEach((el) => (el.onclick = () => abrir(data.find((p) => p.id == el.dataset.p))));
+  },
+
+  // Surtido: en qué tiendas se vende un producto (solo esas lo muestran en inventario y pedido)
+  async surtido(p, recargar, nuevo = false) {
+    const m = modal(`<div class="muted" style="padding:24px 0;text-align:center">Cargando tiendas…</div>`), sheet = $(".sheet", m);
+    const [ti, ap] = await Promise.all([sb.from("clientes").select("id, nombre, cadena, codigo").eq("activo", true).order("nombre"), sb.from("asignacion_productos").select("cliente_id").eq("producto_id", p.id)]);
+    if (ti.error || ap.error) { sheet.innerHTML = `<p class="muted">${esc((ti.error || ap.error).message)}</p>`; return; }
+    const antes = new Set(ap.data.map((a) => a.cliente_id)), sel = new Set(antes), cadenas = [...new Set(ti.data.map((t) => t.cadena || "Sin cadena"))].sort();
+    let q = "", cad = "";
+    const visibles = () => ti.data.filter((t) => (!cad || (t.cadena || "Sin cadena") === cad) && (!q || sinAcentos(t.nombre + " " + (t.codigo || "")).includes(q)));
+    sheet.innerHTML = `<h2 style="margin-bottom:2px">Tiendas donde se vende</h2><p class="muted small" style="margin:0 0 10px"><b>${esc(p.nombre)}.</b> ${nuevo ? "Elige las tiendas que lo manejan. " : ""}Solo estas tiendas lo muestran en inventario y pedido.</p>
+      <div class="grid2c"><select class="in" id="sc"><option value="">Todas las cadenas</option>${cadenas.map((c) => `<option>${esc(c)}</option>`).join("")}</select><input class="in" id="sq" placeholder="Buscar tienda…"></div>
+      <div class="row" style="gap:8px;margin:10px 0"><button type="button" class="btn sm sec sp" data-todas>Marcar las que ves</button><button type="button" class="btn sm sec sp" data-ninguna>Quitar las que ves</button></div>
+      <div class="list" id="sl" style="max-height:44vh;overflow:auto"></div>
+      <div class="row" style="margin-top:14px"><button class="btn sec sp" data-no>${nuevo ? "Después" : "Cancelar"}</button><button class="btn sp" data-ok></button></div>`;
+    const pintar = () => {
+      const v = visibles();
+      $("#sl", sheet).innerHTML = v.map((t) => `<div class="check ${sel.has(t.id) ? "on" : ""}" data-t="${t.id}"><div class="box">✓</div><div class="grow"><div>${esc(t.nombre)}</div><div class="tiny muted">${esc(t.cadena || "")}</div></div></div>`).join("") || `<div class="muted small">Sin resultados</div>`;
+      $("[data-ok]", sheet).textContent = `Guardar · ${sel.size} de ${ti.data.length}`;
+    };
+    $("#sl", sheet).onclick = (e) => { const el = e.target.closest("[data-t]"); if (!el) return; const id = Number(el.dataset.t); sel.has(id) ? sel.delete(id) : sel.add(id); el.classList.toggle("on", sel.has(id)); $("[data-ok]", sheet).textContent = `Guardar · ${sel.size} de ${ti.data.length}`; };
+    $("#sc", sheet).onchange = (e) => { cad = e.target.value; pintar(); };
+    $("#sq", sheet).oninput = (e) => { q = sinAcentos(e.target.value.trim()); pintar(); };
+    $("[data-todas]", sheet).onclick = () => { visibles().forEach((t) => sel.add(t.id)); pintar(); };
+    $("[data-ninguna]", sheet).onclick = () => { visibles().forEach((t) => sel.delete(t.id)); pintar(); };
+    $("[data-no]", sheet).onclick = () => m.remove();
+    $("[data-ok]", sheet).onclick = async () => {
+      const agregar = [...sel].filter((id) => !antes.has(id)), quitar = [...antes].filter((id) => !sel.has(id));
+      if (agregar.length) { const r = await sb.from("asignacion_productos").insert(agregar.map((id) => ({ cliente_id: id, producto_id: p.id }))); if (r.error) return toast(r.error.message, 4500); }
+      if (quitar.length) { const r = await sb.from("asignacion_productos").delete().eq("producto_id", p.id).in("cliente_id", quitar); if (r.error) return toast(r.error.message, 4500); }
+      m.remove(); toast(`${p.nombre}: se vende en ${plur(sel.size, "tienda")}`); DB.catalogos(true).catch(() => {}); recargar();
+    };
+    pintar();
   },
 
   producto(p, recargar, { familias = [], unidades = [] } = {}) {
@@ -211,7 +247,9 @@ const C = {
         <div><label class="f">Estado</label><select class="in" name="activo"><option value="1">Activo</option><option value="0" ${p.activo ? "" : "selected"}>Inactivo</option></select></div></div>
       <div class="grid2c"><div><label class="f">Fecha de vencimiento</label><select class="in" name="venc"><option value="0">No se controla</option><option value="1" ${p.controla_vencimiento ? "selected" : ""}>Se revisa en cada visita</option></select></div>
         <div><label class="f">Avisar cuando falten (días)</label><input class="in" name="vdias" type="number" inputmode="numeric" min="1" max="365" value="${p.dias_alerta_vencimiento ?? 15}"></div></div>
-      <button class="btn block" style="margin-top:20px" data-ok>${p.id ? "Guardar cambios" : "Crear producto"}</button>`, (m, close) => {
+      ${p.id ? `<button type="button" class="btn sec block" style="margin-top:16px" data-tiendas>Tiendas donde se vende</button>` : `<p class="tiny muted" style="margin:14px 0 0">Al crearlo te pregunto en qué tiendas se vende. Un producto solo aparece en la visita de las tiendas que lo tienen en su surtido.</p>`}
+      <button class="btn block" style="margin-top:${p.id ? 10 : 12}px" data-ok>${p.id ? "Guardar cambios" : "Crear producto"}</button>`, (m, close) => {
+      const bt = $("[data-tiendas]", m); if (bt) bt.onclick = () => { close(); this.surtido(p, recargar); };
       $("[data-ok]", m).onclick = async () => {
         const f = (n) => $(`[name=${n}]`, m).value.trim(), num = (n) => (f(n) === "" ? null : Number(f(n)));
         if (!f("nombre")) return toast("Falta el nombre");
@@ -221,9 +259,10 @@ const C = {
           peso_kg_unidad: num("peso"), unidad_pedido: f("unidad_pedido") || "caja", kg_por_pedido: kgc,
           unidades_por_pedido: kgc ? Math.round((kgc / num("peso")) * 100) / 100 : p.unidades_por_pedido || 1, precio_kg: num("precio"), activo: f("activo") === "1",
           controla_vencimiento: f("venc") === "1", dias_alerta_vencimiento: Math.min(365, Math.max(1, Math.round(num("vdias") || 15))) };
-        const r = p.id ? await sb.from("productos").update(datos).eq("id", p.id) : await sb.from("productos").insert(datos);
+        const r = p.id ? await sb.from("productos").update(datos).eq("id", p.id) : await sb.from("productos").insert(datos).select("id, nombre").single();
         if (r.error) return toast(r.error.code === "23505" ? "Ya existe un producto con ese SKU" : r.error.message, 4500);
         close(); toast(p.id ? "Producto actualizado ✓" : "Producto creado ✓"); DB.catalogos(true).catch(() => {}); recargar();
+        if (!p.id && r.data) this.surtido(r.data, recargar, true);
       };
     });
   },
