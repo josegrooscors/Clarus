@@ -437,7 +437,7 @@ const V = {
         <div class="inv ${v.agot?.[p.id] ? "agotado" : ""}" data-p="${p.id}" data-fam="${famDe[p.id]}"><div class="row"><div class="grow"><div class="nm">${esc(p.nombre)}</div>
           <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div>
           <button type="button" class="agot ${v.agot?.[p.id] ? "on" : ""}" data-agot="${p.id}">${v.agot?.[p.id] ? "✕ Agotado" : "Agotado"}</button></div>
-          <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(p.unidad_conteo)}s)</div>
+          <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(plural(2, p.unidad_conteo))})</div>
             <div class="stepper"><button data-m="${u}">−</button><input inputmode="decimal" data-u="${u}" value="${val(p.id, u)}" placeholder="0"><button data-s="${u}">+</button></div></div>`).join("")}</div>
           <div class="kg"></div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
       <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total contado</span><b id="totkg"></b></div></div>
@@ -448,7 +448,7 @@ const V = {
         const p = prods.find((x) => x.id == el.dataset.p);
         const b = parseFloat($("[data-u=bodega]", el).value) || 0, e = parseFloat($("[data-u=exhibicion]", el).value) || 0;
         const kg = (b + e) * Number(p.peso_kg_unidad); tot += kg;
-        $(".kg", el).innerHTML = v.agot?.[p.id] ? `<b style="color:var(--rosa-t)">Producto agotado en la tienda</b>` : b + e ? `${fmtNum(b + e)} ${esc(p.unidad_conteo)}s = <b>${fmtNum(kg, 2)} kg</b>` : "";
+        $(".kg", el).innerHTML = v.agot?.[p.id] ? `<b style="color:var(--rosa-t)">Producto agotado en la tienda</b>` : b + e ? `${fmtNum(b + e)} ${esc(plural(b + e, p.unidad_conteo))} = <b>${fmtNum(kg, 2)} kg</b>` : "";
       });
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
@@ -598,7 +598,7 @@ const V = {
       <div class="card" style="border-color:var(--azul-med)"><div class="row"><span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><h3>Orden de compra de la tienda</h3>
         <div class="small muted">${v.pedido.orden ? `Escaneada ✓ · ${plur(v.pedido.orden.paginas, "página")} · ${fmtHora(v.pedido.orden.at)}` : "Escanea la hoja física que te entrega la tienda. En la oficina la descargan e imprimen."}</div></div></div>
         <button class="btn ${v.pedido.orden ? "ghost" : ""} block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${v.pedido.orden ? "Volver a escanear" : "Escanear orden de compra"}</button></div>
-        <button class="btn sec block" data-ok>Seguir</button>`;
+        <button class="btn block" data-ok>Seguir</button>`;
       $("[data-scan]", box).onclick = async () => {
         const r = await V.escanearOrden({ plid: v.pedido.plid });
         if (r) { v.pedido.orden = r; Visita.set(v); this.pPedido(box, v, cat, siguiente); }
