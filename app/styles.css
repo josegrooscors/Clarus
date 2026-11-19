@@ -769,3 +769,9 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .fv-t.cd-vis th:nth-child(2),.fv-t.cd-vis td:nth-child(2){width:33%}
 .fv-t.cd-vis td{height:auto;padding-top:10px;padding-bottom:10px}
 .fv-t.cd-vis td:not(:first-child){white-space:normal}
+
+/* Vistas del Resumen: la elegida no lleva marco blanco; se pone azul y crece un poco */
+.rtabs{display:flex;gap:0;padding:4px 6px}
+.rtabs button{flex:1 1 auto;transition:transform .18s ease,color .18s ease;transform-origin:center}
+.rtabs button.on{background:none;box-shadow:none;color:var(--azul);font-weight:700;transform:scale(1.16)}
+@media(prefers-reduced-motion:reduce){.rtabs button{transition:none}}

@@ -377,7 +377,7 @@ const R = {
     el.innerHTML = `<div class="tiny muted" style="padding:2px 0 6px;text-transform:capitalize">${esc(tit)}</div>` + (filas.map((x) => x.html).join("") || `<div class="small muted" style="padding:10px 0">Ese día ninguna vendedora tenía tiendas agendadas ni registró visitas.</div>`);
   },
 
-  // El Resumen se ve por vistas: Equipo · Vendedora · Inventario · Ventas · Merma. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
+  // El Resumen se ve por vistas: Equipo · Vendedora · Inventario · Merma · Ventas. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
   pestanas(root) {
     const rv = $("#rv", root); if (!rv || $("#rtabs", root)) return;
     const grupo = (t) => /pedidos y objetivo/i.test(t) ? "ventas" : /alertas|por vencer|participaci/i.test(t) ? "inventario" : "equipo";
@@ -390,7 +390,7 @@ const R = {
       else if (g === "inventario" && el.matches(".card") && !el.previousElementSibling?.matches("h3.sec-t") && el.previousElementSibling === rv) hayAlerta = true;
       el.dataset.rt = g;
     }
-    const tabs = [["equipo", "Equipo"], ["vendedora", "Vendedora"], ["inventario", "Inventario"], ["ventas", "Ventas"], ["merma", "Merma"]];
+    const tabs = [["equipo", "Equipo"], ["vendedora", "Vendedora"], ["inventario", "Inventario"], ["merma", "Merma"], ["ventas", "Ventas"]];
     let act = LS.get("res.tab", "equipo"); if (!tabs.some((t) => t[0] === act)) act = "equipo";
     rv.insertAdjacentHTML("afterend", `<div class="rtabs" id="rtabs">${tabs.map(([k, t]) => `<button data-rt-b="${k}">${t}${k === "inventario" && hayAlerta ? `<i class="dot-n"></i>` : ""}</button>`).join("")}</div>`);
     const ver = (k) => { LS.set("res.tab", k); $$("[data-rt]", root).forEach((el) => (el.hidden = el.dataset.rt !== k)); $$("[data-rt-b]", root).forEach((b) => b.classList.toggle("on", b.dataset.rtB === k)); LIM5.aplicar(); };
