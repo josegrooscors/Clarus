@@ -116,6 +116,7 @@ const App = {
     if (!root._obsLogo) { root._obsLogo = new MutationObserver(() => App.logoCliente(root)); root._obsLogo.observe(root, { childList: true }); }
     MSG.revisar();
     SOP.revisar();
+    PEDN.revisar();
     App.conectarAvisos();
   },
 

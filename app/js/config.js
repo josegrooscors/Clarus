@@ -10,6 +10,7 @@ const PERMISOS_TXT = {
   ver_pedidos: ["Ver Pedidos", "Pedidos de las vendedoras y su estado"],
   ver_mapa: ["Ver Mapa", "Tiendas en el mapa"],
   ver_dinero: ["Ver montos en dólares", "Objetivos y ventas en dólares. Sin este permiso se ven solo en kilos"],
+  aviso_pedido: ["Recibir cada pedido nuevo", "Le llega un aviso al teléfono cada vez que una vendedora envía un pedido, y ve en el menú cuántos pedidos faltan por procesar"],
   aviso_cierre: ["Recibir el cierre del día", "Le llega un aviso cuando cada vendedora termina su ruta (o a la hora de corte si no la terminó)"],
   avisar: ["Avisar y enviar comunicados", "Botón «Avisar» en las alertas y envío de comunicados al equipo"],
   pedidos_imprimir: ["Imprimir órdenes", "Imprimir la orden de compra de un pedido"],
@@ -21,7 +22,7 @@ const PERMISOS_TXT = {
   usuarios: ["Usuarios", "Crear usuarios, cambiar contraseñas y desactivar (no administradores)"],
 };
 const PERMISOS_GRUPOS = [["Ejecución en tienda", ["visitar", "ubicacion"]], ["Consulta", ["ver_resumen", "ver_equipo", "ver_agenda", "ver_metas", "ver_pedidos", "ver_mapa", "ver_dinero"]],
-  ["Acciones", ["aviso_cierre", "avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
+  ["Acciones", ["aviso_cierre", "aviso_pedido", "avisar", "pedidos_imprimir", "planogramas", "picking"]], ["Configuración", ["tiendas", "rutas", "productos", "usuarios"]]];
 
 // Convierte "9.02, -79.50" o un link de Google Maps con @lat,lng / q=lat,lng en coordenadas
 function leerCoordenadas(t) {

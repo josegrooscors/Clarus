@@ -236,3 +236,22 @@ const MSG = {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { MSG.revisar(); SOP.revisar(); } });
 setInterval(() => document.visibilityState === "visible" && MSG.revisar(), 5 * 60000);
 if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data?.tipo === "push") { MSG.revisar(); SOP.revisar(); } });
+
+// Pedidos por procesar: globo rojo con el número sobre «Pedidos» para gerencia y los roles con el permiso «aviso_pedido»
+// (son los pedidos que nadie ha marcado como impresos). El aviso al teléfono lo manda el servidor al crearse cada pedido.
+const PEDN = {
+  async revisar() {
+    if (!DB.user || !navigator.onLine || !DB.puede("aviso_pedido") || !$('a[href="#pedidos"]')) return;
+    const { count, error } = await sb.from("pedidos").select("id", { count: "exact", head: true }).in("estado", ["propuesto", "aprobado", "orden_escaneada"]).not("id_local", "like", "handy-%");
+    if (error) return;
+    this.n = count || 0;
+    const enBarra = !!$('.nav a[href="#pedidos"]');
+    $$(`a[href="#pedidos"] .ic${enBarra ? "" : ', .nav a[href="#yo"] .ic'}`).forEach((el) => {
+      el.querySelector(".badge-ic.ped")?.remove();
+      if (this.n) el.insertAdjacentHTML("beforeend", `<span class="badge-ic ped" aria-label="${this.n} pedidos por procesar">${this.n > 99 ? "99+" : this.n}</span>`);
+    });
+  },
+};
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") PEDN.revisar(); });
+setInterval(() => document.visibilityState === "visible" && PEDN.revisar(), 2 * 60000);
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data?.tipo === "push") PEDN.revisar(); });

@@ -30,8 +30,8 @@ const IDB = (() => {
 // Lo que cada rol puede hacer si la empresa no lo ha cambiado en Configuración → Permisos.
 const PERM_DEF = {
   supervisor: ["visitar", "ubicacion", "ver_resumen", "ver_equipo", "ver_agenda", "ver_pedidos", "ver_mapa", "avisar", "aviso_cierre"],
-  operaciones: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "avisar", "pedidos_imprimir"],
-  administracion: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "ver_dinero", "avisar"],
+  operaciones: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "avisar", "pedidos_imprimir", "aviso_pedido"],
+  administracion: ["picking", "ver_pedidos", "ver_resumen", "ver_metas", "ver_dinero", "avisar", "aviso_pedido"],
   vendedor: ["visitar", "ubicacion"],
 };
 const DB = {
