@@ -8,3 +8,7 @@
 -- Objetos: empresas.cierre_diario / cierre_hora_corte; permiso aviso_cierre; tabla cierres_dia (solo lectura para la app, RLS gestor o la propia vendedora);
 -- función public.cierre_dia(p_vendedor uuid, p_fecha date) → jsonb (security invoker: cada quien ve lo que la RLS le permite).
 -- Prueba sin efectos: POST a /functions/v1/avisos con el token del cron y {"cierre_prueba":{"vendedor":"…","fecha":"…","para":"…"}} manda el aviso a una sola persona y no guarda nada.
+-- 19-nov-2026 · registrar_push(endpoint, p256dh, auth, agente): el registro de avisos es del DISPOSITIVO.
+-- Antes la app hacía upsert directo: si otra persona había iniciado sesión antes en ese teléfono, la fila quedaba a su nombre,
+-- la RLS impedía tomarla (0 filas, sin error) y el nuevo usuario nunca recibía avisos en ese teléfono (le pasó a José: su teléfono
+-- estaba registrado a nombre de otra usuaria con la que probó). La función (security definer) reasigna el endpoint a quien tiene la sesión.
