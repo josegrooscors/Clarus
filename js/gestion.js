@@ -73,7 +73,7 @@ const G = {
           location.href = data.signedUrl;
         });
         $("[data-imp]", m) && ($("[data-imp]", m).onclick = async () => {
-          const { error } = await sb.from("pedidos").update({ estado: "impreso" }).eq("id", p.id);
+          const { error } = await sb.from("pedidos").update({ estado: "impreso" }).eq("id", p.id); PEDN.revisar();
           if (error) { toast(error.message, 4000); return; }
           toast("Marcado como impreso ✓"); close(); recargar();
         });
