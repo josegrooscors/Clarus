@@ -763,3 +763,9 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 .eq-otro.on input{opacity:1;position:static;background:none;font:600 13px var(--font);color:var(--azul-osc);text-align:center;padding:0 4px}
 .asi.toca{cursor:pointer}
 .asi.toca:hover{outline:2px solid var(--azul-med)}
+
+/* Cierre del día: la tabla de visitas no se monta (entrada y salida en dos líneas) */
+.fv-t.cd-vis th:first-child,.fv-t.cd-vis td:first-child{width:44%}
+.fv-t.cd-vis th:nth-child(2),.fv-t.cd-vis td:nth-child(2){width:33%}
+.fv-t.cd-vis td{height:auto;padding-top:10px;padding-bottom:10px}
+.fv-t.cd-vis td:not(:first-child){white-space:normal}
