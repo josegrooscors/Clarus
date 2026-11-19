@@ -146,6 +146,20 @@ const R = {
     const ordenEq = { falta: 0, espera: 1, ruta: 2, just: 3, cerro: 4 };
     equipo.sort((a, b) => ordenEq[a.est] - ordenEq[b.est] || a.u.nombre.localeCompare(b.u.nombre));
 
+    // ---------- Ejecución del equipo completo y de cada persona (misma fórmula que la hoja individual) ----------
+    const EJ = (() => {
+      const minDia = (iso) => JORNADA.min(iso), prom = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+      const de = (pg, vs) => { const dr = [...new Set(pg.map((x) => x.fecha))], dv = new Set(vs.map((v) => v.fecha)), ce = vs.filter((v) => v.checkout_at);
+        return { dias: dr.length, asis: dr.filter((d) => dv.has(d)).length, n: pg.length, ok: pg.filter((x) => x.hecha).length, cer: ce.length, fot: ce.filter((v) => Number(v.num_fotos) > 0).length, inv: ce.filter((v) => v.con_inventario).length, vis: vs.length }; };
+      const nota = (x) => { const ps = [pct(x.asis, x.dias), pct(x.ok, x.n), pct(x.fot, x.cer), pct(x.inv, x.cer)].filter((q) => q != null); return ps.length ? Math.round(prom(ps)) : null; };
+      const pers = vendedoras.map((u) => { const x = de(prog.filter((q) => q.vendedor_id === u.id), vis.filter((v) => v.vendedor_id === u.id)); return { u, ...x, nota: nota(x) }; }).filter((x) => x.dias || x.vis);
+      const tot = pers.reduce((t, x) => { ["dias", "asis", "n", "ok", "cer", "fot", "inv", "vis"].forEach((k) => (t[k] += x[k])); return t; }, { dias: 0, asis: 0, n: 0, ok: 0, cer: 0, fot: 0, inv: 0, vis: 0 });
+      const jor = {}; vis.forEach((v) => { const k = v.vendedor_id + "|" + v.fecha, x = (jor[k] = jor[k] || { e: 1e9, s: -1 }); x.e = Math.min(x.e, minDia(v.checkin_at)); if (v.checkout_at) x.s = Math.max(x.s, minDia(v.checkout_at)); });
+      const js = Object.values(jor), tm = vis.filter((v) => v.minutos_en_tienda != null).map((v) => Number(v.minutos_en_tienda));
+      return { pers, tot, nota: nota(tot), e: prom(js.map((x) => x.e)), s: prom(js.filter((x) => x.s >= 0).map((x) => x.s)), t: prom(tm), cortas: vis.filter((v) => v.checkout_at && Number(v.minutos_en_tienda) < 10).length,
+        tarde: js.filter((x) => x.e > 480).length, jornadas: js.length };
+    })();
+
     // ---------- Hoja de la vendedora elegida: calificación de ejecución y sus indicadores, contra el promedio del equipo ----------
     const hoja = vend ? (() => {
       const u = vendedoras.find((x) => x.id === vend); if (!u) return null;
@@ -196,12 +210,13 @@ const R = {
     const ordInv = { bajo: 0, medio: 1, ok: 2, sin: 3 };
     invT.sort((a, b) => ordInv[a.est] - ordInv[b.est] || (b.sug || 0) - (a.sug || 0) || a.tienda.localeCompare(b.tienda));
 
+    const nomCortos = (rs) => { const n = rs.map((r) => esc(r.u.nombre.split(" ")[0])); return n.length > 3 ? n.slice(0, 3).join(", ") + " y " + (n.length - 3) + " más" : n.join(", "); }; // nunca una lista que crece con el equipo
     const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:4px">${sub}</div>` : ""}</div>`;
     const fCortaD = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
     $("#rs", root).outerHTML = `
-      <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todas las vendedoras</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
+      <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todo el equipo</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
       ${agotSinPed.length ? `<div class="card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--rosa);border-color:#F3C4C0">
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
@@ -224,7 +239,7 @@ const R = {
           <div class="list" id="eq-lista">${equipo.map((e) => `<div class="item eq-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(e.u.nombre))}</div><div class="grow"><div class="t">${esc(e.u.nombre)}</div><div class="small muted">${esc(e.txt)}</div></div><span class="pill ${e.tono}">${ETQ[e.est]}</span></div>`).join("")}</div></div>`
         : `<div class="empty card flat">Hoy ninguna vendedora tiene tiendas agendadas.</div>`}
 
-      <h3 class="sec-t" data-g="vendedora">Hoja de la vendedora</h3>
+      <h3 class="sec-t" data-g="vendedora">${hoja ? "Hoja de " + esc(hoja.u.nombre) : "Ejecución del equipo"}</h3>
       ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
         const frase = h.nota == null ? "Sin visitas en este período" : h.nota >= 90 ? "Ejecución excelente en punto de venta" : h.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
         const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
@@ -241,7 +256,26 @@ const R = {
           </div>
           ${mTot.mes.m || mTot.ant.m ? `<div class="card"><div class="row" style="gap:10px"><div class="grow"><b>Merma de sus tiendas · ${MERMA.nombreMes(mes0)}</b><div class="tiny muted">${din ? fmtUsd(mTot.mes.m) + " en notas de crédito · " : ""}3 meses anteriores: ${MERMA.fp(mTot.ant.p)} · límite ${fmtNum(MERMA.lim(), 0)}%</div></div><span class="pill ${MERMA.pill(mTot.mes.p)}" style="font-size:15px">${MERMA.fp(mTot.mes.p)}</span></div></div>` : ""}
           ${DB.puede("ver_metas") && h.porProd.length ? `<div class="card"><h3 style="margin:0 0 8px">Venta del mes</h3>${h.porProd.map((x) => { const pc = pct(x.v, x.o) ?? 0; return `<div class="mb"><div class="mb-t"><span><b>${esc(x.n)}</b></span><span class="mb-v">${pc}%</span></div><div class="barra"><i class="${pc >= 100 ? "ok" : ""}" style="width:${Math.min(100, pc)}%"></i></div><div class="tiny muted" style="margin-top:4px">${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg · ${x.v >= x.o ? "objetivo cumplido" : "faltan " + fmtNum(x.o - x.v, 0) + " kg"}</div></div>`; }).join("")}<p class="tiny muted" style="margin:8px 0 0">Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}. Los pedidos posteriores se ven en Ventas.</p></div>` : ""}`; })()
-        : `<div class="card flat" style="display:flex;gap:10px;align-items:center"><span style="color:var(--azul)">${ic("equipo", 24)}</span><div class="small">Elige una vendedora en el selector de arriba para ver su hoja: calificación de ejecución, asistencia, ruta, fotos, inventario y tiempos.</div></div>`}
+        : (() => { const E = EJ, x = E.tot, sem = (q) => (q == null ? "" : q >= 90 ? "ok" : q >= 70 ? "medio" : "bajo"), C = 2 * Math.PI * 50, cl = sem(E.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
+        if (!E.pers.length) return `<div class="card flat"><div class="small muted">Nadie del equipo tenía ruta ni registró visitas en este período.</div></div>`;
+        const frase = E.nota == null ? "Sin visitas en este período" : E.nota >= 90 ? "Ejecución excelente en punto de venta" : E.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
+        const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
+        const hhmm = (m) => (m == null ? "–" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`);
+        const pA = pct(x.asis, x.dias), pR = pct(x.ok, x.n), pF = pct(x.fot, x.cer), pI = pct(x.inv, x.cer), jor = E.s == null || E.e == null ? null : E.s - E.e;
+        const tT = E.t == null ? "" : E.t >= 30 ? "ok" : E.t >= 15 ? "medio" : "bajo", tE = E.e == null ? "" : E.tarde ? (E.tarde / E.jornadas > 0.2 ? "bajo" : "medio") : "ok";
+        const orden = [...E.pers].sort((a, b) => (a.nota ?? 999) - (b.nota ?? 999) || a.u.nombre.localeCompare(b.u.nombre));
+        return `<div class="card desemp panel hoja"><svg class="aro" role="img" aria-label="${E.nota ?? 0} por ciento de ejecución del equipo" width="112" height="112" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"></circle><circle cx="60" cy="60" r="50" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${((E.nota ?? 0) / 100) * C} ${C}" transform="rotate(-90 60 60)"></circle><text x="60" y="69" text-anchor="middle" fill="#fff" font-size="28" font-weight="700">${E.nota ?? "–"}${E.nota == null ? "" : "%"}</text></svg>
+            <div class="hoja-t"><div class="lbl">Todo el equipo · ${esc(etPer)}</div><b>${frase}</b><span>${plur(E.pers.length, "persona")} · promedio de asistencia, ruta cumplida, reporte con fotos e inventario.</span></div></div>
+          <div class="sem-g">
+            ${tj("Asistencia", pA != null ? pA + "%" : "–", `${x.asis} de ${x.dias} ${x.dias === 1 ? "día" : "días"} con ruta`, sem(pA))}
+            ${tj("Ruta cumplida", pR != null ? pR + "%" : "–", `${x.ok} de ${x.n} visitas agendadas`, sem(pR))}
+            ${tj("Reporte con fotos", pF != null ? pF + "%" : "–", `${x.fot} de ${x.cer} visitas`, sem(pF))}
+            ${tj("Inventario físico", pI != null ? pI + "%" : "–", `${x.inv} de ${x.cer} visitas`, sem(pI))}
+            ${tj("Tiempo por tienda", E.t != null ? FICHA.dur(E.t) : "–", E.cortas ? `${plur(E.cortas, "visita")} de menos de 10 min` : "promedio del equipo", tT)}
+            ${tj("Entrada · salida", `${hhmm(E.e)} · ${hhmm(E.s)}`, `${jor != null ? "jornada de " + FICHA.dur(jor) + " · " : ""}${E.tarde ? plur(E.tarde, "entrada") + " después de las 08:00" : "todas las entradas a tiempo"}`, tE)}
+          </div>
+          <div class="card"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:4px"><h3 class="grow" style="margin:0">Por persona</h3><span class="tiny muted">toca para ver su hoja</span></div>
+          ${R.paginar(orden.map((r) => { const c = sem(r.nota); return `<div class="inv-f met-v" data-eqv="${r.u.id}" role="button" tabindex="0"><i class="sem-d ${c || "sin"}"></i><div class="grow"><b>${esc(r.u.nombre)}</b><div class="tiny muted">${r.n ? `Ruta ${r.ok} de ${r.n}` : "Sin ruta"} · asistió ${r.asis} de ${r.dias} ${r.dias === 1 ? "día" : "días"}</div><div class="barra"><i class="${c || "ok"}" style="width:${Math.min(100, r.nota ?? 0)}%"></i></div></div><b class="inv-v ${c}">${r.nota ?? "–"}${r.nota == null ? "" : "%"}<small>ver ›</small></b></div>`; }), "eqv")}</div>`; })()}
 
       <h3 class="sec-t">Pedidos y objetivo</h3>
       ${objKg && DB.puede("ver_metas") ? (() => { // Panel principal de Ventas (solo quien puede ver Metas; la supervisión no ve el objetivo de la empresa): objetivo del mes, en el azul de la marca
@@ -338,16 +372,12 @@ const R = {
 
       ${asistencia}
 
-      <h3 class="sec-t" data-g="vendedora">Comparativo del equipo</h3>
-      <div class="card scroll-x lim5"><table class="t"><tr><th>Vendedora</th><th>Estado</th><th>Programadas</th><th>Cumplimiento</th><th>Visitas</th><th>Con pedido</th><th>Pedidos (kg)</th><th>Agotados sin pedido</th></tr>
-        ${filasV.map((r) => `<tr><td><b>${esc(r.u.nombre)}</b></td><td>${!r.vis && r.prog ? `<span class="pill p-rosa">Sin visitas</span>` : r.vis && !r.ped ? `<span class="pill p-durazno">Sin pedidos</span>` : r.vis ? `<span class="pill p-menta">Con pedidos</span>` : `<span class="pill">Sin ruta</span>`}</td>
-          <td>${r.prog}</td><td><span class="pill ${colorPct(pct(r.ok, r.prog))}">${pct(r.ok, r.prog) ?? "–"}${r.prog ? "%" : ""}</span> <span class="tiny muted">${r.ok}/${r.prog}</span></td>
-          <td>${r.vis}</td><td>${r.visPT ? pct(r.conPed, r.visPT) + "%" : "–"}</td><td>${fmtNum(r.kg, 0)}</td><td>${r.alertas ? `<span class="pill p-rosa">${r.alertas}</span>` : "–"}</td></tr>`).join("")}</table></div>
+      ${vend ? "" : `<h3 class="sec-t" data-g="vendedora">Visitas y pedidos</h3>
       <div class="kpis">
-        ${kpi(conVisitas.length, "Usuarios con visitas")}
-        ${kpi(sinVisitas.length, "Usuarios sin visitas", sinVisitas.length ? "alerta" : "", sinVisitas.map((r) => esc(r.u.nombre.split(" ")[0])).join(", "))}
-        ${kpi(sinPedidos.length, "Usuarios sin pedidos", sinPedidos.length ? "alerta" : "", sinPedidos.map((r) => esc(r.u.nombre.split(" ")[0])).join(", "))}
-      </div>
+        ${kpi(conVisitas.length, "Personas con visitas")}
+        ${kpi(sinVisitas.length, "Personas sin visitas", sinVisitas.length ? "alerta" : "", nomCortos(sinVisitas))}
+        ${kpi(sinPedidos.length, "Personas sin pedidos", sinPedidos.length ? "alerta" : "", nomCortos(sinPedidos))}
+      </div>`}
 
       <div class="grid2" data-g="equipo">
         <div class="card"><h3>Clientes programados sin visita</h3>${R.lista(sinVisita.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00")]))}</div>
@@ -361,6 +391,7 @@ const R = {
       $$("[data-eqd]", root).forEach((b) => (b.onclick = () => ver(b.dataset.eqd)));
       $("#eq-f", root).onchange = (e) => { if (e.target.value) ver(e.target.value > hoy ? hoy : e.target.value); };
     }
+    $$("[data-eqv]", root).forEach((c) => (c.onclick = () => { LS.set("res.tab", "vendedora"); R.render(root, periodo, c.dataset.eqv); window.scrollTo({ top: 0 }); }));
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
     R.pestanas(root);
@@ -385,7 +416,7 @@ const R = {
     el.innerHTML = `<div class="tiny muted" style="padding:2px 0 6px;text-transform:capitalize">${esc(tit)}</div>` + (filas.map((x) => x.html).join("") || `<div class="small muted" style="padding:10px 0">Ese día ninguna vendedora tenía tiendas agendadas ni registró visitas.</div>`);
   },
 
-  // El Resumen se ve por vistas: Equipo · Vendedora · Inventario · Merma · Ventas. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
+  // El Resumen se ve por vistas: Campo (clave "equipo") · Equipo (clave "vendedora") · Inventario · Merma · Ventas. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
   pestanas(root) {
     const rv = $("#rv", root); if (!rv || $("#rtabs", root)) return;
     const grupo = (t) => /pedidos y objetivo/i.test(t) ? "ventas" : /alertas|por vencer|participaci/i.test(t) ? "inventario" : "equipo";
@@ -398,7 +429,7 @@ const R = {
       else if (g === "inventario" && el.matches(".card") && !el.previousElementSibling?.matches("h3.sec-t") && el.previousElementSibling === rv) hayAlerta = true;
       el.dataset.rt = g;
     }
-    const tabs = [["equipo", "Equipo"], ["vendedora", "Vendedora"], ["inventario", "Inventario"], ["merma", "Merma"], ["ventas", "Ventas"]];
+    const tabs = [["equipo", "Campo"], ["vendedora", "Equipo"], ["inventario", "Inventario"], ["merma", "Merma"], ["ventas", "Ventas"]];
     let act = LS.get("res.tab", "equipo"); if (!tabs.some((t) => t[0] === act)) act = "equipo";
     rv.insertAdjacentHTML("afterend", `<div class="rtabs" id="rtabs">${tabs.map(([k, t]) => `<button data-rt-b="${k}">${t}${k === "inventario" && hayAlerta ? `<i class="dot-n"></i>` : ""}</button>`).join("")}</div>`);
     const ver = (k) => { LS.set("res.tab", k); $$("[data-rt]", root).forEach((el) => (el.hidden = el.dataset.rt !== k)); $$("[data-rt-b]", root).forEach((b) => b.classList.toggle("on", b.dataset.rtB === k)); LIM5.aplicar(); };
