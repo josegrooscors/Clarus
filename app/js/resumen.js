@@ -17,11 +17,14 @@ const R = {
   // Límites del período en hora de Panamá, para filtrar timestamps
   ts(a, b) { return [a + "T00:00:00-05:00", b + "T23:59:59-05:00"]; },
 
-  async render(root, periodo = LS.get("res.p", "hoy"), vend = LS.get("res.v", "")) {
-    LS.set("res.p", periodo); LS.set("res.v", vend);
+  async render(root, periodo, vend) {
+    // Dos pantallas con los mismos datos: «Dashboard» (indicadores principales y lo que hay que atender) y «Resumen» (el detalle por vistas). Cada una recuerda su período y su filtro.
+    const dash = R._modo === "dash", K = dash ? "dash" : "res", cad = dash ? LS.get("dash.c", "") : "";
+    periodo = periodo ?? LS.get(K + ".p", dash ? "mes" : "hoy"); vend = vend ?? LS.get(K + ".v", "");
+    LS.set(K + ".p", periodo); LS.set(K + ".v", vend);
     const gen = (root._resGen = (root._resGen || 0) + 1); // si se vuelve a pintar mientras carga, esta carga se descarta
     const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hasta.slice(0, 8) + "01", finMes = hasta < hoy ? hasta : hoy; // mes del período elegido
-    root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>Resumen</h1></div></div>
+    root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>${dash ? "Dashboard" : "Resumen"}</h1></div></div>
       <div class="steps">${this.periodos.map(([k, t]) => `<div class="step ${k === periodo ? "on" : ""}" data-per="${k}">${t}</div>`).join("")}</div>
       ${periodo === "rango" ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin:-4px 0 14px;align-items:flex-end">
         <div><label class="f" style="margin-top:0">Desde</label><input class="in" type="date" id="rd1" value="${desde}" max="${hoy}"></div>
@@ -38,12 +41,12 @@ const R = {
       sb.from("perfiles").select("id, nombre, rol, activo").in("rol", ["vendedor", "supervisor"]).eq("activo", true),
       sb.from("v_visitas").select("id, vendedor_id, vendedor, cliente_id, tienda, fecha, checkin_at, checkout_at, minutos_en_tienda, estado, checkin_dentro, checkout_dentro, num_fotos, con_inventario").gte("fecha", desde).lte("fecha", hasta).limit(5000),
       sb.from("v_pedidos").select("id, visita_id, vendedor_id, cliente_id, creado_at, total_kg, estado, documento").neq("estado", "anulado").gte("creado_at", t0).lte("creado_at", t1).limit(5000),
-      sb.from("pedido_items").select("producto_id, propuesto, pedidos!inner(creado_at, estado, vendedor_id), productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").neq("pedidos.estado", "anulado").gte("pedidos.creado_at", t0).lte("pedidos.creado_at", t1).limit(5000),
+      sb.from("pedido_items").select("producto_id, propuesto, pedidos!inner(creado_at, estado, vendedor_id, cliente_id), productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").neq("pedidos.estado", "anulado").gte("pedidos.creado_at", t0).lte("pedidos.creado_at", t1).limit(5000),
       sb.from("v_inventario_visita").select("*").gte("fecha", desde).lte("fecha", hasta).or("agotado.eq.true,bajo.eq.true").limit(2000),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mes0),
       sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").lte("creado_at", t1).limit(5000),
       sb.from("productos").select("id, nombre, kg_por_pedido, unidad_conteo").eq("activo", true).order("nombre"),
-      sb.from("clientes").select("id, nombre, modalidad").limit(5000),
+      sb.from("clientes").select("id, nombre, modalidad, cadena").limit(5000),
       sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
       sb.from("visitas_justificadas").select("vendedor_id, cliente_id, fecha, motivo, nota, foto_path, foto_at, dist_m, dentro, clientes(nombre)").gte("fecha", mes0 < desde ? mes0 : desde).lte("fecha", finMes > hasta ? finMes : hasta).limit(5000),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, unidades, fecha_visita, visita_id").lte("vence", new Date(Date.now() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" })).order("vence").limit(500),
@@ -62,10 +65,13 @@ const R = {
     const asigTodas = asigR.data;
     const vendedoras = perfR.data.filter((p) => asigTodas.some((a) => a.vendedor_id === p.id)).sort((a, b) => a.nombre.localeCompare(b.nombre));
     const f = (xs, k = "vendedor_id") => (vend ? xs.filter((x) => (k.includes(".") ? x.pedidos.vendedor_id : x[k]) === vend) : xs);
-    const asig = f(asigTodas), vis = f(visR.data), ped = f(pedR.data), items = f(itR.data, "pedidos.vendedor_id"), alertas = f(alR.data).filter(pideEnTienda), pedMes = f(pedMesR.data);
+    // Filtro por cadena (solo en el Dashboard): se queda con lo de las tiendas de esa cadena
+    const cadDe = Object.fromEntries(cliR.data.map((c) => [c.id, (c.cadena || "").trim() || "Sin cadena"])), cadenas = [...new Set(Object.values(cadDe))].sort((a, b) => a.localeCompare(b));
+    const fc = (xs, de = (x) => x.cliente_id) => (cad ? xs.filter((x) => cadDe[de(x)] === cad) : xs);
+    const asig = fc(f(asigTodas)), vis = fc(f(visR.data)), ped = fc(f(pedR.data)), items = fc(f(itR.data, "pedidos.vendedor_id"), (x) => x.pedidos.cliente_id), alertas = fc(f(alR.data)).filter(pideEnTienda), pedMes = fc(f(pedMesR.data));
     const visPT = vis.filter(pideEnTienda);
     const misClientes = new Set(asig.map((a) => a.cliente_id));
-    const obj = vend ? objR.data.filter((o) => misClientes.has(o.cliente_id)) : objR.data;
+    const obj = fc(vend ? objR.data.filter((o) => misClientes.has(o.cliente_id)) : objR.data);
 
     // ---- Agenda: programadas vs realizadas (hasta hoy) ----
     const dias = this.fechas(desde, hasta < hoy ? hasta : hoy);
@@ -181,7 +187,7 @@ const R = {
     // ---------- Venta facturada y merma (notas de crédito), del Tablero Comercial ----------
     const fac = facR.error || !facR.data ? [] : facR.data.filas || [], facCorte = facR.data?.corte, din = conDinero();
     const nomCli = Object.fromEntries(cliR.data.map((c) => [c.id, c.nombre]));
-    const facV = vend ? fac.filter((x) => misClientes.has(x[1])) : fac;
+    const facV = fc(vend ? fac.filter((x) => misClientes.has(x[1])) : fac, (x) => x[1]);
     const mTot = MERMA.de(facV, mes0), mSerie = MERMA.meses(mes0, 6).map((m) => ({ mes: m, ...MERMA.suma(facV, (x) => x[0] === m) }));
     const vendDe = {}; asigTodas.forEach((a) => (vendDe[a.cliente_id] = vendDe[a.cliente_id] || []).push(a.vendedor_id));
     const mVend = vend ? [] : [...vendedoras.map((u) => ({ n: u.nombre, id: u.id, ...MERMA.de(fac, mes0, (x) => (vendDe[x[1]] || []).includes(u.id)) })), { n: "Tiendas sin responsable", ...MERMA.de(fac, mes0, (x) => !vendDe[x[1]]) }].filter((x) => x.mes.m || x.mes.v || x.ant.m).sort((a, b) => (b.mes.p ?? -1) - (a.mes.p ?? -1));
@@ -215,6 +221,79 @@ const R = {
     const fCortaD = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
+    const etPer0 = () => (periodo === "hoy" ? "hoy" : periodo === "semana" ? "esta semana" : periodo === "mes" ? "este mes" : "en el período");
+    // ================= DASHBOARD: indicadores principales, lo que hay que atender, tendencias y dónde mejorar =================
+    let porProc = null;
+    if (dash && DB.puede("ver_pedidos")) { const q = await sb.from("pedidos").select("id", { count: "exact", head: true }).in("estado", ["propuesto", "aprobado", "orden_escaneada"]).not("id_local", "like", "handy-%"); if (gen !== root._resGen || !$("#rs", root)) return; porProc = q.error ? null : q.count || 0; }
+    const dashHtml = !dash ? "" : (() => {
+      const sem = (q) => (q == null ? "" : q >= 90 ? "ok" : q >= 70 ? "medio" : "bajo"), metas = DB.puede("ver_metas"), lim = MERMA.lim();
+      // Cobertura: tiendas del plan del período que ya se visitaron
+      const planT = new Set(prog.map((x) => x.cliente_id)), visT = new Set(prog.filter((x) => x.hecha).map((x) => x.cliente_id)), pCob = pct(visT.size, planT.size);
+      // Objetivo del mes contra el ritmo esperado a la fecha de corte
+      const dM = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), espObj = mes0 < hoy.slice(0, 8) + "01" ? 100 : Math.round((Number((corte || hoy).slice(8, 10)) / dM) * 100);
+      const tObj = pcObj == null ? "" : pcObj >= 100 ? "ok" : (pcObj / (espObj || 100)) * 100 >= 95 ? "ok" : (pcObj / (espObj || 100)) * 100 >= 75 ? "medio" : "bajo";
+      const pMer = mTot.mes.p, efec = pct(visConPedido, visPT.length);
+      const g4 = [
+        R.velo(pCob, sem(pCob), "Cobertura", pCob != null ? pCob + "%" : "–", planT.size ? `${visT.size} de ${plur(planT.size, "tienda")}` : "sin tiendas en el plan"),
+        R.velo(EJ.nota, sem(EJ.nota), "Ejecución", EJ.nota != null ? EJ.nota + "%" : "–", "meta 90%", 90),
+        metas ? R.velo(pcObj, tObj, "Objetivo de venta", pcObj != null ? pcObj + "%" : "–", objKg ? `ritmo esperado ${espObj}%` : "sin objetivo cargado", objKg ? espObj : null)
+              : R.velo(efec, sem(efec), "Visitas con pedido", efec != null ? efec + "%" : "–", `${visConPedido} de ${visPT.length} visitas`),
+        R.velo(pMer == null ? null : Math.min(100, (pMer / (lim * 2)) * 100), MERMA.tono(pMer), "Merma", MERMA.fp(pMer), fac.length ? `límite ${fmtNum(lim, 0)}% · ${MERMA.nombreMes(mes0)}` : "sin facturación cargada", 50),
+      ].join("");
+      // Por atender: solo lo que tiene pendientes, lo más grave primero
+      const tAg = new Set(agotSinPed.map((x) => x.cliente_id)).size;
+      const at = [
+        [tAg, (tAg === 1 ? "Tienda con agotados sin pedido" : "Tiendas con agotados sin pedido"), "Producto en cero y sin pedido después del conteo", "bajo", "tab:inventario"],
+        [sinVisita.length, (sinVisita.length === 1 ? "Tienda del plan sin visitar" : "Tiendas del plan sin visitar"), etPer0(), "bajo", "tab:equipo"],
+        [invSin7.length, (invSin7.length === 1 ? "Tienda sin conteo" : "Tiendas sin conteo") + " en 7 días", "Con ruta y que piden en tienda", "medio", "tab:inventario"],
+        [abiertas, (abiertas === 1 ? "Visita sin cerrar" : "Visitas sin cerrar"), "De días anteriores", "medio", "tab:equipo"],
+        [porProc || 0, (porProc === 1 ? "Pedido por procesar" : "Pedidos por procesar"), "Nuevos, sin imprimir ni facturar", "azul", "ruta:pedidos"],
+      ].filter((x) => x[0] > 0);
+      const nAt = at.reduce((t, x) => t + x[0], 0);
+      const fAt = at.map(([n, t, sub, c, ir]) => `<button type="button" class="dsh-at" data-ir="${ir}"><span class="dsh-n ${c}">${n > 999 ? "999+" : n}</span><span class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></span><span class="dsh-ver">Ver ›</span></button>`).join("");
+      // Tendencias
+      const sems = {}; pedMes.forEach((x) => { const d = Number(new Date(x.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" }).slice(8, 10)), k = Math.min(4, Math.floor((d - 1) / 7)); sems[k] = (sems[k] || 0) + Number(x.total_kg || 0); });
+      const nSem = Math.min(4, Math.floor((Number((hasta < hoy ? hasta : hoy).slice(8, 10)) - 1) / 7)), serieP = [...Array(nSem + 1)].map((_, i) => [Math.round(sems[i] || 0), "S" + (i + 1) + (i === nSem && mes0 === hoy.slice(0, 8) + "01" ? " (en curso)" : "")]);
+      const serieM = mSerie.map((x) => [x.p, MERMA.nombreMes(x.mes, false).replace(".", ""), MERMA.tono(x.p)]);
+      // Dónde mejorar
+      const fila = (n, sub, pc, val, c, attr = "") => `<div class="inv-f dsh-rk ${attr ? "met-v" : ""}" ${attr}><i class="sem-d ${c || "sin"}"></i><div class="grow"><b>${esc(n)}</b><div class="tiny muted">${esc(sub)}</div><div class="barra"><i class="${c || "ok"}" style="width:${Math.max(0, Math.min(100, pc ?? 0))}%"></i></div></div><b class="inv-v ${c}">${val}${attr ? "<small>ver ›</small>" : ""}</b></div>`;
+      const tObjDe = (q) => (q == null ? "" : q >= 100 ? "ok" : (q / (espObj || 100)) * 100 >= 95 ? "ok" : (q / (espObj || 100)) * 100 >= 75 ? "medio" : "bajo");
+      const grupo = (clave, nombre) => { const m = {}; obj.forEach((o) => { const k = clave(o), x = (m[k] = m[k] || { o: 0, v: 0, t: new Set() }); x.o += Number(o.objetivo_kg || 0); x.v += Number(o.venta_kg || 0); x.t.add(o.cliente_id); }); return Object.entries(m).filter(([, x]) => x.o > 0).map(([k, x]) => ({ n: nombre(k), ...x, pc: pct(x.v, x.o) })).sort((a, b) => a.pc - b.pc || a.n.localeCompare(b.n)); };
+      const rCad = metas ? grupo((o) => cadDe[o.cliente_id] || "Sin cadena", (k) => k) : [], rProd = metas ? grupo((o) => o.producto_id, (k) => (prodR.data.find((q) => String(q.id) === String(k))?.nombre || "Producto").replace(/^Queso /, "")) : [];
+      const rRep = [...EJ.pers].sort((a, b) => (a.nota ?? 999) - (b.nota ?? 999) || a.u.nombre.localeCompare(b.u.nombre));
+      // Puntaje de tienda (0 a 100): promedio de lo que se conoce de ella: cobertura de sus visitas, inventario, merma contra el límite y avance de su objetivo
+      const objT = {}; obj.forEach((o) => { const x = (objT[o.cliente_id] = objT[o.cliente_id] || { o: 0, v: 0 }); x.o += Number(o.objetivo_kg || 0); x.v += Number(o.venta_kg || 0); });
+      const invDe = Object.fromEntries(invT.map((t) => [t.id, t]));
+      const rTie = [...new Map(asig.map((a) => [a.cliente_id, a])).values()].map((a) => { const id = a.cliente_id, ps = [], mot = [];
+        const pg = prog.filter((x) => x.cliente_id === id); if (pg.length) { const c = pct(pg.filter((x) => x.hecha).length, pg.length); ps.push(c); if (c < 100) mot.push([c, `${pg.filter((x) => x.hecha).length} de ${plur(pg.length, "visita")} del plan`]); }
+        const iv = invDe[id]; if (iv && iv.est !== "sin") { const c = { ok: 100, medio: 60, bajo: 20 }[iv.est]; ps.push(c); if (c < 100) mot.push([c, iv.ps.some((q) => q.agot) ? "producto agotado" : iv.est === "bajo" ? "inventario bajo" : "inventario cerca de la alerta"]); }
+        const me = MERMA.suma(facV, (x) => x[0] === mes0 && x[1] === id); if (me.p != null) { const c = me.p <= lim ? 100 : me.p <= lim * 1.5 ? 60 : 20; ps.push(c); if (c < 100) mot.push([c, "merma " + MERMA.fp(me.p)]); }
+        const ob = objT[id]; if (metas && ob && ob.o > 0) { const q = pct(ob.v, ob.o), c = Math.min(100, Math.round((q / (espObj || 100)) * 100)); ps.push(c); if (c < 95) mot.push([c, `venta ${q}% del objetivo`]); }
+        return { id, n: a.clientes?.nombre || nomCli[id] || "Tienda", k: ps.length, pts: ps.length ? Math.round(ps.reduce((t, x) => t + x, 0) / ps.length) : null, mot: mot.sort((x, y) => x[0] - y[0]).slice(0, 2).map((x) => x[1]).join(" · "), rep: (vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || "").split(" ")[0] };
+      }).filter((t) => t.k >= 2).sort((a, b) => a.pts - b.pts || a.n.localeCompare(b.n));
+      const semP = (q) => (q == null ? "" : q >= 85 ? "ok" : q >= 60 ? "medio" : "bajo");
+      const rk = [
+        ["tienda", "Tienda", "Por tienda", "puntaje de 0 a 100", rTie.map((t) => fila(t.n, (t.mot || "todo en orden") + (t.rep && !vend ? " · " + t.rep : ""), t.pts, t.pts + " pts", semP(t.pts)))],
+        ["cadena", "Cadena", "Por cadena", "avance del objetivo", rCad.map((x) => fila(x.n, `${plur(x.t.size, "tienda")} · ${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg`, x.pc, x.pc + "%", tObjDe(x.pc)))],
+        ["producto", "Producto", "Por producto", "avance del objetivo", rProd.map((x) => fila(x.n, `${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg`, x.pc, x.pc + "%", tObjDe(x.pc)))],
+        ["rep", "Representante", "Por representante", "ejecución · toca para ver su hoja", rRep.map((r) => fila(r.u.nombre, `${r.n ? `Ruta ${r.ok} de ${r.n}` : "Sin ruta"} · asistió ${r.asis} de ${r.dias} ${r.dias === 1 ? "día" : "días"}`, r.nota, (r.nota ?? "–") + (r.nota == null ? "" : "%"), sem(r.nota), `data-rep="${r.u.id}" role="button" tabindex="0"`))],
+      ].filter((x) => x[4].length);
+      const kAct = rk.some((x) => x[0] === LS.get("dash.rk", "tienda")) ? LS.get("dash.rk", "tienda") : rk[0]?.[0];
+      return `<div data-g="dash" class="dsh">
+        <div class="dsh-g4">${g4}</div>
+        <div class="dsh-2">
+          <div class="card dsh-c"><div class="dsh-h"><h3>Por atender</h3><span class="tiny muted">${nAt ? plur(nAt, "pendiente") : etPer0()}</span></div>${fAt || `<div class="fv-o menta" style="margin-top:6px">${ic("ok", 16)}<span>Nada pendiente en este período.</span></div>`}</div>
+          <div class="dsh-col">
+            <div class="card dsh-c"><div class="dsh-h"><h3>Pedidos por semana</h3><span class="tiny muted">kg pedidos · ${esc(MERMA.nombreMes(mes0))}</span></div>${serieP.some((x) => x[0]) ? R.barritas(serieP, (v) => fmtNum(v, 0)) : `<div class="small muted">Sin pedidos este mes.</div>`}</div>
+            ${serieM.some((x) => x[0] != null) ? `<div class="card dsh-c"><div class="dsh-h"><h3>Merma · 6 meses</h3><span class="tiny muted">% de la venta · límite ${fmtNum(lim, 0)}%</span></div>${R.barritas(serieM, (v) => (v == null ? "–" : fmtNum(v, 1)), 64)}</div>` : ""}
+          </div>
+        </div>
+        ${rk.length ? `<div class="dsh-h dsh-ht"><h3>Dónde mejorar</h3><span class="tiny muted">de menor a mayor</span></div>
+        <div class="dsh-tabs" role="tablist">${rk.map(([k, t]) => `<button type="button" role="tab" data-dk-b="${k}" class="${k === kAct ? "on" : ""}">${t}</button>`).join("")}</div>
+        <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
+      </div>`;
+    })();
+
     $("#rs", root).outerHTML = `
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todo el equipo</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
@@ -384,7 +463,8 @@ const R = {
         <div class="card"><h3>Clientes programados sin visita</h3>${R.lista(sinVisita.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00")]))}</div>
         ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la persona avisó que no haría. No cuentan en el cumplimiento.</div>${R.paginar(justif.map((p) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(p.clientes?.nombre || "—")}</div><div class="tiny muted">${esc((vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : ""))}</div>${p.j.foto_path ? `<a href="#" class="tiny" data-jfoto="${esc(p.j.foto_path)}" data-jt="${esc((p.clientes?.nombre || "") + " · " + fmtHora(p.j.foto_at) + (p.j.dist_m != null ? " · " + (p.j.dentro ? "en la tienda" : "a " + fmtDist(p.j.dist_m) + " de la tienda") : " · sin ubicación"))}">Ver foto de la tienda cerrada ›</a>${p.j.dentro === false ? ` <span class="pill p-rosa">Fuera del radio</span>` : ""}` : p.j.motivo === "tienda_cerrada" ? `<span class="pill p-durazno">Sin foto</span>` : ""}</div>`))}</div>` : ""}
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
-      </div>`;
+      </div>
+      ${dashHtml}`;
     // Equipo: ver cómo le fue a cada una hoy, ayer o cualquier otro día (tocar la fila abre su cierre de ese día)
     const eqL = $("#eq-lista", root);
     if (eqL) { const hoyHtml = eqL.innerHTML, marca = (f) => { $$("[data-eqd]", root).forEach((b) => b.classList.toggle("on", b.dataset.eqd === f)); const i = $("#eq-f", root); i.value = f === hoy || f === hace(1) ? "" : f; i.parentElement.classList.toggle("on", !!i.value); };
@@ -405,6 +485,28 @@ const R = {
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
     R.pestanas(root);
+    if (dash) {
+      const rv = $("#rv", root), w = document.createElement("div"); w.className = "dsh-fil"; rv.before(w);
+      w.innerHTML = `<label><span>Equipo</span></label><label><span>Cadena</span><select class="in" id="rc"><option value="">Todas</option>${cadenas.map((c) => `<option ${c === cad ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`;
+      w.firstElementChild.append(rv); rv.style.marginBottom = "0";
+      rv.onchange = (e) => R.render(root, periodo, e.target.value);
+      $("#rc", root).onchange = (e) => { LS.set("dash.c", e.target.value); R.render(root, periodo, vend); };
+      $$("[data-ir]", root).forEach((b) => (b.onclick = () => { const [t, k] = b.dataset.ir.split(":"); if (t === "tab") { LS.set("res.tab", k); LS.set("res.p", periodo === "rango" ? "mes" : periodo); LS.set("res.v", vend); location.hash = "#resumen"; } else location.hash = "#" + k; }));
+      $$("[data-rep]", root).forEach((c) => (c.onclick = () => { LS.set("res.tab", "vendedora"); LS.set("res.v", c.dataset.rep); LS.set("res.p", periodo === "rango" ? "mes" : periodo); location.hash = "#resumen"; }));
+      $$("[data-dk-b]", root).forEach((b) => (b.onclick = () => { LS.set("dash.rk", b.dataset.dkB); $$("[data-dk-b]", root).forEach((x) => x.classList.toggle("on", x === b)); $$("[data-dk]", root).forEach((x) => x.classList.toggle("on", x.dataset.dk === b.dataset.dkB)); LIM5.aplicar(); }));
+    }
+  },
+
+  // Velocímetro en tarjeta clara: valor grande al centro y, si se pide, la marca de la meta, el ritmo o el límite
+  velo(pc, tono, titulo, valor, sub, marca = null) {
+    const L = Math.PI * 48, v = Math.max(0, Math.min(100, pc || 0)), col = { ok: "#0F7A4F", medio: "#B7791F", bajo: "#B3261E", "": "#C5CCD8" }[tono || ""], a = Math.PI * (1 - Math.max(0, Math.min(100, marca ?? 0)) / 100);
+    const x = (k) => (60 + k * Math.cos(a)).toFixed(1), y = (k) => (62 - k * Math.sin(a)).toFixed(1);
+    return `<div class="dsh-g"><span class="dsh-gt">${titulo}</span><svg role="img" aria-label="${titulo}: ${valor}" viewBox="0 0 120 70"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="#E9EDF5" stroke-width="11" stroke-linecap="round"></path>${pc == null ? "" : `<path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(v / 100) * L} ${L}"></path>`}${marca != null ? `<line x1="${x(39)}" y1="${y(39)}" x2="${x(57)}" y2="${y(57)}" stroke="#0B1B33" stroke-width="2.5" stroke-linecap="round"></line>` : ""}<text x="60" y="60" text-anchor="middle" font-weight="700" font-size="${String(valor).length > 4 ? 19 : 22}" fill="#0B1B33">${valor}</text></svg><span class="dsh-gs ${tono || ""}">${sub}</span></div>`;
+  },
+  // Barras verticales simples: [valor, etiqueta, tono]
+  barritas(serie, fmt, alto = 96) {
+    const mx = Math.max(...serie.map((x) => Number(x[0]) || 0), 1);
+    return `<div class="dsh-bars" style="--alto:${alto}px">${serie.map(([v, e, t], i) => `<div><b>${fmt(v)}</b><i class="${t || (i === serie.length - 1 ? "act" : "")}" style="height:${Math.max(2, Math.round(((Number(v) || 0) / mx) * alto))}px"></i><span>${esc(e)}</span></div>`).join("")}</div>`;
   },
 
   // Cómo le fue a cada vendedora en un día anterior: visitas hechas de las agendadas y su horario. La fila abre el cierre de ese día.
@@ -439,6 +541,7 @@ const R = {
       else if (g === "inventario" && el.matches(".card") && !el.previousElementSibling?.matches("h3.sec-t") && el.previousElementSibling === rv) hayAlerta = true;
       el.dataset.rt = g;
     }
+    if (R._modo === "dash") { $$("[data-rt]", root).forEach((el) => (el.hidden = el.dataset.rt !== "dash")); LIM5.aplicar(); return; }
     const pt = $("#inv-tiendas", root);
     if (pt) for (let el = $("#alertas-res", root), sig; el && el.id !== "r-espacio" && !el.dataset.g && (el.id === "alertas-res" || !el.matches("h3.sec-t") || /por vencer/i.test(el.textContent)); el = sig) { sig = el.nextElementSibling; pt.before(el); }
     const tabs = [["equipo", "Campo"], ["vendedora", "Equipo"], ["inventario", "Inventario"], ["merma", "Merma"], ["ventas", "Ventas"]];
