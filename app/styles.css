@@ -915,3 +915,7 @@ button.inv.mue>svg{flex:none;color:var(--gris);transform:rotate(-90deg)}
 .check .box{color:transparent}
 .check.on .box{color:#fff}
 #pedl{display:flex;flex-direction:column}
+/* Menú inferior: la pantalla activa se marca solo con el ícono y la palabra en azul (sin fondo); la palabra nunca se sale de su espacio */
+.nav a.on{background:none;font-weight:600}
+.nav a{font-size:12px;letter-spacing:-.2px}
+@media(max-width:350px){.nav{gap:2px;padding-left:6px;padding-right:6px}.nav a{font-size:11px;letter-spacing:-.3px}}
