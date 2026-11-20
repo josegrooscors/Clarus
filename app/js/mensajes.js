@@ -35,7 +35,8 @@ const MSG = {
   },
 
   aviso(m) {
-    modal(`<div class="row" style="gap:10px;margin-bottom:6px"><span style="color:var(--azul)">${ic("msg", 26)}</span><div class="grow"><div class="tiny muted">Comunicado de ${esc(m.autor || "la gerencia")} · ${fmtFecha(m.programado_at)}</div><h2>${esc(m.titulo)}</h2></div></div>
+    modal(`<div class="nov-k av-k"><span class="nov-logo">${logo(24)}<b>clarus</b></span><span>Comunicado</span></div>
+      <div class="tiny muted" style="margin-bottom:4px">De ${esc(m.autor || "la gerencia")} · ${fmtFecha(m.programado_at)}</div><h2 style="margin:0 0 8px">${esc(m.titulo)}</h2>
       <div class="msg-cuerpo">${esc(m.cuerpo)}</div>
       <button class="btn block" style="margin-top:16px" data-ok>Entendido</button>
       <button class="btn ghost block sm" style="margin-top:8px" data-luego>Recordármelo en 15 min</button>`,
