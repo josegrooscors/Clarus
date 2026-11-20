@@ -46,8 +46,8 @@ const R = {
       sb.from("v_inventario_visita").select("*").gte("fecha", desde).lte("fecha", hasta).or("agotado.eq.true,bajo.eq.true").limit(2000),
       sb.from("objetivos").select("cliente_id, producto_id, objetivo_kg, objetivo_usd, venta_kg, venta_usd, corte").eq("mes", mes0),
       sb.from("v_pedidos").select("vendedor_id, cliente_id, creado_at, total_kg").neq("estado", "anulado").gte("creado_at", mes0 + "T00:00:00-05:00").lte("creado_at", t1).limit(5000),
-      sb.from("productos").select("id, nombre, kg_por_pedido, unidad_conteo").eq("activo", true).order("nombre"),
-      sb.from("clientes").select("id, nombre, modalidad, cadena").limit(5000),
+      sb.from("productos").select("id, nombre, categoria, kg_por_pedido, unidad_conteo").eq("activo", true).order("nombre"),
+      sb.from("clientes").select("id, nombre, modalidad, cadena, zona").limit(5000),
       sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
       sb.from("visitas_justificadas").select("vendedor_id, cliente_id, fecha, motivo, nota, foto_path, foto_at, dist_m, dentro, clientes(nombre)").gte("fecha", mes0 < desde ? mes0 : desde).lte("fecha", finMes > hasta ? finMes : hasta).limit(5000),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, unidades, fecha_visita, visita_id").lte("vence", new Date(Date.now() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" })).order("vence").limit(500),
@@ -218,8 +218,8 @@ const R = {
     invT.sort((a, b) => ordInv[a.est] - ordInv[b.est] || (b.sug || 0) - (a.sug || 0) || a.tienda.localeCompare(b.tienda));
 
     const nomCortos = (rs) => { const n = rs.map((r) => esc(r.u.nombre.split(" ")[0])); return n.length > 3 ? n.slice(0, 3).join(", ") + " y " + (n.length - 3) + " más" : n.join(", "); }; // nunca una lista que crece con el equipo
-    const kpiIc = (l) => (/inventario|conteo|agotado/i.test(l) ? "caja" : /producto/i.test(l) ? "etiqueta" : /pedido/i.test(l) ? "pedidos" : /cliente|tienda/i.test(l) ? "pin" : /sin cerrar/i.test(l) ? "reloj" : "equipo");
-    const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ki ${cls}"><span class="ki-c">${ic(kpiIc(l), 18)}</span><div class="ki-t"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:2px">${sub}</div>` : ""}</div></div>`;
+    const kpiIc = (l, v) => (/ kg$/.test(String(v)) && !/pedidos capturados/i.test(l) ? "etiqueta" : /inventario|conteo|agotado/i.test(l) ? "caja" : /producto/i.test(l) ? "etiqueta" : /pedido/i.test(l) ? "pedidos" : /cliente|tienda/i.test(l) ? "pin" : /sin cerrar/i.test(l) ? "reloj" : "equipo");
+    const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ki ${cls}"><span class="ki-c">${ic(kpiIc(l, v), 18)}</span><div class="ki-t"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:2px">${sub}</div>` : ""}</div></div>`;
     const fCortaD = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
@@ -374,6 +374,9 @@ const R = {
         ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
         ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
       </div>
+      <div class="card" id="ven-por"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:8px"><h3 class="grow" style="margin:0">Ventas</h3><span class="tiny muted" id="vp-nota"></span></div>
+        <div class="dsh-fil" style="margin-bottom:6px"><label><span>Ver por</span><select class="in" id="vp-s">${[["cadena", "Cadena"], ["tienda", "Tienda"], ...(vend ? [] : [["rep", "Representante"]]), ["categoria", "Categoría"], ["producto", "Producto"], ["zona", "Zona o ruta"]].map(([k, t]) => `<option value="${k}" ${LS.get("res.vp", "cadena") === k ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+        <div id="vp-l"></div></div>
       ${(() => { // Vista Merma: notas de crédito por merma sobre la venta facturada, del mes del período elegido
         const mesN = MERMA.nombreMes(mes0), lim = MERMA.lim(), p = mTot.mes.p, cl = MERMA.tono(p), prev = mSerie[4], cab = `<h3 class="sec-t" data-g="merma">Merma · ${esc(mesN)}</h3>`;
         if (!facV.length) return cab + `<div class="empty card flat">Todavía no hay facturación ni notas de crédito cargadas para ${vend ? "sus tiendas" : "este período"}.</div>`;
@@ -486,6 +489,26 @@ const R = {
     $$("[data-eqv]", root).forEach((c) => (c.onclick = () => { LS.set("res.tab", "vendedora"); R.render(root, periodo, c.dataset.eqv); window.scrollTo({ top: 0 }); }));
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
+    { // Ventas «Ver por»: con Metas, venta facturada del mes contra su objetivo; sin Metas, los pedidos capturados en el período
+      const cli = Object.fromEntries(cliR.data.map((c) => [c.id, c])), prodDe = Object.fromEntries(prodR.data.map((q) => [q.id, q])), repDe = {}, nomRep = Object.fromEntries(perfR.data.map((u) => [u.id, u.nombre]));
+      asigTodas.forEach((a) => { if (!repDe[a.cliente_id]) repDe[a.cliente_id] = a.vendedor_id; });
+      const conMeta = DB.puede("ver_metas") && obj.some((o) => Number(o.objetivo_kg) > 0), mesTxt = new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" });
+      const CL = { cadena: (c) => cadDe[c] || "Sin cadena", tienda: (c) => cli[c]?.nombre || "Tienda", rep: (c) => nomRep[repDe[c]] || "Sin representante", zona: (c) => (cli[c]?.zona || "").trim() || "Sin zona", categoria: (c, q) => (prodDe[q]?.categoria || "").trim() || "Sin categoría", producto: (c, q) => prodDe[q]?.nombre || "Producto" };
+      const pinta = () => {
+        const k = $("#vp-s", root).value, de = CL[k] || CL.cadena, m = {};
+        const suma = (c, q, o, v) => { const n = de(c, q), x = (m[n] = m[n] || { n, o: 0, v: 0, t: new Set() }); x.o += o; x.v += v; x.t.add(c); };
+        if (conMeta) obj.forEach((o) => suma(o.cliente_id, o.producto_id, Number(o.objetivo_kg || 0), Number(o.venta_kg || 0)));
+        else items.forEach((i) => suma(i.pedidos.cliente_id, i.producto_id, 0, kgLinea(i.propuesto, i.productos)));
+        const fs = Object.values(m).filter((x) => x.o > 0 || x.v > 0).sort((a, b) => b.v - a.v || a.n.localeCompare(b.n)), mx = Math.max(1, ...fs.map((x) => x.v));
+        const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esp = mes0 === hoy.slice(0, 8) + "01" ? (dHoy / dMes) * 100 : 100;
+        const tono = (q) => (q >= 100 || (q / esp) * 100 >= 95 ? "ok" : (q / esp) * 100 >= 75 ? "medio" : "bajo");
+        $("#vp-nota", root).textContent = conMeta ? `facturado en ${mesTxt} · % del objetivo` : `kg pedidos · ${etPer}`;
+        $("#vp-l", root).innerHTML = fs.length ? R.paginar(fs.map((x) => { const pc = x.o > 0 ? pct(x.v, x.o) : null, c = conMeta && pc != null ? tono(pc) : "", sub = (k === "tienda" ? "" : plur(x.t.size, "tienda") + " · ") + (conMeta && x.o > 0 ? `${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg` : `${fmtNum(x.v, 0)} kg`);
+          return `<div class="inv-f dsh-rk">${conMeta ? `<i class="sem-d ${c || "sin"}"></i>` : ""}<div class="grow"><b>${esc(x.n)}</b><div class="tiny muted">${esc(sub)}</div><div class="barra"><i class="${c || "act"}" style="width:${Math.max(0, Math.min(100, conMeta && pc != null ? pc : (x.v / mx) * 100))}%"></i></div></div><b class="inv-v ${c}">${conMeta ? (pc != null ? pc + "%" : "–") : fmtNum(x.v, 0) + " kg"}</b></div>`; }), "vp") : `<div class="small muted" style="padding:10px 0">Sin ventas ${conMeta ? "ni objetivos cargados en " + esc(mesTxt) : "en el período"}.</div>`;
+        LIM5.aplicar();
+      };
+      const vs = $("#vp-s", root); if (vs) { vs.onchange = () => { LS.set("res.vp", vs.value); pinta(); }; pinta(); }
+    }
     R.pestanas(root);
     if (dash) {
       const rv = $("#rv", root), w = document.createElement("div"); w.className = "dsh-fil"; rv.before(w);
