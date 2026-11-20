@@ -1,7 +1,7 @@
 // Planogramas: cómo debe verse la exhibición (nevera, deli, anaquel) con frentes, fondo y altura por producto.
 // La gerencia los diseña y los asigna a tiendas; la vendedora los ve en la visita y marca si la tienda cumple.
 const PL = {
-  MUEBLES: { nevera: "Nevera abierta", puertas: "Nevera de puertas", deli: "Vitrina deli curva", vitrina: "Vitrina recta", exhibidor: "Isla / exhibidor", cofre: "Congelador horizontal", anaquel: "Góndola seca", punta: "Punta de góndola" },
+  MUEBLES: { nevera: "Nevera abierta", puertas: "Nevera de puertas", deli: "Vitrina deli", vitrina: "Vitrina recta", exhibidor: "Isla / exhibidor", cofre: "Congelador horizontal", anaquel: "Góndola seca", punta: "Punta de góndola" },
   // Íconos (vista 3/4) para elegir el mueble; el dibujo editable siempre es de frente
   ICONOS: {
     nevera: '<rect x="6" y="3" width="28" height="30" rx="2"/><path d="M6 8h28M10 15h20M10 21h20M10 27h20M8 33v3M32 33v3"/>',
