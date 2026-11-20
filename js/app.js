@@ -8,7 +8,7 @@ const App = {
       const p = (k) => DB.puede(k), ops = r === "operaciones" || r === "administracion";
       if (p("picking")) m.push(["picking", "caja", "Picking"]);
       if (ops && p("ver_pedidos")) m.push(["pedidos", "pedidos", "Pedidos"]);
-      if (p("ver_resumen")) m.push(["resumen", "resumen", "Resumen"]);
+      if (p("ver_resumen")) m.push(["dashboard", "tablero", "Dashboard"], ["resumen", "resumen", "Resumen"]);
       if (p("visitar")) m.push(["hoy", "ruta", "Ruta"]);
       if (r === "vendedor" && p("visitar")) m.push(["mis-pedidos", "pedidos", "Pedidos"]);
       if (p("ver_equipo")) m.push(["equipo", "equipo", "Visitas"]);
@@ -24,7 +24,7 @@ const App = {
     }
     if (r === "operaciones") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Operaciones entra directo a preparar pedidos
     if (r === "administracion") m.push(["picking", "caja", "Picking"], ["pedidos", "pedidos", "Pedidos"]); // Administración factura dentro de Picking
-    if (r !== "vendedor") m.push(["resumen", "resumen", "Resumen"]);
+    if (r !== "vendedor") m.push(["dashboard", "tablero", "Dashboard"], ["resumen", "resumen", "Resumen"]);
     // Ruta y Mis pedidos son de quien visita tiendas: la vendedora y la supervisora siempre (la supervisora también ejecuta en tienda);
     // gerencia solo si tiene tiendas asignadas o una visita abierta.
     const conRuta = r === "vendedor" || r === "supervisor" || (LS.get("cat")?.ruta || []).length > 0 || !!Visita.get();
@@ -45,8 +45,7 @@ const App = {
     const corto = { programacion: "Agenda", mensajes: "Avisos", objetivos: "Metas", "mis-pedidos": "Pedidos", yo: "Más" };
     // Celular: máximo 5 botones (los principales + Yo). Avisos, Equipo, Agenda y lo demás quedan dentro de "Yo".
     const m = this.rutas().filter((x) => !x[3]).map(([k, i, t, d]) => [k, k === "yo" ? "menu" : i, corto[k] || t, d]);
-    const prio = ["picking", "resumen", "hoy", "mis-pedidos", "pedidos", "objetivos", "facturacion"];
-    if (!m.some((x) => x[0] === "hoy") && m.some((x) => x[0] === "equipo")) prio.splice(2, 0, "equipo"); // sin ruta propia, ese lugar lo ocupa Equipo
+    const prio = ["picking", "dashboard", "resumen", "hoy", "mis-pedidos", "pedidos", "objetivos", "equipo", "facturacion"]; // sin ruta propia, ese lugar lo ocupa Equipo
     const prim = m.filter((x) => prio.includes(x[0])).sort((a, b) => prio.indexOf(a[0]) - prio.indexOf(b[0])).slice(0, 4);
     const yo = m.filter((x) => x[0] === "yo");
     const nav = m.filter((x) => prim.includes(x)).concat(yo);
@@ -88,7 +87,7 @@ const App = {
     const claveRuta = ruta + "/" + (sub || "");
     if (this._rutaAnt !== claveRuta) { this._rutaAnt = claveRuta; window.scrollTo(0, 0); }
     try {
-      if (ruta === "resumen") await R.render(root);
+      if (ruta === "resumen" || ruta === "dashboard") { R._modo = ruta === "dashboard" ? "dash" : "res"; await R.render(root); }
       else if (ruta === "hoy") await V.hoy(root);
       else if (ruta === "visita") await V.visita(root);
       else if (ruta === "mis-pedidos") await V.pedidos(root);
@@ -105,7 +104,7 @@ const App = {
       else if (ruta === "yo") await this.yo(root);
       if (ruta === "resumen") await this.primerosPasos(root).catch(() => {});
       if (this.barraPrueba()) { root.insertAdjacentHTML("afterbegin", this.barraPrueba()); $("[data-contratar]", root).onclick = () => this.contratar(); }
-      if ((ruta === "hoy" || ruta === "resumen") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
+      if ((ruta === "hoy" || ruta === "resumen" || ruta === "dashboard") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
       console.error(e);
       if (gen !== this._gen || !root.isConnected) return; // pantalla vieja: ya se está mostrando otra
