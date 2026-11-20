@@ -1028,3 +1028,8 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .nov-p i{width:8px;height:8px;border-radius:99px;background:var(--borde)}.nov-p i.on{width:22px;background:var(--azul)}
 .nov-b{display:flex;gap:8px}.nov-b .btn{flex:1;min-height:48px}
 .nov-x{border:0;background:none;font:600 14px var(--font);color:var(--azul);min-height:40px;cursor:pointer}
+
+/* Regla: todo lo que Clarus muestra encima de la pantalla va en ventana centrada, con el logo arriba a la izquierda */
+.modal.msg-aviso{align-items:center;padding:16px;background:rgba(11,27,51,.55)}
+.modal.msg-aviso .sheet{width:88%;max-width:440px;max-height:88vh;border-radius:22px;padding:0 18px 16px;box-shadow:0 20px 60px rgba(11,27,51,.35)}
+.nov-k.av-k{margin:0 -18px 14px;position:sticky;top:0;background:#fff;z-index:1}
