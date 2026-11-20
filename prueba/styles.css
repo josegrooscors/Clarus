@@ -1000,3 +1000,5 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .kpi.ki.alerta .ki-c{background:#FDE7E5;color:#B3261E}
 @media(max-width:359px){.ki-c{width:30px;height:30px}.kpi.ki{gap:8px}}
 .inv-f.dsh-rk .barra i.act{background:var(--azul)}
+/* La tarjeta que abre cada pestaña del Resumen va del mismo color (negro) */
+.card.desemp.panel,.card.desemp.panel.hoja{background:var(--noche);border-color:var(--noche)}
