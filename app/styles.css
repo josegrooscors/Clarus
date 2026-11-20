@@ -1059,3 +1059,8 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .ped-q{display:flex;gap:8px;align-items:stretch;margin-top:8px}
 .ped-q .stepper{flex:1 1 0;min-width:0;width:auto}
 .ped-q .ped-u{flex:0 0 104px;width:104px;min-width:0;padding-left:12px;padding-right:26px;font-weight:600}
+
+/* Tarjetas de mueble en Exhibición: todas del mismo tamaño (nombre y detalle en una línea) */
+button.inv.mue{min-height:84px;height:84px}
+button.inv.mue .grow>b,button.inv.mue .grow>span,button.inv.mue .grow>.tiny{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inv .row>.cam-b{flex:none;margin-left:8px}
