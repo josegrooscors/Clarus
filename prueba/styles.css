@@ -1036,3 +1036,5 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 /* Columna fija de una tabla que se desliza: tapa también los espacios entre filas, para que nada se vea pasar por detrás del nombre */
 .asis .asi-n{z-index:2}
 .asis .asi-n::before{content:"";position:absolute;inset:-4px 0 -4px -8px;background:#fff;z-index:-1}
+/* Tarjetas de indicadores con ícono: nunca más anchas que su columna (320 px) */
+.kpis>.kpi{min-width:0}.kpi.ki .ki-t{overflow-wrap:anywhere}
