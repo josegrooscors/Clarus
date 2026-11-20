@@ -1002,3 +1002,19 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .inv-f.dsh-rk .barra i.act{background:var(--azul)}
 /* La tarjeta que abre cada pestaña del Resumen va del mismo color (negro) */
 .card.desemp.panel,.card.desemp.panel.hoja{background:var(--noche);border-color:var(--noche)}
+
+/* Novedades: instructivo paso a paso */
+.nov{position:fixed;inset:0;z-index:60;background:#fff;display:flex;justify-content:center;overflow:auto}
+.nov-c{width:100%;max-width:460px;min-height:100%;display:flex;flex-direction:column;gap:16px;padding:calc(22px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom))}
+.nov-k{display:flex;justify-content:space-between;align-items:center;font:600 12px var(--font);letter-spacing:.08em;text-transform:uppercase;color:var(--azul)}
+.nov-x{border:0;background:none;font:600 14px var(--font);color:var(--azul);text-transform:none;letter-spacing:0;min-height:44px;padding:0 4px;cursor:pointer}
+.nov-m{background:var(--fondo);border:1px solid var(--borde);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.nov-l{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--borde);border-radius:12px;padding:10px 12px;font-size:13.5px}
+.nov-l b{font-weight:600;min-width:0}.nov-l span{font-weight:600;font-size:13px;text-align:right;flex:none;max-width:50%}
+.nov-l span.azul{color:var(--azul)}.nov-l span.gris{color:var(--gris)}.nov-l span.ambar{color:var(--ambar)}
+.nov h2{margin:0;font:700 22px/1.2 var(--font-t)}
+.nov p{margin:-8px 0 0;font-size:15px;line-height:1.45;color:var(--gris)}
+.nov-p{display:flex;gap:6px;justify-content:center}
+.nov-p i{width:8px;height:8px;border-radius:99px;background:var(--borde)}.nov-p i.on{width:22px;background:var(--azul)}
+.nov-b{display:flex;gap:8px}.nov-b .btn{flex:1;min-height:48px}
+.nov-c{min-height:100vh;min-height:100dvh;box-sizing:border-box}.nov-l b{color:var(--tinta)}

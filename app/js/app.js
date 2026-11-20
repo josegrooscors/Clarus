@@ -103,6 +103,7 @@ const App = {
       else if (ruta === "picking") await PK.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
       if (ruta === "resumen") await this.primerosPasos(root).catch(() => {});
+      if (ruta === "hoy") { NOV.reintentar(); NOV.alEntrar(); } // instructivo de novedades: una vez, al entrar a la ruta
       if (this.barraPrueba()) { root.insertAdjacentHTML("afterbegin", this.barraPrueba()); $("[data-contratar]", root).onclick = () => this.contratar(); }
       if ((ruta === "hoy" || ruta === "resumen" || ruta === "dashboard") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {
@@ -154,6 +155,7 @@ const App = {
     root.innerHTML = `<div class="yo-cab"><div class="ava">${esc(iniciales(DB.perfil.nombre))}</div><div class="grow"><b>${esc(DB.perfil.nombre)}</b>
         <div class="small muted">${esc(DB.empresa?.nombre || "")} · ${esc(ROLES_TXT?.[DB.perfil.rol] || DB.perfil.rol)}</div></div></div>
       ${items.length ? `<div class="card solo-movil list yo-menu">${items.map(([k, i, t]) => `<a class="item" href="#${k}"><span class="ic" style="color:var(--azul);position:relative;display:flex">${ic(i)}</span><span class="grow">${k === "mensajes" ? "Avisos y comunicados" : t}</span>›</a>`).join("")}</div>` : ""}
+      ${NOV.aplica() ? `<div class="card list yo-menu"><a class="item" href="javascript:void 0" data-nov><span class="ic" style="color:var(--azul);display:flex">${ic("megafono")}</span><span class="grow">Novedades</span>›</a></div>` : ""}
       <h3 class="yo-sec">Cuenta y datos</h3>
       <div class="card"><div class="row"><span class="sp">Registros por enviar</span><b>${n}</b></div>
         ${err ? `<div class="small" style="color:var(--rosa-t);margin-top:6px">Último error: ${esc(err.error)}</div>` : ""}
@@ -163,6 +165,7 @@ const App = {
         <button class="btn sec block" style="margin-top:10px" data-pw>Guardar contraseña</button></div>
       <button class="btn peligro block" data-salir>Cerrar sesión</button>
       <div class="pie-marca">${logo(28)}<p>Te hago ver lo que tú <b>no puedes ver.</b></p><span class="tiny muted">Clarus ${CLARUS.version}</span></div>`;
+    { const nv = $("[data-nov]", root); if (nv) nv.onclick = () => NOV.mostrar(true); }
     $("[data-sync]", root).onclick = async () => { await DB.sincronizar(); toast("Sincronizado"); this.yo(root); };
     $("[data-cat]", root).onclick = async () => { try { await DB.catalogos(true); toast("Datos actualizados ✓"); } catch (e) { toast(e.message); } };
     $("[data-pw]", root).onclick = async () => {
