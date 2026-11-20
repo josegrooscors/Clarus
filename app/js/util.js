@@ -212,6 +212,7 @@ const SIGLAS = {
   STR: ["Strike rate", "Strike rate · efectividad: visitas con pedido ÷ visitas a tiendas que piden en tienda."],
   FEFO: ["FEFO", "FEFO · First Expired, First Out: lo que vence primero sale primero. Aquí: la fecha más próxima a vencer por tienda."],
   RR: ["Run rate", "Run rate · avance del objetivo contra el ritmo esperado a la fecha (día del mes ÷ días del mes)."],
+  SIN: ["Sell-in", "Sell-in · venta de la empresa a la tienda. Aquí: kilos pedidos por semana."],
   MSL: ["MSL", "MSL · Must Stock List: productos que la tienda debe tener (surtido asignado)."],
   POG: ["POG", "POG · Planograma: cómo debe ir acomodado el producto en el mueble."],
 };
