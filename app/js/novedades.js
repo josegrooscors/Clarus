@@ -9,6 +9,9 @@ const NOV = {
     { t: "Exhibición: se cuenta mueble por mueble", antes: "Lo exhibido se contaba junto con la bodega, sin separar dónde estaba.", ahora: "En «Exhibición» aparece cada mueble de la tienda (nevera de empacados, vitrina deli…). Cuentas lo que hay en cada uno.",
       como: ["Toca el mueble que vas a revisar.", "Escribe cuánto hay de cada producto en ese mueble.", "Al final, toma la foto del mueble ya ordenado."],
       m: [["Nevera de empacados", "12 paquetes"], ["Vitrina deli", "3 barras"], ["Foto del mueble", "al final", "azul"]] },
+    { t: "Vencimiento: solo del rebanado y el rallado", antes: "La fecha de vencimiento se pedía por producto, también en bodega.", ahora: "Solo se pide la fecha de lo empacado en la tienda: rebanado y rallado. Es la fecha de la etiqueta de la báscula. En bodega y en la vitrina del deli ya no se pide.",
+      como: ["En el mueble, escribe cuántos paquetes hay.", "Mira las etiquetas y pon la fecha del paquete que vence primero. Si es la misma de tu última visita, toca «Sigue igual».", "Si Clarus avisa «revisa y reempaca» o «Vencido», avisa en la tienda y retira lo vencido."],
+      m: [["Mozzarella rebanado", "12 paquetes"], ["Vence el 22 de noviembre", "Vence en 2 días", "ambar"], ["Mozzarella rallado", "Sigue igual · 27 nov", "azul"]] },
     { t: "Pedido: una sola lista, lo sugerido arriba", antes: "Había dos botones: «Sugeridos» y «Por categoría», y tenías que cambiar entre ellos.", ahora: "Hay una sola lista. Clarus suma lo que contaste en bodega y en exhibición y te pone arriba lo que recomienda pedir.",
       como: ["Revisa la cantidad sugerida de cada producto.", "Cámbiala si la tienda necesita más o menos.", "Toca «Guardar»."],
       m: [["Queso Mozzarella", "Sugerido: 2 cajas", "azul"], ["Tienes: bodega 4 + exhibido 12", "", "gris"]] },
@@ -32,6 +35,18 @@ const NOV = {
     try { const { error } = await sb.from("novedades_vistas").upsert({ usuario_id: DB.user.id, novedad: this.id }, { onConflict: "usuario_id,novedad", ignoreDuplicates: true }); LS.set("nov.pend", error ? this.id : ""); } catch (e) { LS.set("nov.pend", this.id); }
   },
   async reintentar() { if (LS.get("nov.pend", "") === this.id && this.aplica()) await this.registrar(); },
+  // Gerencia y supervisión: quién confirmó el instructivo (se muestra en Mensajes)
+  async tarjetaGerencia(antes) {
+    if (!antes || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const [{ data: us }, { data: vs, error }] = await Promise.all([sb.from("perfiles").select("id, nombre, rol, inicio_clarus").eq("activo", true).order("nombre"), sb.from("novedades_vistas").select("usuario_id, confirmado_at").eq("novedad", this.id)]);
+    if (error || !us || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const ok = Object.fromEntries((vs || []).map((v) => [v.usuario_id, v.confirmado_at])), hoy = hoyISO(), campo = (u) => u.rol === "vendedor" || u.rol === "supervisor";
+    const fila = us.map((u) => ({ u, at: ok[u.id], ini: campo(u) && !(u.inicio_clarus && u.inicio_clarus <= hoy) })), deben = fila.filter((f) => !f.ini), n = deben.filter((f) => f.at).length;
+    antes.insertAdjacentHTML("afterend", `<div class="card list" id="nov-g" style="margin-bottom:12px"><a class="item" href="javascript:void 0" data-novg><div class="ava" style="color:var(--azul)">${ic("megafono", 22)}</div><div class="grow"><div class="t">Novedades de la actualización</div><div class="small muted">Instructivo que sale al entrar</div><div class="item-pie"><span class="pill ${n === deben.length ? "p-menta" : "p-durazno"}">${n}/${deben.length} confirmaron</span></div></div>›</a></div>`);
+    document.querySelector("[data-novg]").onclick = () => modal(`<div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><h2 class="grow" style="margin:0">Quién lo confirmó</h2><span class="tiny muted">${n} de ${deben.length}</span></div>
+      <div class="list" style="gap:0">${fila.sort((a, b) => (a.ini - b.ini) || (!!a.at - !!b.at) || a.u.nombre.localeCompare(b.u.nombre)).map((f) => `<div class="inv-f"><div class="grow"><b>${esc(f.u.nombre)}</b><div class="tiny muted">${f.at ? "Confirmó " + fmtFecha(f.at) + " " + fmtHora(f.at) : f.ini ? "Lo verá el día que empiece en Clarus" : "Aún no lo confirma"}</div></div><span class="pill ${f.at ? "p-menta" : f.ini ? "p-gris" : "p-durazno"}">${f.at ? "Entendido" : f.ini ? "Por iniciar" : "Pendiente"}</span></div>`).join("")}</div>
+      <button class="btn sec block" style="margin-top:14px" data-cerrar>Cerrar</button>`, (m, close) => { m.querySelector("[data-cerrar]").onclick = close; });
+  },
   mostrar(repaso = false) {
     if (this._abierto) return; this._abierto = true;
     const n = this.pasos.length, el = document.createElement("div"); let i = 0;

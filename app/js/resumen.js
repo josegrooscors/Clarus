@@ -50,7 +50,7 @@ const R = {
       sb.from("clientes").select("id, nombre, modalidad, cadena, zona").limit(5000),
       sb.from("v_visitas").select("vendedor_id, fecha").gte("fecha", mes0).lte("fecha", finMes).limit(10000),
       sb.from("visitas_justificadas").select("vendedor_id, cliente_id, fecha, motivo, nota, foto_path, foto_at, dist_m, dentro, clientes(nombre)").gte("fecha", mes0 < desde ? mes0 : desde).lte("fecha", finMes > hasta ? finMes : hasta).limit(5000),
-      sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, unidades, fecha_visita, visita_id").lte("vence", new Date(Date.now() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" })).order("vence").limit(500),
+      sb.from("v_ultimo_vencimiento").select("*").lte("vence", new Date(Date.now() + 30 * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" })).order("vence").limit(500),
       sb.from("v_visitas").select("id, vendedor_id, cliente_id, tienda, checkin_at, checkout_at").eq("fecha", hoy).limit(2000),
       sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mes0 < hoy.slice(0, 8) + "01" ? mes0 : hoy.slice(0, 8) + "01", 6)[0] }), // venta facturada y merma por tienda y producto (Tablero Comercial)
       sb.from("v_inventario_visita").select("visita_id, vendedor_id, vendedor, cliente_id, tienda, fecha, checkin_at, producto_id, unidades, kg, agotado").gte("fecha", hace(30)).order("checkin_at", { ascending: false }).limit(5000),
@@ -246,7 +246,10 @@ const R = {
       ].join("");
       // Por atender: solo lo que tiene pendientes, lo más grave primero
       const tAg = new Set(agotSinPed.map((x) => x.cliente_id)).size;
+      const emp = (vencR.error ? [] : vencR.data).filter((z) => z.presentacion && (!vend || misClientes.has(z.cliente_id)) && (!cad || cadDe[z.cliente_id] === cad)), tEv = new Set(emp.filter((z) => diasPara(z.vence) < 0).map((z) => z.cliente_id)).size, tEp = new Set(emp.filter((z) => { const d = diasPara(z.vence); return d >= 0 && d <= 3; }).map((z) => z.cliente_id)).size;
       const at = [
+        [tEv, (tEv === 1 ? "Tienda con empacado vencido" : "Tiendas con empacado vencido"), "Rebanado o rallado: retirar de la exhibición", "bajo", "tab:inventario"],
+        [tEp, (tEp === 1 ? "Tienda con empacado por vencer" : "Tiendas con empacado por vencer"), "Vence en 3 días o menos: revisar y reempacar", "medio", "tab:inventario"],
         [tAg, (tAg === 1 ? "Tienda con agotados sin pedido" : "Tiendas con agotados sin pedido"), "Producto en cero y sin pedido después del conteo", "bajo", "tab:inventario"],
         [sinVisita.length, (sinVisita.length === 1 ? "Tienda del plan sin visitar" : "Tiendas del plan sin visitar"), etPer0(), "bajo", "tab:equipo"],
         [invSin7.length, (invSin7.length === 1 ? "Tienda sin conteo" : "Tiendas sin conteo") + " en 7 días", "Con ruta y que piden en tienda", "medio", "tab:inventario"],
@@ -446,13 +449,13 @@ const R = {
         <p class="tiny muted" style="margin:8px 0 0">Agotado: en la visita se marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
       ${(() => { // Producto por vencer: lo último que cada vendedora confirmó en cada tienda (próximos 30 días o ya vencido)
-        const nomT = Object.fromEntries(asigTodas.map((a) => [a.cliente_id, a.clientes?.nombre])), filas = (vencR.error ? [] : vencR.data).filter((z) => (!vend || misClientes.has(z.cliente_id)) && nomT[z.cliente_id]);
+        const nomT = Object.fromEntries(asigTodas.map((a) => [a.cliente_id, a.clientes?.nombre])), filas = (vencR.error ? [] : vencR.data).filter((z) => (!vend || misClientes.has(z.cliente_id)) && nomT[z.cliente_id] && (!z.presentacion || diasPara(z.vence) <= 3)); // el empacado avisa desde 3 días antes
         if (!filas.length) return "";
         const uds = filas.reduce((t, z) => t + Number(z.unidades || 0), 0);
         return `<h3 class="sec-t">Producto por vencer${sig("FEFO")}</h3><div class="card"><div class="tiny muted" style="margin-bottom:8px">Según la última visita a cada tienda: ${plur(filas.length, "producto")} en ${plur(new Set(filas.map((z) => z.cliente_id)).size, "tienda")}${uds ? " · " + fmtNum(uds, 0) + " unidades reportadas" : ""}.</div>
           ${R.paginar(filas.map((z) => { const pr = prodR.data.find((q) => q.id === z.producto_id), d = diasPara(z.vence);
-            return `<div class="al-fila"><div class="al-t fv-link" data-fv="${z.visita_id}" role="button" tabindex="0"><b>${esc(nomT[z.cliente_id])}</b><span class="tiny muted">${esc((pr?.nombre || "Producto").replace(/^Queso /, ""))} · visto el ${fmtFecha(z.fecha_visita + "T12:00:00")} · <u>Ver visita</u></span></div>
-              <div class="al-p"><span class="pill ${d < 0 ? "p-rosa" : d <= 15 ? "p-durazno" : "p-gris"}">${esc(d < 0 ? "Vencido" : faltan(z.vence))}</span>${z.unidades != null ? `<span class="tiny">${fmtNum(z.unidades, 0)} ${esc(plural(Number(z.unidades), pr?.unidad_conteo || "unidad"))}</span>` : ""}</div></div>`; }), "vencer")}</div>`;
+            return `<div class="al-fila"><div class="al-t fv-link" data-fv="${z.visita_id}" role="button" tabindex="0"><b>${esc(nomT[z.cliente_id])}</b><span class="tiny muted">${esc((pr?.nombre || "Producto").replace(/^Queso /, "") + (z.presentacion === "r" ? " rebanado" : z.presentacion === "l" ? " rallado" : ""))} · visto el ${fmtFecha(z.fecha_visita + "T12:00:00")} · <u>Ver visita</u></span></div>
+              <div class="al-p"><span class="pill ${d < 0 ? "p-rosa" : d <= 15 ? "p-durazno" : "p-gris"}">${esc(d < 0 ? "Vencido" : faltan(z.vence))}</span>${z.unidades != null ? `<span class="tiny">${fmtNum(z.unidades, 0)} ${esc(z.presentacion ? (Number(z.unidades) === 1 ? "paquete" : "paquetes") : plural(Number(z.unidades), pr?.unidad_conteo || "unidad"))}</span>` : ""}</div></div>`; }), "vencer")}</div>`;
       })()}
 
       <div id="r-espacio"></div>
