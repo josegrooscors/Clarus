@@ -155,7 +155,7 @@ const FICHA = {
     if (op.length || v.checkout_at) {
       titulo(op.length ? `Áreas de oportunidad · ${op.length}` : "Resultado");
       (op.length ? op : [["menta", "Visita completa, sin observaciones."]]).forEach(([tono, t]) => {
-        const col = tono === "rosa" ? ["#FDE7E5", "#B3261E"] : tono === "menta" ? ["#E3F5EC", "#0F7A4F"] : ["#FFF3D6", "#8A5A00"];
+        const col = tono === "rosa" ? ["#FDE7E5", "#B3261E"] : tono === "menta" ? ["#E2F5F5", "#0C8589"] : ["#FFEDE6", "#C2461B"];
         F(500, 25); const ls = partir(t, AN - 48), h = ls.length * 34 + 30;
         caja(M, y, AN, h, 16, col[0]); x.fillStyle = col[1]; ls.forEach((l, i) => x.fillText(l, M + 24, y + 16 + i * 34)); y += h + 10;
       });

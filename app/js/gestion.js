@@ -212,7 +212,7 @@ const G = {
   // ---------------- OBJETIVOS ----------------
   // Velocímetro de avance: arco de 0 a 100 %, con una marca donde debería ir según el día del mes (ritmo)
   velocimetro(pc, esperado, tono, ancho = 150, oscuro = false) {
-    const r = 64, L = Math.PI * r, v = Math.max(0, Math.min(100, pc || 0)), col = oscuro ? { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[tono] : { ok: "#0F7A4F", medio: "#B7791F", bajo: "#B3261E", "": "#2F5BEA" }[tono];
+    const r = 64, L = Math.PI * r, v = Math.max(0, Math.min(100, pc || 0)), col = oscuro ? { ok: "#4FD3D8", medio: "#FFB27A", bajo: "#FF7F87", "": "#FFFFFF" }[tono] : { ok: "#12A3A8", medio: "#F0633B", bajo: "#B3261E", "": "#2F5BEA" }[tono];
     const a = Math.PI * (1 - Math.max(0, Math.min(100, esperado || 0)) / 100), px = (k) => 80 + k * Math.cos(a), py = (k) => 76 - k * Math.sin(a);
     return `<svg class="velo" role="img" aria-label="${pc ?? 0} por ciento del objetivo" width="${ancho}" height="${Math.round(ancho * 0.6)}" viewBox="0 0 160 96">
       <path d="M16 76 A64 64 0 0 1 144 76" fill="none" stroke="${oscuro ? "rgba(255,255,255,.22)" : "#E9EDF5"}" stroke-width="14" stroke-linecap="round"></path>
