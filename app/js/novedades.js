@@ -32,6 +32,18 @@ const NOV = {
     try { const { error } = await sb.from("novedades_vistas").upsert({ usuario_id: DB.user.id, novedad: this.id }, { onConflict: "usuario_id,novedad", ignoreDuplicates: true }); LS.set("nov.pend", error ? this.id : ""); } catch (e) { LS.set("nov.pend", this.id); }
   },
   async reintentar() { if (LS.get("nov.pend", "") === this.id && this.aplica()) await this.registrar(); },
+  // Gerencia y supervisión: quién confirmó el instructivo (se muestra en Mensajes)
+  async tarjetaGerencia(antes) {
+    if (!antes || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const [{ data: us }, { data: vs, error }] = await Promise.all([sb.from("perfiles").select("id, nombre, rol, inicio_clarus").eq("activo", true).order("nombre"), sb.from("novedades_vistas").select("usuario_id, confirmado_at").eq("novedad", this.id)]);
+    if (error || !us || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const ok = Object.fromEntries((vs || []).map((v) => [v.usuario_id, v.confirmado_at])), hoy = hoyISO(), campo = (u) => u.rol === "vendedor" || u.rol === "supervisor";
+    const fila = us.map((u) => ({ u, at: ok[u.id], ini: campo(u) && !(u.inicio_clarus && u.inicio_clarus <= hoy) })), deben = fila.filter((f) => !f.ini), n = deben.filter((f) => f.at).length;
+    antes.insertAdjacentHTML("afterend", `<div class="card list" id="nov-g" style="margin-bottom:12px"><a class="item" href="javascript:void 0" data-novg><div class="ava" style="color:var(--azul)">${ic("megafono", 22)}</div><div class="grow"><div class="t">Novedades de la actualización</div><div class="small muted">Instructivo que sale al entrar</div><div class="item-pie"><span class="pill ${n === deben.length ? "p-menta" : "p-durazno"}">${n}/${deben.length} confirmaron</span></div></div>›</a></div>`);
+    document.querySelector("[data-novg]").onclick = () => modal(`<div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><h2 class="grow" style="margin:0">Quién lo confirmó</h2><span class="tiny muted">${n} de ${deben.length}</span></div>
+      <div class="list" style="gap:0">${fila.sort((a, b) => (a.ini - b.ini) || (!!a.at - !!b.at) || a.u.nombre.localeCompare(b.u.nombre)).map((f) => `<div class="inv-f"><div class="grow"><b>${esc(f.u.nombre)}</b><div class="tiny muted">${f.at ? "Confirmó " + fmtFecha(f.at) + " " + fmtHora(f.at) : f.ini ? "Lo verá el día que empiece en Clarus" : "Aún no lo confirma"}</div></div><span class="pill ${f.at ? "p-menta" : f.ini ? "p-gris" : "p-durazno"}">${f.at ? "Entendido" : f.ini ? "Por iniciar" : "Pendiente"}</span></div>`).join("")}</div>
+      <button class="btn sec block" style="margin-top:14px" data-cerrar>Cerrar</button>`, (m, close) => { m.querySelector("[data-cerrar]").onclick = close; });
+  },
   mostrar(repaso = false) {
     if (this._abierto) return; this._abierto = true;
     const n = this.pasos.length, el = document.createElement("div"); let i = 0;
