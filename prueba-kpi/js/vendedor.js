@@ -37,6 +37,7 @@ const PASOS = [
 const PASO_VIEJO = { fotos: "exhibicion", promos: "gestion" };
 // Presentaciones que se cuentan en la exhibición. El empacado se cuenta en paquetes y Clarus lo pasa a kilos con el peso promedio del paquete.
 const PAQ_KG = 0.13;
+const VENC_EMP_DIAS = 3; // el empacado (rebanado, rallado) avisa desde 3 días antes de vencer: su vida útil es la de la etiqueta de la báscula
 const PRES = [["b", null, null], ["r", "Rebanado", "paquetes de 130 g"], ["l", "Rallado", "paquetes de 130 g"]];
 const MOTIVOS_INCOMPLETA = [
   ["me_fui", "Ya no estoy en la tienda"],
@@ -329,7 +330,7 @@ const V = {
     prods.forEach((p) => { const b = v.inv[p.id + ":bodega"]; v.agot[p.id] = todo && (b ?? "") !== "" && Number(b) === 0 && !(Number(v.inv[p.id + ":exhibicion"]) > 0); });
   },
   // Suma lo exhibido en los muebles ya contados y lo guarda como inventario de exhibición, con el desglose por mueble
-  async guardarExh(v, prods) {
+  async guardarExh(v, prods, cat) {
     const slots = FOTOS.slots(v).filter((m) => v.exh?.[m.k]?.ok);
     const filas = prods.map((p) => {
       let kg = 0; const det = [];
@@ -342,9 +343,17 @@ const V = {
     if (!slots.length) return;
     await DB.encolar({ t: "inventario", lid: v.lid, conDetalle: true, rows: filas.map((f) => ({ ...f, agotado: !!v.agot[f.producto_id] })) });
     const bod = prods.filter((p) => this.contado(v, p)); if (bod.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, bod) });
+    // Vencimiento del empacado: con paquetes, la fecha; si antes había fecha y ya no quedan paquetes, se registra para que deje de avisar
+    const rv = [];
+    prods.forEach((p) => ["r", "l"].forEach((pr) => {
+      const tot = slots.reduce((t, m) => t + (Number(v.exh[m.k].c?.[p.id]?.[pr]) || 0), 0), st = (v.vencE || {})[p.id + pr];
+      if (tot > 0 && st?.fecha) rv.push({ producto_id: p.id, presentacion: pr, vence: st.fecha, unidades: tot, confirmada: !!st.igual });
+      else if (tot === 0 && slots.some((m) => this.presDe(m).includes(pr)) && (st?.fecha || (cat && this.empPrev(v, p.id, pr, cat)))) rv.push({ producto_id: p.id, presentacion: pr, sin_fecha: true, unidades: 0 });
+    }));
+    if (rv.length) await DB.encolar({ t: "vencimientos", lid: v.lid, cliente_id: v.cliente_id, rows: rv });
   },
   pExhibicion(box, v, cat, siguiente, abrir) {
-    box.onclick = null; box.oninput = null;
+    box.onclick = null; box.oninput = null; box.onchange = null;
     const slots = FOTOS.slots(v), prods = this.productosTienda(v, cat), redibujar = (k) => this.pExhibicion(box, v, cat, siguiente, k);
     if (abrir && slots.some((m) => m.k === abrir)) return this.pMueble(box, v, cat, prods, abrir, () => redibujar());
     const completo = (m) => FOTOS.de(v, m.k).length > 0 && !!v.exh?.[m.k]?.ok, todo = slots.every(completo);
@@ -365,6 +374,21 @@ const V = {
     }));
     $("[data-ok]", box).onclick = siguiente;
   },
+  // ---------- Vencimiento del empacado: una fecha por producto y presentación (la más próxima), solo si hay paquetes ----------
+  empPrev(v, pid, pr, cat) { return (cat.venc || []).find((x) => x.cliente_id === v.cliente_id && x.producto_id == pid && x.presentacion === pr)?.vence || null; },
+  empTotal(v, pid, pr) { return Object.values(v.exh || {}).reduce((t, m) => t + (Number(m?.c?.[pid]?.[pr]) || 0), 0); },
+  empEstado(iso) { const d = diasPara(iso); return d < 0 ? ["bajo", "Vencido · retíralo de la exhibición"] : d <= VENC_EMP_DIAS ? ["medio", (d === 0 ? "Vence hoy" : d === 1 ? "Vence mañana" : `Vence en ${d} días`) + " · revisa y reempaca"] : ["", ""]; },
+  empHtml(v, p, pr, cat, cambiando) {
+    const st = (v.vencE || {})[p.id + pr], prev = this.empPrev(v, p.id, pr, cat), corta = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
+    const q = `<div class="tiny muted">¿Cuál vence primero? Mira la etiqueta de la báscula.</div>`;
+    if (st?.fecha && !cambiando) { const [c, t] = this.empEstado(st.fecha); return `<div class="row" style="gap:8px;align-items:baseline"><span class="grow small">Vence el <b>${fmtDia(st.fecha)}</b></span><button type="button" class="venc-lk" data-ve-cam>Cambiar</button></div>${t ? `<div class="vemp-e ${c}"><i class="sem-d ${c}"></i>${t}</div>` : ""}`; }
+    if (prev && !cambiando) return `${q}<div class="row" style="gap:8px;margin-top:6px"><button type="button" class="btn sm grow" data-ve-ig="${prev}">Sigue igual · ${corta(prev)}</button><button type="button" class="btn sec sm grow" data-ve-cam>Cambiar fecha</button></div>`;
+    return `${q}<label class="f" style="margin-top:6px">Vence el</label><input class="in" type="date" data-ve-in value="${st?.fecha || ""}">`;
+  },
+  empFalta(v, prods, e) {
+    for (const p of prods) for (const pr of ["r", "l"]) if (Number(e.c?.[p.id]?.[pr]) > 0 && !(v.vencE || {})[p.id + pr]?.fecha) return `Indica la fecha de vencimiento de ${p.nombre} ${pr === "r" ? "rebanado" : "rallado"}`;
+    return "";
+  },
   pMueble(box, v, cat, prods, k, volver) {
     const slots = FOTOS.slots(v), m = slots.find((x) => x.k === k), cats = this.categorias(prods, cat);
     v.exh = v.exh || {}; const e = (v.exh[k] = v.exh[k] || { c: {} }); e.c = e.c || {};
@@ -380,7 +404,7 @@ const V = {
         <button type="button" class="cat-sel" data-catbtn>${this.botonCategoria(actual, info(actual).texto)}</button>
         <div class="list">${actual.prods.map((p) => `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span></div>
           ${vis.map((pr) => { const [t, sub] = etq(pr, p); return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
-            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>`; }).join("")}</div>`).join("")}</div>
+            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}`; }).join("")}</div>`).join("")}</div>
         <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
         <p class="tiny muted" style="margin:10px 0 0">Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
         <h3 class="sec-t" style="margin-top:16px">Foto del mueble</h3>
@@ -392,13 +416,17 @@ const V = {
         <button class="btn block" style="margin-top:14px" data-ok>Guardar mueble</button>
         ${slots.length > 1 && !fs.length ? `<button type="button" class="btn ghost block sm" style="margin-top:8px" data-quitar>Quitar este mueble</button>` : ""}`;
       const kgs = () => $$(".inv[data-p]", box).forEach((el) => { const p = prods.find((x) => x.id == el.dataset.p), kg = this.exhKg(e.c[p.id], p); $("[data-kg]", el).textContent = kg ? "≈ " + fmtNum(kg, 1) + " kg" : "0 kg"; $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto); });
-      kgs();
+      const ves = (solo) => $$(".vemp", box).forEach((el) => { const pid = el.closest(".inv").dataset.p, pr = el.dataset.ve; if (solo && solo !== el) return; const hay = Number(e.c[pid]?.[pr]) > 0; if (el.hidden === !hay && !solo && el.innerHTML) return; el.hidden = !hay; el.innerHTML = hay ? this.empHtml(v, prods.find((x) => x.id == pid), pr, cat, el.dataset.cam === "1") : ""; });
+      kgs(); ves();
+      box.onchange = (ev) => { const i = ev.target.closest("[data-ve-in]"); if (!i || !i.value) return; const el = i.closest(".vemp"), pid = el.closest(".inv").dataset.p; v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: i.value }; el.dataset.cam = ""; e.ok = false; Visita.set(v); ves(el); };
       box.onclick = async (ev) => {
         const t = ev.target;
+        const ve = t.closest("[data-ve-ig],[data-ve-cam]");
+        if (ve) { const el = ve.closest(".vemp"), pid = el.closest(".inv").dataset.p; if (ve.dataset.veIg) { v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: ve.dataset.veIg, igual: true }; el.dataset.cam = ""; e.ok = false; Visita.set(v); } else el.dataset.cam = "1"; return ves(el); }
         if (t.closest("[data-volver]")) return volver();
         if (t.closest("[data-catbtn]")) return this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.exhCat = c.id; Visita.set(v); pintar(); }, "mueble");
         if (t.closest("[data-todas]")) { todas = !todas; return pintar(); }
-        if (t.closest("[data-quitar]")) { v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods); return volver(); }
+        if (t.closest("[data-quitar]")) { v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods, cat); return volver(); }
         const bo = t.closest("[data-borrar]");
         if (bo) {
           if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
@@ -417,17 +445,18 @@ const V = {
         const st = t.closest("[data-m],[data-s]");
         if (st) { const pr = st.dataset.m || st.dataset.s, inp = $(`[data-u="${pr}"]`, st.closest(".pres")); inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (st.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true })); return; }
         if (t.closest("[data-ok]")) {
+          const fve = this.empFalta(v, prods, e); if (fve) return toast(fve, 4000);
           if (!FOTOS.de(v, k).length) return toast("Toma la foto de cómo quedó el mueble");
           const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0);
           if (!hay && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
-          e.ok = true; Visita.set(v); await this.guardarExh(v, prods); toast(`${m.nombre} guardado ✓`); volver();
+          e.ok = true; Visita.set(v); await this.guardarExh(v, prods, cat); toast(`${m.nombre} guardado ✓`); volver();
         }
       };
       box.oninput = (ev) => {
         const i = ev.target.closest("[data-u]"); if (!i) return;
         i.value = i.value.replace(i.dataset.u === "b" ? /[^0-9.]/g : /\D/g, "");
         const pid = i.closest(".inv").dataset.p; e.c[pid] = e.c[pid] || {}; e.c[pid][i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0);
-        e.ok = false; Visita.set(v); kgs();
+        e.ok = false; Visita.set(v); kgs(); ves();
       };
     };
     pintar();
@@ -481,7 +510,7 @@ const V = {
   },
 
   // ---------- Vencimiento: una sola pregunta por producto («¿cuál vence primero?»), con un toque si sigue igual ----------
-  vencPrev(v, p, cat) { return (cat.venc || []).find((x) => x.cliente_id === v.cliente_id && x.producto_id === p.id)?.vence || null; },
+  vencPrev(v, p, cat) { return (cat.venc || []).find((x) => x.cliente_id === v.cliente_id && x.producto_id === p.id && !x.presentacion)?.vence || null; },
   vencHtml(v, p, cat) {
     if (!p.controla_vencimiento || v.agot?.[p.id]) return "";
     const st = (v.venc || {})[p.id], prev = this.vencPrev(v, p, cat), plazo = p.dias_alerta_vencimiento || 15;

@@ -111,7 +111,7 @@ const DB = {
       sb.from("v_ultima_auditoria").select("cliente_id, fecha, pct, nuestro, competencia"),
       sb.from("visitas_justificadas").select("cliente_id, fecha, motivo, nota, foto_path").eq("vendedor_id", this.user.id).gte("fecha", hoyISO()),
       sb.from("familias_producto").select("id, nombre").eq("activo", true).order("nombre"),
-      sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence"),
+      sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, presentacion"),
       sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mesActual(), 4)[0] }), // venta facturada y merma por tienda: mes en curso y los 3 anteriores
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
@@ -210,7 +210,7 @@ const DB = {
       }
       case "vencimientos": { // fecha más próxima a vencer por producto, confirmada o cambiada en la visita
         const id = await this.idVisita(op.lid);
-        ok(await sb.from("vencimientos").upsert(op.rows.map((x) => ({ visita_id: id, cliente_id: op.cliente_id, producto_id: x.producto_id, vence: x.vence || null, unidades: x.unidades ?? null, confirmada: !!x.confirmada, sin_fecha: !!x.sin_fecha })), { onConflict: "visita_id,producto_id" }));
+        ok(await sb.from("vencimientos").upsert(op.rows.map((x) => ({ visita_id: id, cliente_id: op.cliente_id, producto_id: x.producto_id, presentacion: x.presentacion || "", vence: x.vence || null, unidades: x.unidades ?? null, confirmada: !!x.confirmada, sin_fecha: !!x.sin_fecha })), { onConflict: "visita_id,producto_id,presentacion" }));
         return;
       }
       case "inv_incompleto": { // cerró el inventario sin contar todas las categorías: queda el motivo para gerencia (o se borra si al final las contó)

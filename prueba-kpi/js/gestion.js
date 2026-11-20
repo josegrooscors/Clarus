@@ -119,7 +119,7 @@ const G = {
     const dSel = dias.find((d) => d.iso === sel) || dias[1];
     root.innerHTML = `<div class="top"><div><div class="muted small">Visitas programadas</div><h1>Programación</h1></div></div><div id="pg" class="muted">Cargando…</div>`;
     const [{ data: asig, error }, { data: obj }, { data: vis }, { data: just }] = await Promise.all([
-      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden, clientes(nombre, cadena, zona), perfiles(nombre)"),
+      sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, orden, clientes(nombre, cadena, zona), perfiles(nombre, inicio_clarus)"),
       sb.from("objetivos").select("cliente_id, objetivo_usd, venta_usd, objetivo_kg, venta_kg").eq("mes", mesActual()),
       dSel.iso <= hoyISO() ? sb.from("v_visitas").select("vendedor_id, cliente_id, checkin_at, checkout_at, estado").eq("fecha", dSel.iso) : Promise.resolve({ data: [] }),
       sb.from("visitas_justificadas").select("vendedor_id, cliente_id, motivo, nota").eq("fecha", dSel.iso),
@@ -150,6 +150,7 @@ const G = {
       if (dSel.iso > hoyISO()) return `<span class="pill p-gris">Programada</span>`;
       const x = (vis || []).find((v) => v.vendedor_id === a.vendedor_id && v.cliente_id === a.cliente_id);
       if (x) return x.checkout_at ? `<span class="pill p-menta">✓ ${fmtHora(x.checkin_at)}–${fmtHora(x.checkout_at)}</span>` : `<span class="pill p-azul">En tienda desde ${fmtHora(x.checkin_at)}</span>`;
+      if (dSel.iso < (a.perfiles?.inicio_clarus || "9999-12-31")) return `<span class="pill p-gris">Por iniciar</span>`; // aún no ejecuta en Clarus: no es una falta
       const suyas = (vis || []).filter((v) => v.vendedor_id === a.vendedor_id), prim = suyas.map((v) => v.checkin_at).sort()[0];
       return JORNADA.fin(dSel.iso, prim, suyas.some((v) => !v.checkout_at)) ? `<span class="pill p-rosa">No visitada</span>` : `<span class="pill p-gris">Por visitar</span>`;
     };

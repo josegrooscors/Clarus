@@ -123,6 +123,7 @@ const MSG = {
         ${gestor ? `<div class="steps">${[["enviados", "Enviados"], ["programados", "Programados"], ["recibidos", "Recibidos"]].map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div>` : ""}
         <div id="ml" class="muted">Cargando…</div>`;
       this.enlazarBanner(root, pintar);
+      if (gestor && tab === "enviados") NOV.tarjetaGerencia($(".steps", root));
       $$("[data-tab]", root).forEach((el) => (el.onclick = () => { tab = el.dataset.tab; LS.set("msg.tab", tab); pintar(); }));
       const nb = $("[data-nuevo]", root); if (nb) nb.onclick = () => this.nuevo(() => pintar());
       if (tab === "recibidos") {
