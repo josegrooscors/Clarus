@@ -371,7 +371,7 @@ const V = {
     const base = this.presDe(m), hayOtra = Object.values(e.c).some((x) => PRES.some(([pr]) => !base.includes(pr) && Number(x[pr]) > 0));
     let actual = cats.find((c) => c.id === v.exhCat) || cats[0], todas = hayOtra;
     const etq = (pr, p) => (pr === "b" ? [plural(2, p.unidad_conteo).replace(/^./, (c) => c.toUpperCase()), `${fmtNum(p.peso_kg_unidad, 2)} kg cada una`] : PRES.find((x) => x[0] === pr).slice(1));
-    const info = (c) => { const n = c.prods.filter((p) => this.exhKg(e.c[p.id], p) > 0).length; return { listo: n > 0, texto: n ? n + " con conteo" : "sin conteo" }; };
+    const info = (c) => { const n = c.prods.filter((p) => this.exhKg(e.c[p.id], p) > 0).length; return { listo: n > 0, texto: n ? n + " con conteo" : c.prods.length + " SKU" }; };
     const pintar = () => {
       const fs = FOTOS.de(v, k), vis = PRES.map((x) => x[0]).filter((pr) => todas || base.includes(pr));
       box.innerHTML = `<button type="button" class="venc-lk mue-volver" data-volver>‹ Todos los muebles</button>
@@ -396,7 +396,7 @@ const V = {
       box.onclick = async (ev) => {
         const t = ev.target;
         if (t.closest("[data-volver]")) return volver();
-        if (t.closest("[data-catbtn]")) return this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.exhCat = c.id; Visita.set(v); pintar(); });
+        if (t.closest("[data-catbtn]")) return this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.exhCat = c.id; Visita.set(v); pintar(); }, "mueble");
         if (t.closest("[data-todas]")) { todas = !todas; return pintar(); }
         if (t.closest("[data-quitar]")) { v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods); return volver(); }
         const bo = t.closest("[data-borrar]");
@@ -550,11 +550,12 @@ const V = {
     return `<span class="cs-t"><span class="cs-l">Categoría</span><b>${esc(c.nombre)}</b></span><span class="cs-a">${esc(avance)}</span>${ic("chev", 18)}`;
   },
   // Lista desplegable de categorías con su avance; primero las pendientes. Buscador cuando son muchas.
-  elegirCategoria(cats, actualId, info, alElegir) {
-    const orden = [...cats].sort((a, b) => info(a).listo - info(b).listo);
-    modal(`<h2 style="margin-bottom:2px">Elige la categoría</h2><p class="muted small" style="margin:0 0 10px">${cats.filter((c) => info(c).listo).length} de ${cats.length} listas. Primero salen las pendientes.</p>
+  // modo "inv": muestra cuántas están listas y las pinta en verde. En los demás (pedido, mueble) solo el nombre y su dato; la elegida se distingue por el marco azul.
+  elegirCategoria(cats, actualId, info, alElegir, modo = "inv") {
+    const orden = [...cats].sort((a, b) => info(a).listo - info(b).listo), inv = modo === "inv";
+    modal(`<h2 style="margin-bottom:${inv ? 2 : 12}px">Elige la categoría</h2>${inv ? `<p class="muted small" style="margin:0 0 10px">${cats.filter((c) => info(c).listo).length} de ${cats.length} contadas. Primero salen las pendientes.</p>` : ""}
       ${cats.length > 8 ? `<input class="in" id="csq" placeholder="Buscar categoría…" style="margin-bottom:10px">` : ""}
-      <div class="list" id="csl">${orden.map((c) => { const i = info(c); return `<button type="button" class="cs-op ${c.id === actualId ? "on" : ""} ${i.listo ? "ok" : ""}" data-cs="${c.id}" data-n="${esc(sinAcentos(c.nombre))}"><span>${esc(c.nombre)}</span><span class="cs-oa">${i.listo ? "✓ " : ""}${esc(i.texto)}${c.id === actualId ? " · aquí estás" : ""}</span></button>`; }).join("")}</div>`,
+      <div class="list" id="csl">${orden.map((c) => { const i = info(c); return `<button type="button" class="cs-op ${c.id === actualId ? "on" : ""} ${inv && i.listo ? "ok" : ""}" data-cs="${c.id}" data-n="${esc(sinAcentos(c.nombre))}" ${c.id === actualId ? 'aria-current="true"' : ""}><span>${esc(c.nombre)}</span><span class="cs-oa">${esc(i.texto)}</span></button>`; }).join("")}</div>`,
       (m, close) => {
         const q = $("#csq", m); if (q) q.oninput = () => { const t = sinAcentos(q.value.trim()); $$("[data-cs]", m).forEach((b) => (b.hidden = !!t && !b.dataset.n.includes(t))); };
         $$("[data-cs]", m).forEach((b) => (b.onclick = () => { close(); alElegir(cats.find((c) => c.id === b.dataset.cs)); }));
@@ -796,7 +797,7 @@ const V = {
       <input class="in" id="pedq" placeholder="Buscar producto o código…" style="margin-bottom:10px">
       <div class="empty card flat" id="pedvacio" hidden>Ningún producto coincide con la búsqueda.</div>`);
     filas.forEach((f) => { $(`[data-p="${f.p.id}"]`, box).style.order = esSug(f) ? 0 : 1; });
-    const infoP = (c) => { const n = filas.filter((f) => famP[f.p.id] === c.id && cant(f) > 0).length, sg = sugDe(c).length; return { listo: !sg, texto: sg ? plur(sg, "sugerido") : n ? `${n} en el pedido` : plur(c.prods.length, "producto") }; };
+    const infoP = (c) => { const n = filas.filter((f) => famP[f.p.id] === c.id && cant(f) > 0).length, sg = sugDe(c).length; return { listo: !sg, texto: sg ? plur(sg, "sugerido") : n ? `${n} en el pedido` : c.prods.length + " SKU" }; };
     const pintarP = () => {
       let visibles = 0;
       $("[data-pcat]", box).hidden = !!qp;
@@ -804,7 +805,7 @@ const V = {
       filas.forEach((f) => { const el = $(`[data-p="${f.p.id}"]`, box), ver = qp ? sinAcentos(f.p.nombre + " " + (f.p.sku || "")).includes(qp) : famP[f.p.id] === actualP.id; el.hidden = !ver; if (ver) visibles++; });
       $("#pedvacio", box).hidden = visibles > 0;
     };
-    $("[data-pcat]", box).onclick = () => this.elegirCategoria(catsP, actualP.id, infoP, (c) => { actualP = c; v.pedCat = c.id; Visita.set(v); pintarP(); });
+    $("[data-pcat]", box).onclick = () => this.elegirCategoria(catsP, actualP.id, infoP, (c) => { actualP = c; v.pedCat = c.id; Visita.set(v); pintarP(); }, "pedido");
     $("#pedq", box).oninput = (e) => { e.stopPropagation(); qp = sinAcentos(e.target.value.trim()); pintarP(); };
     const calcKg0 = box.oninput; box.oninput = (e) => { calcKg0(e); if (!e.target.closest("#pedq")) $("[data-pcat]", box).innerHTML = this.botonCategoria(actualP, infoP(actualP).texto); };
     pintarP();
