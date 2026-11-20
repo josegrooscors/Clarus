@@ -1,4 +1,4 @@
--- 20-nov-2026 · PENDIENTE DE APLICAR (la base pidió confirmación de José y no hubo respuesta a las 11:00 a. m.).
+-- 20-nov-2026 · Aplicado en el servidor (migración vencimiento_empacado, 12:28 p. m.) y validado con Demo, Yerenis y José en bloque que se deshace.
 -- Vencimiento solo del empacado (rebanado 'r', rallado 'l'). '' = vencimiento por producto (interruptor del producto, apagado).
 alter table public.vencimientos add column if not exists presentacion text not null default '';
 alter table public.vencimientos drop constraint if exists vencimientos_presentacion_check;
