@@ -90,7 +90,7 @@ const V = {
     const hoyProg = () => cat.ruta.filter((r) => (r.dias_semana || []).includes(dias[0].dia) && !(justDe(r.cliente_id, dias[0].iso) && !hechas[r.cliente_id])).length;
     root.innerHTML = `
       <div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>${saludo}, ${esc(nombre)}</h1></div><span id="syncpill"></span></div>
-      ${v ? `<div class="card" style="border-color:var(--azul-med);background:var(--azul-cl)">
+      ${v ? `<div class="card avz">
           <div class="row"><div class="grow"><div class="small muted">Visita en curso desde ${fmtHora(v.at)}</div><h2>${esc(v.tienda)}</h2></div>
           <a class="btn" href="#visita">Continuar</a></div></div>` : ""}
       <div id="porEscanear"></div>
@@ -132,7 +132,7 @@ const V = {
     });
     if (navigator.onLine) sb.from("v_pedidos").select("id", { count: "exact", head: true }).eq("vendedor_id", DB.user.id).in("estado", ["propuesto", "aprobado"]).is("documento", null).then(({ count }) => {
       const el = $("#porEscanear", root); if (!el || !count) return;
-      el.innerHTML = `<a class="card" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit;background:var(--azul-cl);border-color:var(--azul-med)">
+      el.innerHTML = `<a class="card avz" href="#mis-pedidos" style="display:flex;gap:12px;align-items:center;text-decoration:none;color:inherit">
         <span style="color:var(--azul)">${ic("doc", 26)}</span><div class="grow"><b>${plur(count, "pedido")} sin orden escaneada</b><div class="small muted">Escanea la orden de compra cuando la tienda te la entregue</div></div><span class="btn sm">Escanear</span></a>`;
     });
     // Actualiza tiendas y productos en segundo plano; si hay cambios, vuelve a pintar
@@ -148,7 +148,7 @@ const V = {
   // Tienda sin ubicación: quien tenga permiso la guarda desde la visita, parado en la tienda
   avisoGps(box, c) {
     if (!box || !c || c.lat != null || !(DB.puede("ubicacion") || DB.puede("tiendas"))) return;
-    box.innerHTML = `<div class="card" style="background:var(--durazno);border-color:#F6D9B0;display:flex;gap:12px;align-items:center">
+    box.innerHTML = `<div class="card av ambar sin-ic" style="display:flex;gap:12px;align-items:center">
       <span style="color:var(--durazno-t)">${ic("ruta", 24)}</span><div class="grow"><b>Esta tienda no tiene ubicación</b>
       <div class="small" style="color:var(--durazno-t)">Si estás dentro de la tienda, guárdala para validar las próximas visitas.</div></div>
       <button class="btn sm" data-gps>Guardar</button></div>`;
@@ -761,8 +761,8 @@ const V = {
       return { p, stock, contado, sug, bajo, valor };
     });
     const bajos = filas.filter((f) => f.bajo).length;
-    box.innerHTML = `${!v.guardado.inventario ? `<div class="card flat" style="background:var(--durazno);border-color:#F6DDBB"><b>Primero guarda el inventario</b><div class="small">Así la app calcula el pedido sugerido.</div></div>` : ""}
-      ${previo ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med)"><b>Editando el pedido</b><div class="small">Cambia las cantidades y guarda.</div></div>` : ""}
+    box.innerHTML = `${!v.guardado.inventario ? `<div class="card flat av ambar"><b>Primero guarda el inventario</b><div class="small">Así la app calcula el pedido sugerido.</div></div>` : ""}
+      ${previo ? `<div class="card flat avz"><b>Editando el pedido</b><div class="small">Cambia las cantidades y guarda.</div></div>` : ""}
       <p class="muted small" style="margin-top:0">${bajos ? `${plur(bajos, "producto")} con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
       <div class="list" id="pedl">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
@@ -881,7 +881,7 @@ const V = {
     box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Lo que hiciste en la visita</h2>
       ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${h ? "✓ " : ""}${esc(t)}</span>${h ? `<span class="pill p-menta">Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
       <div class="row" style="padding:7px 0"><span class="sp">Tiempo en tienda</span><b>${minutos(v.at, new Date())} min</b></div></div>
-      ${ok ? "" : `<div class="card flat" style="background:var(--rosa);border-color:#F3C4C0"><b>No puedes hacer check-out todavía</b>
+      ${ok ? "" : `<div class="card flat av rojo"><b>No puedes hacer check-out todavía</b>
         <div class="small" style="margin:2px 0 8px">Falta completar:</div>
         <div class="row" style="gap:8px;flex-wrap:wrap">${pend.map(([p, t]) => `<button class="btn sm" data-ir="${p}">${esc(t)} ›</button>`).join("")}</div></div>`}
       ${(() => {
@@ -889,12 +889,12 @@ const V = {
         if (!ag.length) return "";
         const nombres = ag.map((k) => (LS.get("cat")?.productos || []).find((p) => String(p.id) === k)?.nombre?.replace(/^Queso /, "") || "producto").join(", ");
         const mot = v.motivoAgotado ? MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.motivoAgotado)?.[1] : null;
-        return `<div class="card flat" style="background:#FFF7EC;border-color:#F5D9AE"><div class="row" style="gap:8px"><b class="sp">Aviso: ${esc(nombres)} agotado sin pedido</b><span class="pill p-gris">No bloquea</span></div>
+        return `<div class="card flat av ambar"><div class="row" style="gap:8px"><b class="sp">Aviso: ${esc(nombres)} agotado sin pedido</b><span class="pill p-gris">No bloquea</span></div>
           ${mot ? `<div class="small" style="margin-top:4px">Motivo registrado: <b>${esc(mot)}</b></div>`
             : `<div class="small" style="margin-top:4px">Le aparecerá a tu supervisor. Si no pediste porque no hay producto o por otra razón, indica el motivo.</div>
           <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-motag>Indicar motivo</button><button class="btn ghost sm" data-ir="pedido">Agregar al pedido</button></div>`}</div>`;
       })()}
-      ${v.invIncompleto ? `<div class="card flat" style="background:#FFF7EC;border-color:#F5D9AE"><div class="row" style="gap:8px"><b class="sp">Aviso: faltó contar ${esc(v.invIncompleto.cats.join(", "))}</b><span class="pill p-gris">No bloquea</span></div>
+      ${v.invIncompleto ? `<div class="card flat av ambar"><div class="row" style="gap:8px"><b class="sp">Aviso: faltó contar ${esc(v.invIncompleto.cats.join(", "))}</b><span class="pill p-gris">No bloquea</span></div>
         <div class="small" style="margin-top:4px">Motivo: <b>${esc(motivoInvIncompleto(v.invIncompleto.motivo))}</b>${v.invIncompleto.nota ? " · " + esc(v.invIncompleto.nota) : ""}. Le aparecerá a tu supervisor.</div>
         <div class="row" style="margin-top:8px"><button class="btn sm" data-ir="inventario">Contar ahora</button></div></div>` : ""}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
@@ -1123,7 +1123,7 @@ const V = {
       ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo imprimen: puedes corregir las cantidades o anularlo.</p>
         <div class="row"><button class="btn peligro sm sp" data-anul>Anular pedido</button><button class="btn sm sp" data-guardar>Guardar cambios</button></div>` : ""}
       ${p.nota_revision ? `<p class="small"><b>Nota:</b> ${esc(p.nota_revision)}</p>` : ""}
-      ${["propuesto", "aprobado"].includes(p.estado) ? `<div class="card flat" style="background:var(--azul-cl);border-color:var(--azul-med);margin-top:14px"><b>Orden de compra de la tienda</b>
+      ${["propuesto", "aprobado"].includes(p.estado) ? `<div class="card flat avz" style="margin-top:14px"><b>Orden de compra de la tienda</b>
           <div class="small">${p.documento ? "Ya está escaneada ✓. Si cambió, puedes volver a escanearla." : "Cuando la tienda te entregue la orden física, escanéala aquí. En la oficina la descargan e imprimen."}</div></div>
         <button class="btn block" style="margin-top:12px" data-scan>${ic("camara", 18)} ${p.documento ? "Volver a escanear" : "Escanear orden de compra"}</button>` : ""}
       ${p.documento ? `<button class="btn sec block" style="margin-top:12px" data-ver>Ver orden escaneada</button>` : ""}`, (m, close) => {

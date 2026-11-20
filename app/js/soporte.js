@@ -45,7 +45,7 @@ const SOP = {
     const pintar = async () => {
       root.innerHTML = `<div class="top"><div><div class="muted small">${ag ? "Buzón de soporte" : "¿Algún problema o duda? Escríbenos aquí."}</div><h1>Soporte</h1></div>${!ag ? `<button class="btn sm" data-nueva>+ Nueva consulta</button>` : ""}</div>
         ${ag ? `<div id="sk"></div><div class="steps">${[["pendientes", "Por responder"], ["respondidos", "Respondidos"], ["resueltos", "Resueltos"]].map(([k, t]) => `<div class="step ${k === tab ? "on" : ""}" data-tab="${k}">${t}</div>`).join("")}</div>`
-          : `<div class="card flat small" style="background:var(--azul-cl);border-color:var(--azul-med)">En vez de WhatsApp, escribe aquí: queda registrado y te avisamos en el teléfono cuando te respondan. Si es algo de la app, adjunta una captura de pantalla.</div>`}
+          : `<div class="card flat small avz">En vez de WhatsApp, escribe aquí: queda registrado y te avisamos en el teléfono cuando te respondan. Si es algo de la app, adjunta una captura de pantalla.</div>`}
         ${MSG.bannerPush()}<div id="sl" class="muted">Cargando…</div>`;
       MSG.enlazarBanner(root, pintar);
       $$("[data-tab]", root).forEach((el) => (el.onclick = () => { tab = el.dataset.tab; LS.set("sop.tab", tab); pintar(); }));
