@@ -102,9 +102,9 @@ const MSG = {
     if (!this.pushPosible() || Notification.permission === "granted") return "";
     if (Notification.permission === "denied") {
       if (Date.now() - (LS.get("pushAvisoCerrado", 0) || 0) < 14 * 864e5) return "";
-      return `<div class="card flat small aviso-x" style="background:var(--durazno);border-color:#F6DDBB"><div class="grow">Las notificaciones están bloqueadas. Actívalas en Chrome: ⋮ › Configuración › Notificaciones › Clarus.</div><button class="x-btn" aria-label="Cerrar aviso" onclick="LS.set('pushAvisoCerrado', Date.now()); this.closest('.aviso-x').remove()">✕</button></div>`;
+      return `<div class="card flat small aviso-x av ambar"><div class="grow">Las notificaciones están bloqueadas. Actívalas en Chrome: ⋮ › Configuración › Notificaciones › Clarus.</div><button class="x-btn" aria-label="Cerrar aviso" onclick="LS.set('pushAvisoCerrado', Date.now()); this.closest('.aviso-x').remove()">✕</button></div>`;
     }
-    return `<div class="card flat row" style="background:var(--azul-cl);border-color:var(--azul-med)"><span style="color:var(--azul)">${ic("msg", 24)}</span><div class="grow small"><b>Activa las notificaciones</b><br>Para que te avise cuando llegue un comunicado o un mensaje de soporte.</div><button class="btn sm" data-push>Activar</button></div>`;
+    return `<div class="card flat row avz"><span style="color:var(--azul)">${ic("msg", 24)}</span><div class="grow small"><b>Activa las notificaciones</b><br>Para que te avise cuando llegue un comunicado o un mensaje de soporte.</div><button class="btn sm" data-push>Activar</button></div>`;
   },
   enlazarBanner(root, re) {
     const b = $("[data-push]", root); if (!b) return;

@@ -919,3 +919,60 @@ button.inv.mue>svg{flex:none;color:var(--gris);transform:rotate(-90deg)}
 .nav a.on{background:none;font-weight:600}
 .nav a{font-size:12px;letter-spacing:-.2px}
 @media(max-width:350px){.nav{gap:2px;padding-left:6px;padding-right:6px}.nav a{font-size:11px;letter-spacing:-.3px}}
+
+/* ===================== v0.14.76 · ESTÁNDAR DE COLORES =====================
+   La plataforma es blanco, azul y negro. El semáforo (verde, ámbar, rojo) solo marca el estado de un indicador, y va en lo pequeño:
+   punto, cifra, barra o arco. Las tarjetas son siempre blancas. Un panel destacado por pantalla: azul; el segundo, negro. */
+:root{--verde:#0F7A4F;--ambar:#8A5A00;--rojo:#B3261E}
+/* Estados: punto de color + palabra, sin pastilla de fondo */
+.pill{padding:0;background:none!important;border-radius:0;gap:6px;font-size:12.5px}
+.pill::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:currentColor}
+.p-azul{color:var(--azul)}.p-menta{color:var(--verde)}.p-durazno{color:var(--ambar)}.p-rosa{color:var(--rojo)}.p-lila,.p-gris{color:var(--gris)}
+.hero .pill.p-azul{color:#C7D5FB}.hero .pill.p-menta{color:#8BE3B8}.hero .pill.p-durazno{color:#FFD39A}.hero .pill.p-rosa{color:#FFB4AE}.hero .pill.p-gris{color:#B7C3D9}
+.inv .pill,.pill{align-items:baseline}
+.pill::before{transform:translateY(-1px)}
+/* Sobre los paneles destacados: palabra en blanco con su punto de color */
+.desemp-tag,.desemp-tag.ok,.desemp-tag.medio,.desemp-tag.bajo{background:none;padding:0;border-radius:0;color:#fff;display:inline-flex;align-items:center;gap:7px}
+.desemp-tag::before{content:"";flex:none;width:9px;height:9px;border-radius:50%;background:#fff}
+.desemp-tag.ok::before{background:#5FD39B}.desemp-tag.medio::before{background:#FFD39A}.desemp-tag.bajo::before{background:#FFB4AE}
+.eqh-ch span.mal{background:none;color:#FFB4AE}
+/* Avisos: tarjeta blanca con su ícono; el color está solo en el ícono */
+.av,.card.av{background:#fff!important;border:1px solid var(--borde)!important;position:relative;padding-left:58px!important}
+.av::before{content:"!";position:absolute;left:14px;top:14px;width:30px;height:30px;border-radius:50%;border:1.5px solid currentColor;display:grid;place-items:center;font:700 16px var(--font)}
+.av.rojo::before{color:var(--rojo)}.av.ambar::before{color:var(--ambar)}
+.avz,.card.avz{background:#fff!important;border:1.5px solid var(--azul)!important}
+/* Indicadores, pasos y filas de observaciones */
+.kpi.alerta{background:#fff;border-color:var(--borde)}
+.kpi.alerta .v{color:var(--rojo)}
+.step.ok{background:#fff;border-color:var(--azul);color:var(--azul)}
+.fv-o,.fv-o.rosa,.fv-o.durazno,.fv-o.menta,.fv-o.azul{background:#fff;border:1px solid var(--borde);color:var(--tinta)}
+.fv-o.rosa svg{color:var(--rojo)}.fv-o.durazno svg{color:var(--ambar)}.fv-o.menta svg{color:var(--verde)}.fv-o.azul svg{color:var(--azul)}
+.fv-o svg{flex:none}
+.chk-al{border:1px solid var(--borde)}
+.chk-al-i,.chk-al-i.alta{background:#fff;border-color:var(--borde)}
+.chk-al-ic{border:1.5px solid currentColor;border-radius:50%}
+.chk-al.solo-merma{border-color:var(--borde)}
+.venc-al{background:#fff;border:1px solid var(--borde)}
+.cd-est.ok,.cd-est.mal{background:#fff;border:1px solid var(--borde)}
+.aud-card.pend{background:#fff}
+.dsh-n.bajo,.dsh-n.medio,.dsh-n.azul{background:#fff;border:1.5px solid currentColor}
+.agot.on{background:#fff;border-color:var(--rojo);color:var(--rojo)}
+/* Paneles destacados: azul y negro (sin morado) */
+.card.desemp.panel.indigo{background:var(--noche);border-color:var(--noche)}
+/* Azul es acción o selección: lo elegido se marca con marco y texto azul, sin relleno */
+.btn.sec{background:#fff;color:var(--azul);border:1.5px solid var(--azul)}
+.btn.ghost{border-color:var(--borde);color:var(--azul)}
+.cs-op.on{background:#fff;border:2px solid var(--azul)}
+.cat-sel .cs-a{background:none;padding:0;color:var(--azul)}
+.pl-tipo.on,.pl-prod.on,.pl-mtab.on,.aud-pin.on{background:#fff;box-shadow:inset 0 0 0 2px var(--azul)}
+.side a.on{background:none;color:var(--azul);font-weight:600}
+.ava{background:#EEF1F5;color:var(--tinta)}
+.paso-n{background:#fff;border:1.5px solid var(--azul)}
+.cam-b{background:#fff}
+.nov-foto,.pk-peso{background:#fff;border:1px solid var(--borde)}
+.burb.auto{background:#F1F3F7}
+table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
+.av.sin-ic{padding-left:16px!important}.av.sin-ic::before{display:none}
+.cd-est.ok,.cd-est.mal{color:var(--tinta)}.cd-est.ok svg{color:var(--verde)}.cd-est.mal svg{color:var(--ambar)}
+/* El botón principal es siempre azul (también el de cerrar la visita); el rojo queda para lo que borra o anula */
+.btn.ok{background:var(--azul);color:#fff}
