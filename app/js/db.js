@@ -276,7 +276,7 @@ const DB = {
           const f = ok(await sb.from("fotos").insert({ id_local: op.blob, visita_id: id, tipo: "promocion", storage_path: path, tomada_at: d.at, lat: d.lat, lng: d.lng }).select("id").maybeSingle());
           foto_id = f.data?.id || (await sb.from("fotos").select("id").eq("id_local", op.blob).single()).data.id;
         }
-        ok(await sb.from("promociones").insert({ id_local: op.plid, visita_id: id, producto_id: d.producto_id || null, tipo: d.tipo, precio_regular: d.precio_regular || null, precio_oferta: d.precio_oferta || null, vigencia_hasta: d.vigencia_hasta || null, nota: d.nota || null, foto_id }));
+        ok(await sb.from("promociones").insert({ id_local: op.plid, visita_id: id, producto_id: d.producto_id || null, tipo: d.tipo, precio_regular: d.precio_regular || null, precio_oferta: d.precio_oferta || null, ...(d.descuento_pct ? { descuento_pct: d.descuento_pct } : {}), vigencia_hasta: d.vigencia_hasta || null, nota: d.nota || null, foto_id }));
         if (op.blob) await IDB.delBlob(op.blob);
         return;
       }

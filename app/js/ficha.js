@@ -42,7 +42,7 @@ const FICHA = {
       sb.from("v_pedidos").select("id, estado, total_cajas, total_kg, numero_orden, nota_vendedor").eq("visita_id", id),
       sb.from("auditorias_espacio").select("pct, nuestro, competencia, otra, vacio").eq("visita_id", id).order("creado_at", { ascending: false }).limit(1),
       sb.from("planograma_revisiones").select("cumple, nota, planogramas(nombre)").eq("visita_id", id),
-      sb.from("promociones").select("tipo, precio_regular, precio_oferta, nota, productos(nombre)").eq("visita_id", id),
+      sb.from("promociones").select("tipo, precio_regular, precio_oferta, descuento_pct, nota, productos(nombre)").eq("visita_id", id),
       sb.from("vencimientos").select("producto_id, vence, unidades, confirmada, sin_fecha, productos(nombre, unidad_conteo, dias_alerta_vencimiento)").eq("visita_id", id),
     ]);
     if (vR.error) throw vR.error;
@@ -85,7 +85,7 @@ const FICHA = {
         : motivo ? `<p class="small"><b>Sin pedido.</b> Motivo: ${esc(motivo)}${vx.sin_pedido_nota ? " · " + esc(vx.sin_pedido_nota) : ""}</p>` : `<p class="muted small">${v.checkout_at ? "Cerró sin pedido y sin motivo." : "Todavía no hay pedido."}</p>`)}
       ${d.aud ? sec("Auditoría de espacio", `<p class="small"><b style="font-size:20px;font-family:var(--font-t)">${d.aud.pct == null ? "–" : fmtNum(d.aud.pct, 0) + "%"}</b> de participación · ${fmtNum(d.aud.nuestro, 0)} frentes nuestros y ${fmtNum(d.aud.competencia, 0)} de la competencia</p>`) : ""}
       ${d.plano.length ? sec("Planograma", d.plano.map((r) => `<div class="row" style="gap:8px;margin-bottom:4px"><span class="pill ${r.cumple ? "p-menta" : "p-durazno"}">${r.cumple ? "Cumple" : "No cumple"}</span><span class="small">${esc(r.planogramas?.nombre || "")}${r.nota ? " · " + esc(r.nota) : ""}</span></div>`).join("")) : ""}
-      ${d.promos.length ? sec("Promociones", d.promos.map((p) => `<p class="small" style="margin:0 0 4px"><b>${esc((p.productos?.nombre || "").replace(/^Queso /, ""))}</b> · ${esc(p.tipo || "")}${p.precio_oferta ? " · $" + fmtNum(p.precio_oferta, 2) : ""}${p.nota ? " · " + esc(p.nota) : ""}</p>`).join(""), d.promos.length) : ""}
+      ${d.promos.length ? sec("Promociones", d.promos.map((p) => `<p class="small" style="margin:0 0 4px"><b>${esc((p.productos?.nombre || "").replace(/^Queso /, ""))}</b> · ${esc({ oferta_precio: "Oferta de precio", descuento: "Descuento", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" }[p.tipo] || p.tipo || "")}${p.descuento_pct ? " −" + fmtNum(p.descuento_pct, 1) + "%" : ""}${p.precio_oferta ? " · $" + fmtNum(p.precio_oferta, 2) : ""}${p.nota ? " · " + esc(p.nota) : ""}</p>`).join(""), d.promos.length) : ""}
       ${d.analisis.length ? sec(`${visionIc(16)} Clarus Vision`, vis.length ? vis.map((a) => `<p class="small" style="margin:0 0 6px">${esc(a.resultado?.observaciones || "Foto revisada.")}</p>`).join("") : `<p class="muted small">${plur(espera, "foto")} en espera de lectura.</p>`) : ""}
       ${vx.comentario ? sec("Comentario de la vendedora", `<p class="small">${esc(vx.comentario)}</p>`) : ""}`;
   },
