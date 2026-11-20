@@ -221,7 +221,7 @@ const R = {
 
     const nomCortos = (rs) => { const n = rs.map((r) => esc(r.u.nombre.split(" ")[0])); return n.length > 3 ? n.slice(0, 3).join(", ") + " y " + (n.length - 3) + " más" : n.join(", "); }; // nunca una lista que crece con el equipo
     const kpiIc = (l, v) => (/ kg$/.test(String(v)) && !/pedidos capturados/i.test(l) ? "etiqueta" : /inventario|conteo|agotado/i.test(l) ? "caja" : /producto/i.test(l) ? "etiqueta" : /pedido/i.test(l) ? "pedidos" : /cliente|tienda/i.test(l) ? "pin" : /sin cerrar/i.test(l) ? "reloj" : "equipo");
-    const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ki ${cls}"><span class="ki-c">${ic(kpiIc(l, v), 18)}</span><div class="ki-t"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:2px">${sub}</div>` : ""}</div></div>`;
+    const kpi = (v, l, cls = "", sub = "", sg = "") => `<div class="kpi ki ${cls}"><span class="ki-c">${ic(kpiIc(l, v), 18)}</span><div class="ki-t"><div class="v">${v}</div><div class="l">${l}</div>${sig(sg)}${sub ? `<div class="tiny muted" style="margin-top:2px">${sub}</div>` : ""}</div></div>`;
     const fCortaD = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
@@ -238,11 +238,11 @@ const R = {
       const tObj = pcObj == null ? "" : pcObj >= 100 ? "ok" : (pcObj / (espObj || 100)) * 100 >= 95 ? "ok" : (pcObj / (espObj || 100)) * 100 >= 75 ? "medio" : "bajo";
       const pMer = mTot.mes.p, efec = pct(visConPedido, visPT.length);
       const g4 = [
-        R.velo(pCob, sem(pCob), "Cobertura", pCob != null ? pCob + "%" : "–", planT.size ? `${visT.size} de ${plur(planT.size, "tienda")}` : "sin tiendas en el plan"),
-        R.velo(EJ.nota, sem(EJ.nota), "Ejecución", EJ.nota != null ? EJ.nota + "%" : "–", "meta 90%", 90),
-        metas ? R.velo(pcObj, tObj, "Objetivo de venta", pcObj != null ? pcObj + "%" : "–", objKg ? `ritmo esperado ${espObj}%` : "sin objetivo cargado", objKg ? espObj : null)
-              : R.velo(efec, sem(efec), "Visitas con pedido", efec != null ? efec + "%" : "–", `${visConPedido} de ${visPT.length} visitas`),
-        R.velo(pMer == null ? null : Math.min(100, (pMer / (lim * 2)) * 100), MERMA.tono(pMer), "Merma", MERMA.fp(pMer), fac.length ? `límite ${fmtNum(lim, 0)}% · ${MERMA.nombreMes(mes0)}` : "sin facturación cargada", 50),
+        R.velo(pCob, sem(pCob), "Cobertura", pCob != null ? pCob + "%" : "–", planT.size ? `${visT.size} de ${plur(planT.size, "tienda")}` : "sin tiendas en el plan", null, "COV"),
+        R.velo(EJ.nota, sem(EJ.nota), "Ejecución", EJ.nota != null ? EJ.nota + "%" : "–", "meta 90%", 90, "PEI"),
+        metas ? R.velo(pcObj, tObj, "Objetivo de venta", pcObj != null ? pcObj + "%" : "–", objKg ? `ritmo esperado ${espObj}%` : "sin objetivo cargado", objKg ? espObj : null, "RR")
+              : R.velo(efec, sem(efec), "Visitas con pedido", efec != null ? efec + "%" : "–", `${visConPedido} de ${visPT.length} visitas`, null, "STR"),
+        R.velo(pMer == null ? null : Math.min(100, (pMer / (lim * 2)) * 100), MERMA.tono(pMer), "Merma", MERMA.fp(pMer), fac.length ? `límite ${fmtNum(lim, 0)}% · ${MERMA.nombreMes(mes0)}` : "sin facturación cargada", 50, "SHR"),
       ].join("");
       // Por atender: solo lo que tiene pendientes, lo más grave primero
       const tAg = new Set(agotSinPed.map((x) => x.cliente_id)).size;
@@ -257,7 +257,7 @@ const R = {
         [porProc || 0, (porProc === 1 ? "Pedido por procesar" : "Pedidos por procesar"), "Nuevos, sin imprimir ni facturar", "azul", "ruta:pedidos"],
       ].filter((x) => x[0] > 0);
       const nAt = at.reduce((t, x) => t + x[0], 0);
-      const fAt = at.map(([n, t, sub, c, ir]) => `<button type="button" class="dsh-at" data-ir="${ir}"><span class="dsh-n ${c}">${n > 999 ? "999+" : n}</span><span class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></span><span class="dsh-ver">Ver ›</span></button>`).join("");
+      const fAt = at.map(([n, t, sub, c, ir]) => `<button type="button" class="dsh-at" data-ir="${ir}"><span class="dsh-n ${c}">${n > 999 ? "999+" : n}</span><span class="grow"><b>${esc(t)}</b>${/agotad/i.test(t) ? sig("OOS") : ""}<span class="tiny muted">${esc(sub)}</span></span><span class="dsh-ver">Ver ›</span></button>`).join("");
       // Tendencias
       const sems = {}; pedMes.forEach((x) => { const d = Number(new Date(x.creado_at).toLocaleDateString("en-CA", { timeZone: "America/Panama" }).slice(8, 10)), k = Math.min(4, Math.floor((d - 1) / 7)); sems[k] = (sems[k] || 0) + Number(x.total_kg || 0); });
       const nSem = Math.min(4, Math.floor((Number((hasta < hoy ? hasta : hoy).slice(8, 10)) - 1) / 7)), serieP = [...Array(nSem + 1)].map((_, i) => [Math.round(sems[i] || 0), "S" + (i + 1) + (i === nSem && mes0 === hoy.slice(0, 8) + "01" ? " (en curso)" : "")]);
@@ -291,13 +291,13 @@ const R = {
         <div class="dsh-2">
           <div class="card dsh-c"><div class="dsh-h"><h3>Por atender</h3><span class="tiny muted">${nAt ? plur(nAt, "pendiente") : etPer0()}</span></div>${fAt || `<div class="fv-o menta" style="margin-top:6px">${ic("ok", 16)}<span>Nada pendiente en este período.</span></div>`}</div>
           <div class="dsh-col">
-            <div class="card dsh-c"><div class="dsh-h"><h3>Pedidos por semana</h3><span class="tiny muted">kg pedidos · ${esc(MERMA.nombreMes(mes0))}</span></div>${serieP.some((x) => x[0]) ? R.barritas(serieP, (v) => fmtNum(v, 0)) : `<div class="small muted">Sin pedidos este mes.</div>`}</div>
+            <div class="card dsh-c"><div class="dsh-h"><h3>Pedidos por semana${sig("SIN")}</h3><span class="tiny muted">kg pedidos · ${esc(MERMA.nombreMes(mes0))}</span></div>${serieP.some((x) => x[0]) ? R.barritas(serieP, (v) => fmtNum(v, 0)) : `<div class="small muted">Sin pedidos este mes.</div>`}</div>
             ${serieM.some((x) => x[0] != null) ? `<div class="card dsh-c"><div class="dsh-h"><h3>Merma · 6 meses</h3><span class="tiny muted">% de la venta · límite ${fmtNum(lim, 0)}%</span></div>${R.barritas(serieM, (v) => (v == null ? "–" : fmtNum(v, 1)), 64)}</div>` : ""}
           </div>
         </div>
         ${rk.length ? `<div class="dsh-h dsh-ht"><h3>Dónde mejorar</h3><span class="tiny muted">lo más urgente primero</span></div>
         <div class="dsh-tabs" role="tablist">${rk.map(([k, t]) => `<button type="button" role="tab" data-dk-b="${k}" class="${k === kAct ? "on" : ""}">${t}</button>`).join("")}</div>
-        <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
+        <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}${sig({ tienda: "PEIT", rep: "PEI", cadena: "RR", producto: "RR" }[k])}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
       </div>`;
     })();
 
@@ -305,7 +305,7 @@ const R = {
       <select class="in" id="rv" style="margin-bottom:14px"><option value="">Todo el equipo</option>${vendedoras.map((u) => `<option value="${u.id}" ${u.id === vend ? "selected" : ""}>${esc(u.nombre)}</option>`).join("")}</select>
 
       ${agotSinPed.length ? `<div class="card av rojo" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
+        <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>${sig("OOS")}
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
         <div class="small">${plur(new Set(agotSinPed.map((a) => a.cliente_id)).size, "tienda")} en total · ${plur(agotSinPed.length, "conteo")} en ${plur(new Set(agotSinPed.map((a) => a.visita_id)).size, "visita")}. <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
         ${DB.puede("avisar") ? `<button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar al equipo</button>` : ""}</div>` : ""}
@@ -326,13 +326,13 @@ const R = {
           <div class="list" id="eq-lista">${equipo.map((e) => `<div class="item eq-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(e.u.nombre))}</div><div class="grow"><div class="t">${esc(e.u.nombre)}</div><div class="small muted">${esc(e.txt)}</div></div><span class="pill ${e.tono}">${ETQ[e.est]}</span></div>`).join("")}</div></div>`
         : `<div class="empty card flat">Hoy nadie del equipo tiene tiendas agendadas.</div>`}
 
-      <h3 class="sec-t" data-g="vendedora">${hoja ? "Hoja de " + esc(hoja.u.nombre) : "Ejecución del equipo"}</h3>
+      <h3 class="sec-t" data-g="vendedora">${hoja ? "Hoja de " + esc(hoja.u.nombre) : "Ejecución del equipo"}${sig("PEI")}</h3>
       ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#4FD3D8", medio: "#FFB27A", bajo: "#FF7F87", "": "#FFFFFF" }[cl];
         const frase = h.nota == null ? "Sin visitas en este período" : h.nota >= 90 ? "Ejecución excelente en punto de venta" : h.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
         const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
         const tT = h.tv == null ? "" : h.tv >= 30 ? "ok" : h.tv >= 15 ? "medio" : "bajo", tEn = h.jv.e == null ? "" : h.jv.e <= 480 ? "ok" : h.jv.e <= 510 ? "medio" : "bajo", jor = h.jv.s == null || h.jv.e == null ? null : h.jv.s - h.jv.e, tSa = jor == null ? "" : jor >= 480 ? "ok" : jor >= 450 ? "medio" : "bajo", tE = [tEn, tSa].includes("bajo") ? "bajo" : [tEn, tSa].includes("medio") ? "medio" : tEn || tSa; // jornada de la empresa: entrada a más tardar a las 8:00 y 8 horas desde la entrada
         return `<div class="card desemp panel hoja"><svg class="aro" role="img" aria-label="${h.nota ?? 0} por ciento de ejecución" width="112" height="112" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="12"></circle><circle cx="60" cy="60" r="50" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${((h.nota ?? 0) / 100) * C} ${C}" transform="rotate(-90 60 60)"></circle><text x="60" y="69" text-anchor="middle" fill="#fff" font-size="28" font-weight="700">${h.nota ?? "–"}${h.nota == null ? "" : "%"}</text></svg>
-            <div class="hoja-t"><div class="lbl">Ejecución · ${esc(etPer)}</div><b>${frase}</b><span>Promedio de asistencia, ruta cumplida, reporte con fotos e inventario.</span></div></div>
+            <div class="hoja-t"><div class="lbl">Ejecución · ${esc(etPer)}${sig("PEI")}</div><b>${frase}</b><span>Promedio de asistencia, ruta cumplida, reporte con fotos e inventario.</span></div></div>
           <div class="sem-g">
             ${tj("Asistencia", h.diasRuta ? `${h.asis} de ${h.diasRuta} ${h.diasRuta === 1 ? "día" : "días"}` : "–", h.pAsis != null ? h.pAsis + "% de sus días con ruta" : "sin ruta en el período", h.sem(h.pAsis))}
             ${tj("Ruta cumplida", h.pRuta != null ? h.pRuta + "%" : "–", `${progOk} de ${progN} visitas agendadas`, h.sem(h.pRuta))}
@@ -368,7 +368,7 @@ const R = {
       ${objKg && DB.puede("ver_metas") ? (() => { // Panel principal de Ventas (solo quien puede ver Metas; la supervisión no ve el objetivo de la empresa): objetivo del mes, en el azul de la marca
         const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esperado = (dHoy / dMes) * 100, ritmo = esperado ? ((pcObj ?? 0) / esperado) * 100 : 100;
         const cl = ritmo >= 95 ? "ok" : ritmo >= 75 ? "medio" : "bajo", tag = ritmo >= 95 ? "Al ritmo del mes" : ritmo >= 75 ? "Un poco atrás" : "Atrás del ritmo";
-        return `<div class="card desemp panel"><div class="lbl">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}</div>
+        return `<div class="card desemp panel"><div class="lbl">Objetivo de ${new Date(mes0 + "T12:00:00").toLocaleDateString("es-PA", { month: "long" })}${vend ? "" : " · toda la empresa"}${sig("RR")}</div>
           <div class="desemp-top"><span class="desemp-pct">${pcObj ?? 0}%</span><span class="desemp-tag ${cl}">${tag}</span></div>
           <div class="desemp-sub"><b>${fmtNum(avance, 0)} kg</b> de ${fmtNum(objKg, 0)} kg</div>
           <div class="barra"><i class="${cl}" style="width:${Math.min(100, pcObj ?? 0)}%"></i></div>
@@ -379,7 +379,7 @@ const R = {
         ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
         ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
       </div>
-      <div class="card" id="ven-por"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:8px"><h3 class="grow" style="margin:0">Ventas</h3><span class="tiny muted" id="vp-nota"></span></div>
+      <div class="card" id="ven-por"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:8px"><h3 class="grow" style="margin:0">Ventas<span id="vp-sig"></span></h3><span class="tiny muted" id="vp-nota"></span></div>
         <div class="dsh-fil" style="margin-bottom:6px"><label><span>Ver por</span><select class="in" id="vp-s">${[["cadena", "Cadena"], ["tienda", "Tienda"], ...(vend ? [] : [["rep", "Representante"]]), ["categoria", "Categoría"], ["producto", "Producto"], ["zona", "Zona o ruta"]].map(([k, t]) => `<option value="${k}" ${LS.get("res.vp", "cadena") === k ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
         <div id="vp-l"></div></div>
       ${(() => { // Vista Merma: notas de crédito por merma sobre la venta facturada, del mes del período elegido
@@ -388,7 +388,7 @@ const R = {
         const barra = (x) => `<div class="barra"><i class="${MERMA.tono(x) || "ok"}" style="width:${Math.min(100, ((x || 0) / (lim * 2)) * 100)}%"></i></div>`;
         const fila = (n, x, sub) => `<div class="mb"><div class="mb-t"><span><b>${esc(n)}</b>${sub ? `<span class="tiny muted"> · ${sub}</span>` : ""}</span><span class="mb-v ${MERMA.tono(x.mes.p)}">${MERMA.fp(x.mes.p)}${din ? ` <small>· ${fmtUsd(x.mes.m)}</small>` : ""}</span></div>${barra(x.mes.p)}<div class="tiny muted" style="margin-top:4px">3 meses anteriores: ${MERMA.fp(x.ant.p)}${din ? " · " + fmtUsd(x.ant.m) : ""}</div></div>`;
         const totDet = mProd.reduce((t, x) => t + x.ant.m + x.mes.m, 0);
-        return cab + `<div class="card desemp panel indigo"><div class="lbl">Merma de ${esc(mesN)}${vend ? "" : " · toda la empresa"}</div>
+        return cab + `<div class="card desemp panel indigo"><div class="lbl">Merma de ${esc(mesN)}${vend ? "" : " · toda la empresa"}${sig("SHR")}</div>
           <div class="desemp-top"><span class="desemp-pct">${MERMA.fp(p)}</span><span class="desemp-tag ${cl}">${MERMA.etq(p)}</span></div>
           <div class="desemp-sub">${din ? `<b>${fmtUsd(mTot.mes.m)}</b> en notas de crédito sobre ${fmtUsd(mTot.mes.v)} facturados` : "de la venta facturada"}</div>
           ${barra(p)}
@@ -402,12 +402,12 @@ const R = {
             <p class="tiny muted" style="margin:8px 0 0">«Sin detalle de producto»: notas de crédito que en el estado de cuenta llegan sin indicar el producto (así vienen las de octubre y noviembre).</p></div>` : ""}
           <p class="tiny muted" style="margin:0 2px 14px">Merma = notas de crédito por merma y por diferencia de peso o entrega, sobre la venta facturada de la tienda. Fuente: Tablero Comercial. Verde hasta ${fmtNum(lim, 0)}%, ámbar hasta ${fmtNum(lim * 1.5, 1)}%, rojo después.</p>`;
       })()}
-      <h3 class="sec-t" data-g="equipo">Efectividad de visitas · ${esc(etPer)}</h3>
+      <h3 class="sec-t" data-g="equipo">Efectividad de visitas · ${esc(etPer)}${sig("STR")}</h3>
       ${(() => { // Panel principal de Visitas: cumplimiento de agenda, en azul noche
         const pc = pct(progOk, progN), enCurso = hasta >= hoy, cl = pc == null ? "" : pc >= 90 ? "ok" : pc >= 70 ? "medio" : "bajo";
         const tag = pc == null ? "Sin agenda" : pc >= 90 ? "Excelente" : enCurso ? "En curso" : pc >= 70 ? "Puede mejorar" : "Atención";
         const ef = pct(visConPedido, visPT.length);
-        return `<div class="card desemp panel noche"><div class="lbl">Cumplimiento de agenda · ${esc(etPer)}</div>
+        return `<div class="card desemp panel noche"><div class="lbl">Cumplimiento de agenda · ${esc(etPer)}${sig("RC")}</div>
           <div class="desemp-top"><span class="desemp-pct">${pc ?? 0}%</span><span class="desemp-tag ${pc != null && pc < 90 && enCurso ? "" : cl}">${tag}</span></div>
           <div class="desemp-sub"><b>${progOk} de ${progN}</b> visitas programadas realizadas${dias.length < this.fechas(desde, hasta).length ? " (hasta hoy)" : ""}</div>
           <div class="barra"><i class="${cl || "ok"}" style="width:${Math.min(100, pc ?? 0)}%"></i></div>
@@ -433,7 +433,7 @@ const R = {
           ${kpi(fmtNum(invCon.reduce((t, x) => t + x.cj, 0), 1) + " cajas", "Inventario total contado", "", fmtNum(invCon.reduce((t, x) => t + x.kg, 0), 0) + " kg en " + plur(invCon.length, "tienda"))}
           ${kpi(invCon.reduce((t, x) => t + x.sug, 0) + " cajas", "Pedido sugerido", invN("bajo") ? "alerta" : "", "para volver a un mes de inventario")}
           ${kpi(invSin7.length, "Sin conteo en más de 7 días", invSin7.length ? "alerta" : "", "tiendas con ruta que piden en tienda")}
-          ${kpi(invCon.filter((x) => x.agotSinPed).length, "Agotados sin pedido", invCon.some((x) => x.agotSinPed) ? "alerta" : "", "producto en cero y sin pedido después del conteo")}
+          ${kpi(invCon.filter((x) => x.agotSinPed).length, "Agotados sin pedido", invCon.some((x) => x.agotSinPed) ? "alerta" : "", "producto en cero y sin pedido después del conteo", "OOS")}
         </div>
         <div class="card" id="inv-tiendas"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Inventario por tienda</h3><span class="tiny muted">las más urgentes primero</span></div>
           ${R.paginar(invT.map((t) => { const sub = t.est === "sin" ? "Sin conteo en los últimos 30 días" : t.ps.map((q) => `${q.n} ${q.agot ? "agotado" : q.caja ? fmtNum(q.kg / q.caja, 1) + " cj" : fmtNum(q.kg, 1) + " kg"}`).join(" · ") + " · contado " + (t.fecha === hoy ? "hoy" : "el " + fCortaD(t.fecha));
@@ -452,7 +452,7 @@ const R = {
         const nomT = Object.fromEntries(asigTodas.map((a) => [a.cliente_id, a.clientes?.nombre])), filas = (vencR.error ? [] : vencR.data).filter((z) => (!vend || misClientes.has(z.cliente_id)) && nomT[z.cliente_id] && (!z.presentacion || diasPara(z.vence) <= 3)); // el empacado avisa desde 3 días antes
         if (!filas.length) return "";
         const uds = filas.reduce((t, z) => t + Number(z.unidades || 0), 0);
-        return `<h3 class="sec-t">Producto por vencer</h3><div class="card"><div class="tiny muted" style="margin-bottom:8px">Según la última visita a cada tienda: ${plur(filas.length, "producto")} en ${plur(new Set(filas.map((z) => z.cliente_id)).size, "tienda")}${uds ? " · " + fmtNum(uds, 0) + " unidades reportadas" : ""}.</div>
+        return `<h3 class="sec-t">Producto por vencer${sig("FEFO")}</h3><div class="card"><div class="tiny muted" style="margin-bottom:8px">Según la última visita a cada tienda: ${plur(filas.length, "producto")} en ${plur(new Set(filas.map((z) => z.cliente_id)).size, "tienda")}${uds ? " · " + fmtNum(uds, 0) + " unidades reportadas" : ""}.</div>
           ${R.paginar(filas.map((z) => { const pr = prodR.data.find((q) => q.id === z.producto_id), d = diasPara(z.vence);
             return `<div class="al-fila"><div class="al-t fv-link" data-fv="${z.visita_id}" role="button" tabindex="0"><b>${esc(nomT[z.cliente_id])}</b><span class="tiny muted">${esc((pr?.nombre || "Producto").replace(/^Queso /, "") + (z.presentacion === "r" ? " rebanado" : z.presentacion === "l" ? " rallado" : ""))} · visto el ${fmtFecha(z.fecha_visita + "T12:00:00")} · <u>Ver visita</u></span></div>
               <div class="al-p"><span class="pill ${d < 0 ? "p-rosa" : d <= 15 ? "p-durazno" : "p-gris"}">${esc(d < 0 ? "Vencido" : faltan(z.vence))}</span>${z.unidades != null ? `<span class="tiny">${fmtNum(z.unidades, 0)} ${esc(z.presentacion ? (Number(z.unidades) === 1 ? "paquete" : "paquetes") : plural(Number(z.unidades), pr?.unidad_conteo || "unidad"))}</span>` : ""}</div></div>`; }), "vencer")}</div>`;
@@ -507,6 +507,7 @@ const R = {
         const fs = Object.values(m).filter((x) => x.o > 0 || x.v > 0).sort((a, b) => b.v - a.v || a.n.localeCompare(b.n)), mx = Math.max(1, ...fs.map((x) => x.v));
         const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esp = mes0 === hoy.slice(0, 8) + "01" ? (dHoy / dMes) * 100 : 100;
         const tono = (q) => (q >= 100 || (q / esp) * 100 >= 95 ? "ok" : (q / esp) * 100 >= 75 ? "medio" : "bajo");
+        $("#vp-sig", root).innerHTML = conMeta ? sig("RR") : "";
         $("#vp-nota", root).textContent = conMeta ? `facturado en ${mesTxt} · % del objetivo` : `kg pedidos · ${etPer}`;
         $("#vp-l", root).innerHTML = fs.length ? R.paginar(fs.map((x) => { const pc = x.o > 0 ? pct(x.v, x.o) : null, c = conMeta && pc != null ? tono(pc) : "", sub = (k === "tienda" ? "" : plur(x.t.size, "tienda") + " · ") + (conMeta && x.o > 0 ? `${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg` : `${fmtNum(x.v, 0)} kg`);
           return `<div class="inv-f dsh-rk">${conMeta ? `<i class="sem-d ${c || "sin"}"></i>` : ""}<div class="grow"><b>${esc(x.n)}</b><div class="tiny muted">${esc(sub)}</div><div class="barra"><i class="${c || "act"}" style="width:${Math.max(0, Math.min(100, conMeta && pc != null ? pc : (x.v / mx) * 100))}%"></i></div></div><b class="inv-v ${c}">${conMeta ? (pc != null ? pc + "%" : "–") : fmtNum(x.v, 0) + " kg"}</b></div>`; }), "vp") : `<div class="small muted" style="padding:10px 0">Sin ventas ${conMeta ? "ni objetivos cargados en " + esc(mesTxt) : "en el período"}.</div>`;
@@ -529,10 +530,10 @@ const R = {
   },
 
   // Velocímetro en tarjeta clara: valor grande al centro y, si se pide, la marca de la meta, el ritmo o el límite
-  velo(pc, tono, titulo, valor, sub, marca = null) {
+  velo(pc, tono, titulo, valor, sub, marca = null, sg = "") {
     const L = Math.PI * 48, v = Math.max(0, Math.min(100, pc || 0)), col = { ok: "#12A3A8", medio: "#F0633B", bajo: "#B3261E", "": "#C5CCD8" }[tono || ""], a = Math.PI * (1 - Math.max(0, Math.min(100, marca ?? 0)) / 100);
     const x = (k) => (60 + k * Math.cos(a)).toFixed(1), y = (k) => (62 - k * Math.sin(a)).toFixed(1);
-    return `<div class="dsh-g"><span class="dsh-gt">${titulo}</span><svg role="img" aria-label="${titulo}: ${valor}" viewBox="0 0 120 70"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="#E9EDF5" stroke-width="11" stroke-linecap="round"></path>${pc == null ? "" : `<path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(v / 100) * L} ${L}"></path>`}${marca != null ? `<line x1="${x(39)}" y1="${y(39)}" x2="${x(57)}" y2="${y(57)}" stroke="#0B1B33" stroke-width="2.5" stroke-linecap="round"></line>` : ""}<text x="60" y="60" text-anchor="middle" font-weight="700" font-size="${String(valor).length > 4 ? 19 : 22}" fill="#0B1B33">${valor}</text></svg><span class="dsh-gs ${tono || ""}">${sub}</span></div>`;
+    return `<div class="dsh-g"><span class="dsh-gt">${titulo}</span>${sig(sg) || `<span class="sig vacia" aria-hidden="true">&nbsp;</span>`}<svg role="img" aria-label="${titulo}: ${valor}" viewBox="0 0 120 70"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="#E9EDF5" stroke-width="11" stroke-linecap="round"></path>${pc == null ? "" : `<path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(v / 100) * L} ${L}"></path>`}${marca != null ? `<line x1="${x(39)}" y1="${y(39)}" x2="${x(57)}" y2="${y(57)}" stroke="#0B1B33" stroke-width="2.5" stroke-linecap="round"></line>` : ""}<text x="60" y="60" text-anchor="middle" font-weight="700" font-size="${String(valor).length > 4 ? 19 : 22}" fill="#0B1B33">${valor}</text></svg><span class="dsh-gs ${tono || ""}">${sub}</span></div>`;
   },
   // Barras verticales simples: [valor, etiqueta, tono]
   barritas(serie, fmt, alto = 96) {

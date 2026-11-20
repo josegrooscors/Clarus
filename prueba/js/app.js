@@ -381,7 +381,7 @@ const medirBarra = () => {
 const medirBarraPronto = () => [0, 300, 1200, 3000].forEach((t) => setTimeout(medirBarra, t));
 document.addEventListener("DOMContentLoaded", medirBarraPronto); window.addEventListener("resize", medirBarra); window.addEventListener("hashchange", medirBarraPronto);
 // Versión de prueba (carpeta /prueba/): mismo servidor y mismos datos, pero sin instalar su propio trabajador de servicio y con una franja que la distingue
-const ES_PRUEBA = /\/prueba\//.test(location.pathname);
+const ES_PRUEBA = /\/prueba[^/]*\//.test(location.pathname);
 if (ES_PRUEBA) document.addEventListener("DOMContentLoaded", () => document.body.insertAdjacentHTML("afterbegin", `<div class="prueba-b" role="status">Versión de prueba · no usar en ruta</div>`));
 if ("serviceWorker" in navigator && !ES_PRUEBA) {
   const habiaSW = !!navigator.serviceWorker.controller;

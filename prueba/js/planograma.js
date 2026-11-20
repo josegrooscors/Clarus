@@ -79,7 +79,7 @@ const PL = {
   },
   barraEspacio(e) {
     if (!e.total) return "";
-    return `<div class="pl-share"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><b style="font-size:22px">${e.pN == null ? "–" : e.pN + "%"}</b><span class="small muted">participación en la categoría</span></div>
+    return `<div class="pl-share"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><b style="font-size:22px">${e.pN == null ? "–" : e.pN + "%"}</b><span class="small muted">participación en el anaquel</span></div>
       <div class="pl-share-b"><i style="width:${e.pN || 0}%"></i><i class="c" style="width:${e.pC || 0}%"></i></div>
       <div class="row small" style="gap:12px;flex-wrap:wrap"><span><b class="pl-dot" style="background:var(--azul)"></b>Nuestro <b>${e.nuestro}</b></span><span><b class="pl-dot pl-comp"></b>Competencia <b>${e.comp}</b></span>
         <span class="muted"><b class="pl-dot pl-otra"></b>Otra categoría ${e.otra}</span><span class="muted">Vacíos ${e.libre}</span></div>

@@ -404,9 +404,10 @@ const V = {
         <button type="button" class="cat-sel" data-catbtn>${this.botonCategoria(actual, info(actual).texto)}</button>
         <div class="list">${actual.prods.map((p) => `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span></div>
           ${vis.map((pr) => { const [t, sub] = etq(pr, p); return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
-            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}`; }).join("")}</div>`).join("")}</div>
+            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}`; }).join("")}
+          <button type="button" class="agot ${e.c[p.id]?.z ? "on" : ""}" data-sinex style="margin-top:8px">Sin existencia</button></div>`).join("")}</div>
         <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
-        <p class="tiny muted" style="margin:10px 0 0">Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
+        <p class="tiny muted" style="margin:10px 0 0">Si no hay producto en este mueble, toca «Sin existencia» y toma igual la foto. Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
         <h3 class="sec-t" style="margin-top:16px">Foto del mueble</h3>
         <div class="inv"><div class="row"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span><div class="sp" style="min-width:0"><div class="nm">Foto de cómo quedó</div>
             <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
@@ -421,6 +422,8 @@ const V = {
       box.onchange = (ev) => { const i = ev.target.closest("[data-ve-in]"); if (!i || !i.value) return; const el = i.closest(".vemp"), pid = el.closest(".inv").dataset.p; v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: i.value }; el.dataset.cam = ""; e.ok = false; Visita.set(v); ves(el); };
       box.onclick = async (ev) => {
         const t = ev.target;
+        const sx = t.closest("[data-sinex]");
+        if (sx) { const el = sx.closest(".inv"), pid = el.dataset.p, on = !e.c[pid]?.z; e.c[pid] = on ? { b: 0, r: 0, l: 0, z: true } : {}; $$("[data-u]", el).forEach((i) => (i.value = on ? "0" : "")); sx.classList.toggle("on", on); e.ok = false; Visita.set(v); kgs(); return ves(); }
         const ve = t.closest("[data-ve-ig],[data-ve-cam]");
         if (ve) { const el = ve.closest(".vemp"), pid = el.closest(".inv").dataset.p; if (ve.dataset.veIg) { v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: ve.dataset.veIg, igual: true }; el.dataset.cam = ""; e.ok = false; Visita.set(v); } else el.dataset.cam = "1"; return ves(el); }
         if (t.closest("[data-volver]")) return volver();
@@ -447,8 +450,8 @@ const V = {
         if (t.closest("[data-ok]")) {
           const fve = this.empFalta(v, prods, e); if (fve) return toast(fve, 4000);
           if (!FOTOS.de(v, k).length) return toast("Toma la foto de cómo quedó el mueble");
-          const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0);
-          if (!hay && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
+          const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0), marcado = prods.length > 0 && prods.every((p) => e.c[p.id]?.z);
+          if (!hay && !marcado && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
           e.ok = true; Visita.set(v); await this.guardarExh(v, prods, cat); toast(`${m.nombre} guardado ✓`); volver();
         }
       };
@@ -456,6 +459,7 @@ const V = {
         const i = ev.target.closest("[data-u]"); if (!i) return;
         i.value = i.value.replace(i.dataset.u === "b" ? /[^0-9.]/g : /\D/g, "");
         const pid = i.closest(".inv").dataset.p; e.c[pid] = e.c[pid] || {}; e.c[pid][i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0);
+        if (e.c[pid].z && Number(e.c[pid][i.dataset.u]) > 0) { delete e.c[pid].z; $("[data-sinex]", i.closest(".inv")).classList.remove("on"); }
         e.ok = false; Visita.set(v); kgs(); ves();
       };
     };
@@ -752,8 +756,8 @@ const V = {
         $("[data-ok]", box).onclick = siguiente; return;
       }
       box.innerHTML = `<div class="card"><div class="row"><h2 class="sp">Pedido enviado</h2>${pillPedido("propuesto")}</div>
-        <div class="list" style="margin-top:12px">${v.pedido.items.map((i) => { const pr = cat.productos.find((x) => x.id === i.producto_id); return `<div class="row"><span class="sp">${esc(i.nombre)}</span><span style="text-align:right"><b>${fmtNum(i.propuesto)} ${esc(plural(i.propuesto, i.unidad))}</b><div class="tiny muted">${fmtKg(kgLinea(i.propuesto, pr))}</div></span></div>`; }).join("")}
-          <div class="row" style="border-top:1px solid var(--borde);padding-top:8px"><span class="sp muted">Total</span><b>${fmtKg(v.pedido.items.reduce((a, i) => a + kgLinea(i.propuesto, cat.productos.find((x) => x.id === i.producto_id)), 0))}</b></div></div>
+        <div class="list" style="margin-top:12px">${v.pedido.items.map((i) => { const pr = cat.productos.find((x) => x.id === i.producto_id); return `<div class="row"><span class="sp">${esc(i.nombre)}</span><span style="text-align:right"><b>${i.kg != null ? fmtNum(i.kg, 2) + " kg" : fmtNum(i.propuesto) + " " + esc(plural(i.propuesto, i.unidad))}</b><div class="tiny muted">${i.kg != null ? "pedido por kilo" : fmtKg(kgLinea(i.propuesto, pr))}</div></span></div>`; }).join("")}
+          <div class="row" style="border-top:1px solid var(--borde);padding-top:8px"><span class="sp muted">Total</span><b>${fmtKg(v.pedido.items.reduce((a, i) => a + kgItem(i, cat.productos.find((x) => x.id === i.producto_id)), 0))}</b></div></div>
         ${v.pedido.nota ? `<p class="small muted">Nota: ${esc(v.pedido.nota)}</p>` : ""}
         <p class="small muted">Ya le llegó a operaciones. Puedes editarlo o anularlo mientras no lo impriman.</p>
         <div class="row"><button class="btn ghost sm sp" data-edit>Editar pedido</button><button class="btn peligro sm sp" data-anul>Anular</button></div></div>
@@ -786,8 +790,9 @@ const V = {
         const obj = r.stock_objetivo != null ? Number(r.stock_objetivo) : Number(r.stock_minimo) * 2;
         sug = Math.max(0, Math.ceil((obj - stock) / (Number(p.unidades_por_pedido) || 1)));
       }
-      const valor = previo ? previo.items.find((i) => i.producto_id === p.id)?.propuesto || "" : sug || "";
-      return { p, stock, contado, sug, bajo, valor };
+      const pi = previo ? previo.items.find((i) => i.producto_id === p.id) : null, un = pi?.kg != null ? "k" : "c";
+      const valor = previo ? (un === "k" ? pi.kg : pi?.propuesto || "") : sug || "";
+      return { p, stock, contado, sug, bajo, valor, un };
     });
     const bajos = filas.filter((f) => f.bajo).length;
     box.innerHTML = `${!v.guardado.inventario ? `<div class="card flat av ambar"><b>Primero guarda el inventario</b><div class="small">Así la app calcula el pedido sugerido.</div></div>` : ""}
@@ -796,8 +801,10 @@ const V = {
       <div class="list" id="pedl">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
           <div class="tiny muted">En tienda: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) + ` (bodega ${fmtNum(Number(v.inv[f.p.id + ":bodega"]) || 0)} + exhibido ${fmtNum(Number(v.inv[f.p.id + ":exhibicion"]) || 0)})` : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div></div>
-          <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
-          <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div>
+          <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : "Cantidad a pedir"}</span>
+          </div>
+          <div class="ped-q"><div class="stepper"><button data-m aria-label="Menos">−</button><input inputmode="${f.un === "k" ? "decimal" : "numeric"}" value="${f.valor}" placeholder="0" aria-label="Cantidad de ${esc(f.p.nombre)}"><button data-s aria-label="Más">+</button></div>
+            <select class="in ped-u" data-un aria-label="Unidad de ${esc(f.p.nombre)}"><option value="c" ${f.un === "c" ? "selected" : ""}>${esc((f.p.unidad_pedido || "caja").replace(/^./, (c) => c.toUpperCase()))}</option><option value="k" ${f.un === "k" ? "selected" : ""}>Kilo</option></select></div>
           <div class="kg" data-kg></div></div>`).join("")}</div>
       <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total del pedido</span><b id="totkgp"></b></div></div>
       <label class="f">Nota para operaciones</label><input class="in" id="nota" placeholder="Opcional" value="${esc(previo?.nota || "")}">
@@ -805,16 +812,18 @@ const V = {
     const calcKg = () => {
       let tot = 0;
       filas.forEach((f) => {
-        const q = parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0, k = kgLinea(q, f.p); tot += k;
-        $(`[data-p="${f.p.id}"] [data-kg]`, box).innerHTML = q ? `${fmtNum(q)} ${esc(plural(q, f.p.unidad_pedido))} = <b>${fmtKg(k)}</b>` : "";
+        const el = $(`[data-p="${f.p.id}"]`, box), q = parseFloat($("input", el).value) || 0, enKg = $("[data-un]", el).value === "k", kc = kgLinea(1, f.p), k = enKg ? q : kgLinea(q, f.p); tot += k;
+        $("[data-kg]", el).innerHTML = !q ? "" : enKg ? `<b>${fmtNum(q, 2)} kg</b>${kc ? ` · equivale a ${fmtNum(q / kc, 2)} ${esc(plural(2, f.p.unidad_pedido))}` : ""}` : `${fmtNum(q)} ${esc(plural(q, f.p.unidad_pedido))} = <b>${fmtKg(k)}</b>`;
       });
       $("#totkgp").textContent = fmtKg(tot);
     };
     box.onclick = (e) => {
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
-      const inp = $("input", b.parentElement); inp.value = Math.max(0, (parseInt(inp.value) || 0) + (b.dataset.s !== undefined ? 1 : -1)) || ""; calcKg();
+      const inp = $("input", b.parentElement), enKg = $("[data-un]", b.closest(".inv")).value === "k"; inp.value = Math.max(0, Math.round((((enKg ? parseFloat(inp.value) : parseInt(inp.value)) || 0) + (b.dataset.s !== undefined ? 1 : -1)) * 100) / 100) || ""; calcKg();
     };
     box.oninput = calcKg;
+    // Unidad por producto: caja (enteros) o kilo (acepta decimales). Al cambiar se limpia la cantidad para no convertir a ciegas.
+    box.onchange = (e) => { const u = e.target.closest("[data-un]"); if (!u) return; const inp = $("input", u.closest(".inv")); inp.inputMode = u.value === "k" ? "decimal" : "numeric"; inp.value = ""; calcKg(); inp.focus(); };
     calcKg();
     // Un solo pedido, visto por categoría: el selector va siempre. Abre en la categoría que tiene sugeridos y, dentro de ella, lo sugerido sale primero.
     const catsP = this.categorias(prods, cat), famP = {}; catsP.forEach((c) => c.prods.forEach((x) => (famP[x.id] = c.id)));
@@ -844,7 +853,7 @@ const V = {
       const otras = catsP.filter((c) => c.id !== actualP.id && sugDe(c).some((f) => cant(f) === 0));
       if (otras.length && !(await confirmar(`Hay productos sugeridos sin pedir en ${otras.map((c) => c.nombre).join(", ")}. Puedes revisarlos con el selector de categoría.`, "Enviar así", "Revisar", "Quedan sugeridos sin pedir"))) return;
       const items = filas.map((f) => ({ producto_id: f.p.id, nombre: f.p.nombre, unidad: f.p.unidad_pedido, stock: f.contado ? f.stock : null, sugerido: f.sug || null,
-        propuesto: parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0 })).filter((i) => i.propuesto > 0);
+        ...(() => { const el = $(`[data-p="${f.p.id}"]`, box), q = parseFloat($("input", el).value) || 0, kc = kgLinea(1, f.p); return $("[data-un]", el).value === "k" && q > 0 && kc > 0 ? { propuesto: Math.max(0.01, Math.round((q / kc) * 100) / 100), kg: Math.round(q * 100) / 100 } : { propuesto: Math.round(q) }; })() })).filter((i) => i.propuesto > 0);
       if (!items.length && previo) {
         if (!(await confirmar("Todas las cantidades están en cero: se anulará el pedido y te pediremos el motivo.", "Anular pedido"))) return;
         await DB.encolar({ t: "pedido_anular", plid: previo.plid });
@@ -897,7 +906,7 @@ const V = {
     const e = this.estado(v), cat0 = LS.get("cat") || {}, pls = PL.deTienda(cat0, v.cliente_id) || [];
     const slots = FOTOS.slots(v), nMue = slots.filter((m) => FOTOS.de(v, m.k).length && v.exh?.[m.k]?.ok).length, nFB = v.fotos.filter((f) => f.slot === "bodega").length;
     const agot = Object.keys(v.agot || {}).filter((k) => v.agot[k]).length;
-    const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
+    const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgItem(i, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
       ["inventario", `${v.invIncompleto ? "Inventario de bodega · faltó " + plur(v.invIncompleto.cats.length, "categoría") : "Inventario de bodega"}${nFB ? ` · ${plur(nFB, "foto")}` : ""}`, e.inventario],
       ["exhibicion", `Exhibición · ${nMue} de ${plur(slots.length, "mueble")} con foto y conteo${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.exhibicion],
@@ -1146,9 +1155,9 @@ const V = {
     const { data: items } = await sb.from("pedido_items").select("*, productos(nombre, unidad_pedido, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").eq("pedido_id", p.id).order("id");
     modal(`<div class="row"><h2 class="sp">${esc(p.tienda)}</h2>${pillPedido(p.estado)}</div>
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${fmtFechaHora(p.creado_at)}</div>
-      <table class="t"><tr><th>Producto</th><th>Cajas</th><th style="text-align:right">Kilos</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<input class="in" style="width:80px;padding:8px" inputmode="decimal" data-i="${i.id}" value="${i.propuesto}">` : fmtNum(i.propuesto)}</td><td style="text-align:right" data-kgi="${i.id}">${fmtKg(kgLinea(i.propuesto, i.productos))}</td></tr>`).join("")}
-      <tr><td colspan="2"><b>Total</b></td><td style="text-align:right"><b data-kgt>${fmtKg((items || []).reduce((a, i) => a + kgLinea(i.propuesto, i.productos), 0))}</b></td></tr></table>
+      <table class="t"><tr><th>Producto</th><th>Pedido</th><th style="text-align:right">Kilos</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${p.estado === "propuesto" ? `<span class="row" style="gap:6px;flex-wrap:nowrap"><input class="in" style="width:76px;padding:8px" inputmode="decimal" data-i="${i.id}" data-kgl="${i.kg_pedido != null ? 1 : ""}" value="${i.kg_pedido != null ? i.kg_pedido : i.propuesto}"><span class="tiny muted">${i.kg_pedido != null ? "kg" : esc(plural(2, i.productos.unidad_pedido || "caja"))}</span></span>` : esc(cantPedida(i, i.productos))}</td><td style="text-align:right" data-kgi="${i.id}">${fmtKg(kgItem(i, i.productos))}</td></tr>`).join("")}
+      <tr><td colspan="2"><b>Total</b></td><td style="text-align:right"><b data-kgt>${fmtKg((items || []).reduce((a, i) => a + kgItem(i, i.productos), 0))}</b></td></tr></table>
       ${p.estado === "propuesto" ? `<p class="small muted">Todavía no lo imprimen: puedes corregir las cantidades o anularlo.</p>
         <div class="row"><button class="btn peligro sm sp" data-anul>Anular pedido</button><button class="btn sm sp" data-guardar>Guardar cambios</button></div>` : ""}
       ${p.nota_revision ? `<p class="small"><b>Nota:</b> ${esc(p.nota_revision)}</p>` : ""}
@@ -1158,14 +1167,15 @@ const V = {
       ${p.documento ? `<button class="btn sec block" style="margin-top:12px" data-ver>Ver orden escaneada</button>` : ""}`, (m, close) => {
       m.addEventListener("input", () => {
         let t = 0;
-        (items || []).forEach((i) => { const inp = $(`[data-i="${i.id}"]`, m); const k = kgLinea(inp ? inp.value : i.propuesto, i.productos); t += k; $(`[data-kgi="${i.id}"]`, m).textContent = fmtKg(k); });
+        (items || []).forEach((i) => { const inp = $(`[data-i="${i.id}"]`, m); const k = !inp ? kgItem(i, i.productos) : inp.dataset.kgl ? parseFloat(inp.value) || 0 : kgLinea(inp.value, i.productos); t += k; $(`[data-kgi="${i.id}"]`, m).textContent = fmtKg(k); });
         $("[data-kgt]", m).textContent = fmtKg(t);
       });
       const g = $("[data-guardar]", m);
       if (g) g.onclick = async () => {
         for (const inp of $$("[data-i]", m)) {
           const val = parseFloat(inp.value) || 0;
-          const r = val > 0 ? await sb.from("pedido_items").update({ propuesto: val }).eq("id", inp.dataset.i) : await sb.from("pedido_items").delete().eq("id", inp.dataset.i);
+          const it = (items || []).find((x) => x.id == inp.dataset.i), kc = kgLinea(1, it?.productos);
+          const r = val > 0 ? await sb.from("pedido_items").update(inp.dataset.kgl && kc > 0 ? { kg_pedido: Math.round(val * 100) / 100, propuesto: Math.max(0.01, Math.round((val / kc) * 100) / 100) } : { propuesto: val }).eq("id", inp.dataset.i) : await sb.from("pedido_items").delete().eq("id", inp.dataset.i);
           if (r.error) { toast(r.error.message, 4000); return; }
         }
         toast("Pedido actualizado ✓"); close(); recargar();

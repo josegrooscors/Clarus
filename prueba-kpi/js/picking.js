@@ -2,6 +2,8 @@
 // Operaciones: elige pedidos → arma una ruta con su transporte → pesa cada caja desde el teléfono → envía a Administración.
 // Administración (y admin): en la pestaña "Por facturar" abre la ruta enviada y marca cada pedido como Facturada.
 const PK = {
+  // Cuántas piezas hay que pesar de una línea: sus cajas, o una sola si se pidió por kilo
+  piezas(x) { return x.kg_pedido != null ? 1 : Math.round(Number(x.aprobado ?? x.propuesto)); },
   sel: new Set(),
   ESTADOS: { armando: ["Pesando", "p-durazno"], enviado: ["En administración", "p-azul"], facturado: ["Facturado", "p-menta"], anulado: ["Anulado", "p-gris"] },
   factura: () => ["admin", "administracion"].includes(DB.perfil?.rol),
@@ -22,7 +24,7 @@ const PK = {
       const [{ data: peds, error }, { data: items }, { data: asig }] = await Promise.all([
         sb.from("v_pedidos").select("id, cliente_id, tienda, cadena, vendedor_id, vendedor, creado_at, estado, numero_orden, documento, nota_vendedor, id_local")
           .is("despacho_id", null).is("facturado_at", null).not("estado", "in", "(anulado,rechazado)").gte("creado_at", desde).or("id_local.is.null,id_local.not.like.handy-*").order("creado_at").limit(500),
-        sb.from("pedido_items").select("pedido_id, producto_id, propuesto, aprobado, productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").gt("propuesto", 0),
+        sb.from("pedido_items").select("pedido_id, producto_id, propuesto, aprobado, kg_pedido, productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").gt("propuesto", 0),
         sb.from("asignacion_tiendas").select("cliente_id, orden, clientes(zona)"),
       ]);
       if (error) { $("#pkc", root).textContent = error.message; return; }
@@ -32,7 +34,7 @@ const PK = {
       this.sel = new Set([...this.sel].filter((x) => lista.some((p) => p.id === x)));
       const grupos = {};
       lista.forEach((p) => { const g = agrupar === "vendedor" ? p.vendedor || "Sin vendedora" : zona[p.cliente_id] || "Sin grupo"; (grupos[g] = grupos[g] || []).push(p); });
-      const cajas = (p) => it[p.id].map((x) => `${fmtNum(Number(x.aprobado ?? x.propuesto), 1)} ${esc(x.productos.nombre.replace(/^Queso /, ""))}`).join(" · ");
+      const cajas = (p) => it[p.id].map((x) => `${x.kg_pedido != null ? fmtNum(x.kg_pedido, 2) + " kg" : fmtNum(Number(x.aprobado ?? x.propuesto), 1)} ${esc(x.productos.nombre.replace(/^Queso /, ""))}`).join(" · ");
       $("#pkc", root).outerHTML = `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:12px"><span class="small muted">Agrupar por</span>
           ${[["vendedor", "Vendedora"], ["zona", "Grupo de ruta"]].map(([k, t]) => `<button class="btn sm ${agrupar === k ? "" : "sec"}" data-agr="${k}">${t}</button>`).join("")}</div>
         ${lista.length ? Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0])).map(([g, ps]) => `<div class="card pk-grupo">
@@ -101,13 +103,13 @@ const PK = {
   },
 
   async listaRutas(box, facturacion = false) {
-    let q = sb.from("despachos").select("*, transportes(nombre), pedidos(id, facturado_at, pedido_items(propuesto, aprobado), pedido_pesos(id))").order("fecha", { ascending: false }).order("id", { ascending: false }).limit(60);
+    let q = sb.from("despachos").select("*, transportes(nombre), pedidos(id, facturado_at, pedido_items(propuesto, aprobado, kg_pedido), pedido_pesos(id))").order("fecha", { ascending: false }).order("id", { ascending: false }).limit(60);
     q = facturacion ? q.eq("estado", "enviado") : q.neq("estado", "anulado");
     const { data, error } = await q;
     if (error) { box.textContent = error.message; return; }
     const base = "#picking/";
     box.outerHTML = data.length ? `<div class="card">${R.paginar(data.map((d) => {
-      const peds = d.pedidos || [], cajas = peds.reduce((a, p) => a + p.pedido_items.reduce((b, x) => b + Math.round(Number(x.aprobado ?? x.propuesto)), 0), 0);
+      const peds = d.pedidos || [], cajas = peds.reduce((a, p) => a + p.pedido_items.reduce((b, x) => b + PK.piezas(x), 0), 0);
       const pesadas = peds.reduce((a, p) => a + p.pedido_pesos.length, 0), fact = peds.filter((p) => p.facturado_at).length;
       const [et, cl] = this.ESTADOS[d.estado];
       return `<a class="item" href="${base}${d.id}" style="text-decoration:none;color:inherit"><div class="ava" style="color:var(--azul)">${ic("caja", 22)}</div>
@@ -119,7 +121,7 @@ const PK = {
   async cargar(id) {
     const [{ data: d }, { data: peds, error }] = await Promise.all([
       sb.from("despachos").select("*, transportes(nombre, contacto, telefono)").eq("id", id).maybeSingle(),
-      sb.from("pedidos").select("id, cliente_id, despacho_orden, facturado_at, factura_num, nota_vendedor, numero_orden, clientes(nombre, direccion, zona), perfiles!pedidos_vendedor_id_fkey(nombre), pedido_items(producto_id, propuesto, aprobado, productos(nombre, kg_por_pedido, precio_kg, unidades_por_pedido, peso_kg_unidad)), pedido_pesos(id, producto_id, kg)")
+      sb.from("pedidos").select("id, cliente_id, despacho_orden, facturado_at, factura_num, nota_vendedor, numero_orden, clientes(nombre, direccion, zona), perfiles!pedidos_vendedor_id_fkey(nombre), pedido_items(producto_id, propuesto, aprobado, kg_pedido, productos(nombre, kg_por_pedido, precio_kg, unidades_por_pedido, peso_kg_unidad)), pedido_pesos(id, producto_id, kg)")
         .eq("despacho_id", id).order("despacho_orden"),
     ]);
     if (error) throw error;
@@ -133,7 +135,7 @@ const PK = {
     if (!d) { root.innerHTML = `<div class="empty card flat">No encontré la ruta.</div><a class="btn sec" href="#picking">Volver</a>`; return; }
     if (d.estado !== "armando") return this.facturacion(root, id, datos);
     const editable = true;
-    const totalCajas = peds.reduce((a, p) => a + p.pedido_items.reduce((b, x) => b + Math.round(Number(x.aprobado ?? x.propuesto)), 0), 0);
+    const totalCajas = peds.reduce((a, p) => a + p.pedido_items.reduce((b, x) => b + PK.piezas(x), 0), 0);
     const pesadas = peds.reduce((a, p) => a + p.pedido_pesos.length, 0);
     const kgReal = peds.reduce((a, p) => a + p.pedido_pesos.reduce((b, x) => b + Number(x.kg), 0), 0);
     const [et, cl] = this.ESTADOS[d.estado];
@@ -147,8 +149,8 @@ const PK = {
           ${editable ? `<button class="btn ghost sm no-print" data-quitar="${p.id}" title="Sacar de la ruta">Quitar</button>` : ""}</div>
         ${p.nota_vendedor ? `<div class="small muted" style="margin-top:4px">Nota: ${esc(p.nota_vendedor)}</div>` : ""}
         ${p.pedido_items.map((x) => {
-          const pesos = p.pedido_pesos.filter((w) => w.producto_id === x.producto_id), cj = Math.round(Number(x.aprobado ?? x.propuesto));
-          return `<div class="pk-prod"><div class="row"><b class="grow">${esc(x.productos.nombre)}</b><span class="small">Pedido: <b>${plur(fmtNum(Number(x.aprobado ?? x.propuesto), 1), "caja")}</b></span></div>
+          const pesos = p.pedido_pesos.filter((w) => w.producto_id === x.producto_id), cj = PK.piezas(x);
+          return `<div class="pk-prod"><div class="row"><b class="grow">${esc(x.productos.nombre)}</b><span class="small">Pedido: <b>${x.kg_pedido != null ? fmtNum(x.kg_pedido, 2) + " kg" : plur(fmtNum(Number(x.aprobado ?? x.propuesto), 1), "caja")}</b></span></div>
             <div class="pk-pesos">${pesos.map((w, j) => `<span class="pk-peso">Caja ${j + 1}: <b>${fmtNum(Number(w.kg), 2)} kg</b>${editable ? `<button class="no-print" data-borrar="${w.id}" aria-label="Borrar">×</button>` : ""}</span>`).join("")}
               ${editable ? `<span class="pk-in no-print"><input class="in" type="text" inputmode="decimal" placeholder="Peso caja ${pesos.length + 1} (kg)" data-peso="${p.id}:${x.producto_id}"><button class="btn sm" data-add="${p.id}:${x.producto_id}">+ Caja</button></span>` : ""}</div>
             <div class="tiny ${pesos.length === cj ? "" : "muted"}" style="margin-top:4px">${pesos.length}/${plur(cj, "caja")} · ${fmtNum(pesos.reduce((a, w) => a + Number(w.kg), 0), 2)} kg</div></div>`;

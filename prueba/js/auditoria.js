@@ -181,7 +181,7 @@ const AUD = {
     const grupo = (k) => Object.entries(rows.reduce((o, r) => ((o[r[k] || "—"] = o[r[k] || "—"] || []).push(r), o), {})).map(([nombre, xs]) => ({ nombre, ...suma(xs), tiendas: xs.length })).sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
     const flecha = (r) => r.pct_anterior == null || r.pct == null ? "" : r.pct > r.pct_anterior ? `<span class="par-flecha sube">▲ ${Math.round(r.pct - r.pct_anterior)}</span>` : r.pct < r.pct_anterior ? `<span class="par-flecha baja">▼ ${Math.round(r.pct_anterior - r.pct)}</span>` : `<span class="muted">=</span>`;
     const tabla = (xs, titulo) => `<table class="t"><tr><th>${titulo}</th><th>Tiendas</th><th>Nuestros</th><th>Competencia</th><th>Participación</th></tr>${xs.map((x) => `<tr><td><b>${esc(x.nombre)}</b></td><td>${x.tiendas}</td><td>${x.n}</td><td>${x.c}</td><td><span class="pill ${colorPct(x.pct)}">${x.pct ?? "–"}${x.pct == null ? "" : "%"}</span></td></tr>`).join("")}</table>`;
-    box.innerHTML = `<h3 class="sec-t">Participación en la categoría</h3>
+    box.innerHTML = `<h3 class="sec-t">Participación en el anaquel${sig("SOS")}</h3>
       ${rows.length ? `<div class="card"><div class="par-top"><span class="par-pct">${g.pct ?? "–"}${g.pct == null ? "" : "%"}</span><span class="muted">de los frentes de la categoría son nuestros</span></div>
           <div class="small muted" style="margin-top:6px">${g.n} frentes nuestros · ${g.c} de la competencia · ${rows.length} de ${tiendasAsig.size} tiendas auditadas en los últimos 90 días</div></div>
         <div class="grid2"><div class="card scroll-x"><h3>Por cadena</h3>${tabla(grupo("cadena"), "Cadena")}</div><div class="card scroll-x"><h3>Por vendedora</h3>${tabla(grupo("vendedor"), "Vendedora")}</div></div>

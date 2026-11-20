@@ -119,6 +119,9 @@ const plural = (n, u) => (Number(n) === 1 ? u : /[aeiou]$/i.test(u) ? u + "s" : 
 const fmtDist = (m) => (m == null ? "–" : m < 1000 ? Math.round(m) + " m" : (m / 1000).toLocaleString("es-PA", { maximumFractionDigits: 1 }) + " km");
 
 // Kilos de una línea de pedido: cantidad × unidades por caja × kg por unidad
+// Línea pedida por kilo (kg_pedido) o por caja: cómo se escribe y cuántos kilos son
+const kgItem = (i, p) => (i?.kg_pedido != null ? Number(i.kg_pedido) : i?.kg != null ? Number(i.kg) : kgLinea(i?.aprobado ?? i?.propuesto, p));
+const cantPedida = (i, p, dec = 2) => { const k = i?.kg_pedido ?? i?.kg; if (k != null) return fmtNum(Number(k), 2) + " kg"; const q = Number(i?.aprobado ?? i?.propuesto) || 0; return fmtNum(q, dec) + " " + plural(q, p?.unidad_pedido || "caja"); };
 const kgLinea = (q, p) => (Number(q) || 0) * (p?.kg_por_pedido != null ? Number(p.kg_por_pedido) : (Number(p?.unidades_por_pedido) || 1) * (Number(p?.peso_kg_unidad) || 0));
 const fmtKg = (k) => fmtNum(k, 2) + " kg";
 

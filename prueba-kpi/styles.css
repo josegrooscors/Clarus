@@ -1054,3 +1054,8 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .vemp-e{display:flex;align-items:center;gap:6px;margin-top:6px;font:600 13px var(--font)}
 .vemp-e.bajo{color:var(--rojo)}.vemp-e.medio{color:var(--ambar)}
 .vemp-e .sem-d{flex:none}
+
+/* Pedido: cantidad y, al lado, la unidad (caja o kilo) */
+.ped-q{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+.ped-q .stepper{flex:1 1 0;min-width:0;width:auto}
+.ped-q .ped-u{flex:0 0 104px;width:104px;min-width:0;padding-left:12px;padding-right:26px;font-weight:600}

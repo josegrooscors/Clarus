@@ -119,6 +119,9 @@ const plural = (n, u) => (Number(n) === 1 ? u : /[aeiou]$/i.test(u) ? u + "s" : 
 const fmtDist = (m) => (m == null ? "–" : m < 1000 ? Math.round(m) + " m" : (m / 1000).toLocaleString("es-PA", { maximumFractionDigits: 1 }) + " km");
 
 // Kilos de una línea de pedido: cantidad × unidades por caja × kg por unidad
+// Línea pedida por kilo (kg_pedido) o por caja: cómo se escribe y cuántos kilos son
+const kgItem = (i, p) => (i?.kg_pedido != null ? Number(i.kg_pedido) : i?.kg != null ? Number(i.kg) : kgLinea(i?.aprobado ?? i?.propuesto, p));
+const cantPedida = (i, p, dec = 2) => { const k = i?.kg_pedido ?? i?.kg; if (k != null) return fmtNum(Number(k), 2) + " kg"; const q = Number(i?.aprobado ?? i?.propuesto) || 0; return fmtNum(q, dec) + " " + plural(q, p?.unidad_pedido || "caja"); };
 const kgLinea = (q, p) => (Number(q) || 0) * (p?.kg_por_pedido != null ? Number(p.kg_por_pedido) : (Number(p?.unidades_por_pedido) || 1) * (Number(p?.peso_kg_unidad) || 0));
 const fmtKg = (k) => fmtNum(k, 2) + " kg";
 
@@ -198,3 +201,38 @@ const LIM5 = {
 let _l5Pend = false;
 new MutationObserver(() => { if (_l5Pend) return; _l5Pend = true; requestAnimationFrame(() => { _l5Pend = false; LIM5.aplicar(); }); })
   .observe(document.documentElement, { childList: true, subtree: true });
+
+// Siglas de la industria: el nombre en español es la etiqueta principal; debajo va la sigla, pequeña y gris, siempre igual.
+// Al tocarla (o pasar el mouse) dice qué es y cómo se calcula en Clarus. Solo siglas estándar; lo que no tiene sigla va solo en español.
+const SIGLAS = {
+  COV: ["Coverage", "Coverage · cobertura: tiendas del plan visitadas ÷ tiendas del plan del período."],
+  RC: ["Route Compliance", "Route Compliance · cumplimiento de ruta: visitas programadas hechas ÷ visitas programadas (sin las justificadas)."],
+  OOS: ["OOS", "OOS · Out of Stock: producto en cero en el último conteo de la tienda."],
+  SOS: ["SOS", "SOS · Share of Shelf: frentes nuestros ÷ frentes de la categoría."],
+  SHR: ["Shrink", "Shrink · merma: notas de crédito por merma ÷ venta facturada."],
+  PEI: ["PEI", "PEI · Perfect Execution Index: promedio de asistencia, ruta cumplida, reporte con fotos e inventario."],
+  PEIT: ["PEI", "PEI · Perfect Execution Index de la tienda (0 a 100): promedio de su cobertura, inventario, merma y avance del objetivo."],
+  STR: ["Strike rate", "Strike rate · efectividad: visitas con pedido ÷ visitas a tiendas que piden en tienda."],
+  FEFO: ["FEFO", "FEFO · First Expired, First Out: lo que vence primero sale primero. Aquí: la fecha más próxima a vencer por tienda."],
+  RR: ["Run rate", "Run rate · avance del objetivo contra el ritmo esperado a la fecha (día del mes ÷ días del mes)."],
+  SIN: ["Sell-in", "Sell-in · venta de la empresa a la tienda. Aquí: kilos pedidos por semana."],
+  MSL: ["MSL", "MSL · Must Stock List: productos que la tienda debe tener (surtido asignado)."],
+  POG: ["POG", "POG · Planograma: cómo debe ir acomodado el producto en el mueble."],
+};
+const sig = (k) => (SIGLAS[k] ? `<span role="button" tabindex="0" class="sig" data-sig="${k}" title="${SIGLAS[k][1]}" aria-label="${SIGLAS[k][1]}">${SIGLAS[k][0]}</span>` : "");
+const sigCerrar = () => document.querySelectorAll(".sig-pop").forEach((x) => x.remove());
+const sigAbrir = (b) => {
+  const ya = b._pop && b._pop.isConnected; sigCerrar(); if (ya) return;
+  const p = document.createElement("div"); p.className = "sig-pop"; p.setAttribute("role", "tooltip"); p.textContent = SIGLAS[b.dataset.sig]?.[1] || "";
+  document.body.appendChild(p); b._pop = p;
+  const r = b.getBoundingClientRect(), w = Math.min(300, innerWidth - 24); p.style.width = w + "px";
+  const x = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2)), abajo = r.bottom + 8 + p.offsetHeight < innerHeight - 8;
+  p.style.left = x + "px"; p.style.top = (abajo ? r.bottom + 8 : r.top - 8 - p.offsetHeight) + scrollY + "px";
+};
+document.addEventListener("click", (e) => { const b = e.target.closest?.("[data-sig]"); if (b) { e.preventDefault(); e.stopPropagation(); sigAbrir(b); } else sigCerrar(); }, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") sigCerrar(); else if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[data-sig]")) { e.preventDefault(); e.stopPropagation(); sigAbrir(e.target); } }, true);
+window.addEventListener("hashchange", sigCerrar);
+if (window.matchMedia && matchMedia("(hover:hover) and (pointer:fine)").matches) {
+  document.addEventListener("mouseover", (e) => { const b = e.target.closest?.("[data-sig]"); if (b && !(b._pop && b._pop.isConnected)) sigAbrir(b); });
+  document.addEventListener("mouseout", (e) => { if (e.target.closest?.("[data-sig]")) sigCerrar(); });
+}

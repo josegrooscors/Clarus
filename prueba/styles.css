@@ -1036,6 +1036,15 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 /* Columna fija de una tabla que se desliza: tapa también los espacios entre filas, para que nada se vea pasar por detrás del nombre */
 .asis .asi-n{z-index:2}
 .asis .asi-n::before{content:"";position:absolute;inset:-4px 0 -4px -8px;background:#fff;z-index:-1}
+
+/* Sigla de la industria: debajo del nombre en español, pequeña y gris, igual en toda la app */
+.sig{display:block;width:max-content;max-width:100%;margin:2px 0 0;padding:0;border:0;background:none;font:500 10.5px/1.3 var(--font);letter-spacing:.04em;text-transform:none;color:var(--gris-cl);text-align:left;cursor:help;white-space:nowrap;-webkit-tap-highlight-color:transparent;position:relative}
+.sig::after{content:"";position:absolute;inset:-9px -10px}
+.sig:focus-visible{outline:2px solid var(--azul);outline-offset:2px;border-radius:4px}
+.sig.vacia{cursor:default}
+.dsh-g .sig{margin:1px auto 0;text-align:center}
+.panel .sig,.desemp .sig{color:#B7C3D9}
+.sig-pop{position:absolute;z-index:70;background:var(--noche);color:#fff;font:500 12.5px/1.4 var(--font);padding:9px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(11,27,51,.25);box-sizing:border-box}
 /* Tarjetas de indicadores con ícono: nunca más anchas que su columna (320 px) */
 .kpis>.kpi{min-width:0}.kpi.ki .ki-t{overflow-wrap:anywhere}
 
@@ -1045,3 +1054,8 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .vemp-e{display:flex;align-items:center;gap:6px;margin-top:6px;font:600 13px var(--font)}
 .vemp-e.bajo{color:var(--rojo)}.vemp-e.medio{color:var(--ambar)}
 .vemp-e .sem-d{flex:none}
+
+/* Pedido: cantidad y, al lado, la unidad (caja o kilo) */
+.ped-q{display:flex;gap:8px;align-items:stretch;margin-top:8px}
+.ped-q .stepper{flex:1 1 0;min-width:0;width:auto}
+.ped-q .ped-u{flex:0 0 104px;width:104px;min-width:0;padding-left:12px;padding-right:26px;font-weight:600}
