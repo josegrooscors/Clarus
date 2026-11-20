@@ -41,9 +41,9 @@ const G = {
       <div class="small muted" style="margin:4px 0 12px">Pedido #${p.id} · ${esc(p.vendedor)} · ${fmtFechaHora(p.creado_at)}</div>
       ${!p.documento && ["propuesto", "aprobado"].includes(p.estado) ? `<p class="small" style="color:var(--durazno-t)">La vendedora todavía no ha escaneado la orden de compra.</p>` : ""}
       ${p.nota_vendedor ? `<p class="small"><b>Nota del vendedor:</b> ${esc(p.nota_vendedor)}</p>` : ""}
-      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Cajas</th><th style="text-align:right">Kilos</th></tr>
-      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td><b>${fmtNum(i.propuesto)}</b></td><td style="text-align:right">${fmtKg(kgLinea(i.propuesto, i.productos))}</td></tr>`).join("")}
-      <tr><td colspan="4"><b>Total</b></td><td style="text-align:right"><b>${fmtKg((items || []).reduce((a, i) => a + kgLinea(i.propuesto, i.productos), 0))}</b></td></tr></table></div>
+      <div class="scroll-x"><table class="t"><tr><th>Producto</th><th>Inv.</th><th>Sug.</th><th>Pedido</th><th style="text-align:right">Kilos</th></tr>
+      ${(items || []).map((i) => `<tr><td>${esc(i.productos.nombre)}</td><td>${i.stock_unidades != null ? fmtNum(i.stock_unidades) : "–"}</td><td>${i.sugerido != null ? fmtNum(i.sugerido) : "–"}</td><td><b>${i.kg_pedido != null ? fmtNum(i.kg_pedido, 2) + " kg" : fmtNum(i.propuesto)}</b></td><td style="text-align:right">${fmtKg(kgItem({ ...i, aprobado: null }, i.productos))}</td></tr>`).join("")}
+      <tr><td colspan="4"><b>Total</b></td><td style="text-align:right"><b>${fmtKg((items || []).reduce((a, i) => a + kgItem({ ...i, aprobado: null }, i.productos), 0))}</b></td></tr></table></div>
       ${puedeAprobar ? `<label class="f">Nota (opcional; obligatoria si rechazas)</label><input class="in" id="nrev">
         <div class="row" style="margin-top:14px"><button class="btn peligro sp" data-rech>Rechazar</button><button class="btn ok sp" data-apr>Aprobar</button></div>` : ""}
       ${p.documento ? `<div class="row" style="margin-top:14px"><button class="btn ${puedeImprimir ? "" : "sec"} sp" data-pdf>${ic("doc", 18)} Abrir / imprimir</button><button class="btn sec sp" data-desc>Descargar PDF</button></div>` : ""}

@@ -285,7 +285,7 @@ const DB = {
         let r = await sb.from("pedidos").insert({ id_local: op.plid, visita_id, cliente_id: d.cliente_id, nota_vendedor: d.nota || null }).select("id").maybeSingle();
         ok(r);
         const pid = r.data?.id || (await sb.from("pedidos").select("id").eq("id_local", op.plid).single()).data.id;
-        ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: pid, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto })), { onConflict: "pedido_id,producto_id" }));
+        ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: pid, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto, kg_pedido: x.kg ?? null })), { onConflict: "pedido_id,producto_id" }));
         return;
       }
       case "pedido_editar":
@@ -297,7 +297,7 @@ const DB = {
         ok(await sb.from("pedidos").update({ nota_vendedor: op.nota || null }).eq("id", p.id));
         const ids = op.items.map((x) => x.producto_id);
         ok(await sb.from("pedido_items").delete().eq("pedido_id", p.id).not("producto_id", "in", `(${ids.join(",")})`));
-        ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: p.id, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto })), { onConflict: "pedido_id,producto_id" }));
+        ok(await sb.from("pedido_items").upsert(op.items.map((x) => ({ pedido_id: p.id, producto_id: x.producto_id, stock_unidades: x.stock, sugerido: x.sugerido, propuesto: x.propuesto, kg_pedido: x.kg ?? null })), { onConflict: "pedido_id,producto_id" }));
         return;
       }
       case "orden": {
