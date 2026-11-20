@@ -297,11 +297,11 @@ const V = {
   pGestion(box, v, cat, siguiente) {
     box.onclick = null; box.oninput = null;
     const pls = PL.deTienda(cat, v.cliente_id);
-    const tiposP = { oferta_precio: "Oferta de precio", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" };
+    const tiposP = { oferta_precio: "Oferta de precio", descuento: "Descuento (%)", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" };
     box.innerHTML = `${AUD.enVisita(v, cat)}${PL.enVisita(v, cat)}
       ${pls.length ? "" : `<p class="muted small" style="margin-top:0">Esta tienda no tiene planograma que revisar. Lo que hiciste queda registrado solo con tus fotos, inventario y pedido.</p>`}
       <div class="card" style="margin-top:12px"><div class="row" style="align-items:baseline;gap:8px"><h3 class="sp" style="margin:0">Promociones</h3><span class="tiny muted">las que viste hoy, con su foto</span></div>
-        ${v.promos.length ? `<div class="list" style="margin-top:10px">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" alt="Foto de la promoción" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tiposP[p.tipo])}</div><div class="small muted">${esc(p.producto || "General")}${p.precio_oferta ? " · $" + p.precio_oferta : ""}</div></div></div>`).join("")}</div>` : `<div class="small muted" style="margin:8px 0 0">Sin promociones registradas. Si no hay, sigue.</div>`}
+        ${v.promos.length ? `<div class="list" style="margin-top:10px">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" alt="Foto de la promoción" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tiposP[p.tipo])}</div><div class="small muted">${esc(p.producto || "General")}${p.descuento_pct ? " · −" + fmtNum(p.descuento_pct, 1) + "%" : ""}${p.precio_oferta ? " · $" + fmtNum(p.precio_oferta, 2) : ""}</div></div></div>`).join("")}</div>` : `<div class="small muted" style="margin:8px 0 0">Sin promociones registradas. Si no hay, sigue.</div>`}
         <button type="button" class="btn sec block sm" style="margin-top:12px" data-promo>+ Agregar promoción</button></div>
       <button class="btn block" style="margin-top:16px" data-ok>Seguir</button>`;
     $("[data-promo]", box).onclick = () => this.promoNueva(v, cat, tiposP, () => this.pGestion(box, v, cat, siguiente));
@@ -375,18 +375,20 @@ const V = {
     const pintar = () => {
       const fs = FOTOS.de(v, k), vis = PRES.map((x) => x[0]).filter((pr) => todas || base.includes(pr));
       box.innerHTML = `<button type="button" class="venc-lk mue-volver" data-volver>‹ Todos los muebles</button>
-        <div class="inv"><div class="row"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span><div class="sp" style="min-width:0"><div class="nm">${esc(m.nombre)}</div>
-            <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Foto obligatoria: cómo quedó el mueble"}</div></div>
-            ${fs.length ? `<span class="pill p-menta">✓ Foto</span>` : `<span class="pill p-durazno">Falta la foto</span>`}</div>
-          ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de ${esc(m.nombre)}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
-          <button type="button" class="btn ${fs.length ? "ghost" : "sec"} sm block" style="margin-top:10px" data-foto>${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button></div>
-        <h3 class="sec-t" style="margin-top:16px">Lo exhibido en este mueble</h3>
+        <h2 style="margin:4px 0 10px">${esc(m.nombre)}</h2>
+        <h3 class="sec-t" style="margin-top:0">Lo exhibido en este mueble</h3>
         <button type="button" class="cat-sel" data-catbtn>${this.botonCategoria(actual, info(actual).texto)}</button>
         <div class="list">${actual.prods.map((p) => `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span></div>
           ${vis.map((pr) => { const [t, sub] = etq(pr, p); return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
             <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>`; }).join("")}</div>`).join("")}</div>
         <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
         <p class="tiny muted" style="margin:10px 0 0">Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
+        <h3 class="sec-t" style="margin-top:16px">Foto del mueble</h3>
+        <div class="inv"><div class="row"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span><div class="sp" style="min-width:0"><div class="nm">Foto de cómo quedó</div>
+            <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
+            ${fs.length ? `<span class="pill p-menta">✓ Foto</span>` : `<span class="pill p-durazno">Falta la foto</span>`}</div>
+          ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de ${esc(m.nombre)}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
+          <button type="button" class="btn ${fs.length ? "ghost" : "sec"} sm block" style="margin-top:10px" data-foto>${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button></div>
         <button class="btn block" style="margin-top:14px" data-ok>Guardar mueble</button>
         ${slots.length > 1 && !fs.length ? `<button type="button" class="btn ghost block sm" style="margin-top:8px" data-quitar>Quitar este mueble</button>` : ""}`;
       const kgs = () => $$(".inv[data-p]", box).forEach((el) => { const p = prods.find((x) => x.id == el.dataset.p), kg = this.exhKg(e.c[p.id], p); $("[data-kg]", el).textContent = kg ? "≈ " + fmtNum(kg, 1) + " kg" : "0 kg"; $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto); });
@@ -442,18 +444,27 @@ const V = {
     modal(`<h2>Nueva promoción</h2>
       <label class="f">Tipo</label><select class="in" name="tipo">${Object.entries(tipos).map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select>
       <label class="f">Producto</label><select class="in" name="producto"><option value="">— General —</option>${prods.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("")}</select>
+      <div id="pdw" hidden><label class="f">Descuento que dice el hablador</label><div class="row" style="gap:8px"><input class="in sp" name="pd" inputmode="decimal" placeholder="Ej.: 15" aria-label="Porcentaje de descuento"><b style="font-size:17px">%</b></div></div>
       <div class="row"><div class="sp"><label class="f">Precio normal</label><input class="in" name="pr" inputmode="decimal" placeholder="$"></div><div class="sp"><label class="f">Precio oferta</label><input class="in" name="po" inputmode="decimal" placeholder="$"></div></div>
+      <div class="tiny muted" id="pdc" style="margin-top:4px" hidden></div>
       <label class="f">Vigente hasta</label><input class="in" type="date" name="vig">
       <label class="f">Nota</label><input class="in" name="nota" placeholder="Opcional">
       <button class="btn block" style="margin-top:16px" data-foto>${ic("camara", 18)} Tomar foto y guardar</button>`, (m, close) => {
+      // Descuento en porcentaje: se escribe el % del hablador; con el precio normal, Clarus calcula el precio con descuento
+      const g = (n) => $(`[name=${n}]`, m), esDesc = () => g("tipo").value === "descuento";
+      const calcD = () => { const d = parseFloat(g("pd").value), n = parseFloat(g("pr").value); $("#pdw", m).hidden = !esDesc(); g("po").closest(".sp").hidden = esDesc();
+        const c = $("#pdc", m); c.hidden = !(esDesc() && d > 0 && n > 0); if (!c.hidden) c.innerHTML = `Precio con descuento: <b>$${fmtNum(n * (1 - d / 100), 2)}</b>`; };
+      g("tipo").onchange = calcD; g("pd").oninput = () => { g("pd").value = g("pd").value.replace(/[^0-9.]/g, ""); calcD(); }; g("pr").oninput = calcD;
       $("[data-foto]", m).onclick = async () => {
+        if (esDesc()) { const d = parseFloat(g("pd").value); if (!(d > 0 && d <= 100)) return toast("Escribe el porcentaje de descuento, de 1 a 100"); }
         try {
           const r = await Camara.evidencia({ titulo: "Foto de la promoción", marca: v.tienda });
           if (!r) return;
           const key = uid(), plid = uid(); await IDB.putBlob(key, r.blob);
           const f = (n) => $(`[name=${n}]`, m).value;
           const pid = f("producto") ? Number(f("producto")) : null;
-          const data = { tipo: f("tipo"), producto_id: pid, precio_regular: parseFloat(f("pr")) || null, precio_oferta: parseFloat(f("po")) || null, vigencia_hasta: f("vig") || null, nota: f("nota"), at: r.at, lat: v.lat, lng: v.lng };
+          const dsc = esDesc() ? parseFloat(f("pd")) : null, nor = parseFloat(f("pr")) || null;
+          const data = { tipo: f("tipo"), producto_id: pid, precio_regular: nor, precio_oferta: dsc ? (nor ? Math.round(nor * (1 - dsc / 100) * 100) / 100 : null) : parseFloat(f("po")) || null, descuento_pct: dsc, vigencia_hasta: f("vig") || null, nota: f("nota"), at: r.at, lat: v.lat, lng: v.lng };
           v.promos.push({ ...data, thumb: r.thumb, producto: prods.find((p) => p.id === pid)?.nombre });
           Visita.set(v);
           await DB.encolar({ t: "promo", lid: v.lid, plid, blob: key, data });
@@ -775,37 +786,33 @@ const V = {
     };
     box.oninput = calcKg;
     calcKg();
-    // Varias categorías: primero lo sugerido (de todas), y un selector para agregar de una categoría. Es un solo pedido.
-    const catsP = this.categorias(prods, cat);
-    if (catsP.length > 1) {
-      const famP = {}; catsP.forEach((c) => c.prods.forEach((x) => (famP[x.id] = c.id)));
-      const cant = (f) => parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0;
-      const esSug = (f) => f.bajo || f.sug > 0 || !!v.agot?.[f.p.id];
-      let vista = filas.some(esSug) ? "sug" : "cat", actualP = catsP.find((c) => c.id === v.pedCat) || catsP[0], qp = "";
-      $("#pedl", box).insertAdjacentHTML("beforebegin", `<div class="seg"><button type="button" data-pv="sug"></button><button type="button" data-pv="cat">Por categoría</button></div>
-        <button type="button" class="cat-sel" data-pcat></button>
-        <input class="in" id="pedq" placeholder="Buscar otro producto para agregar…" style="margin-bottom:10px">
-        <div class="empty card flat" id="pedvacio" hidden>No hay productos sugeridos. Toca «Por categoría» para agregar.</div>`);
-      const infoP = (c) => { const n = filas.filter((f) => famP[f.p.id] === c.id && cant(f) > 0).length; return { listo: false, texto: n ? `${n} en el pedido` : `${c.prods.length} productos` }; };
-      const pintarP = () => {
-        const nSug = filas.filter(esSug).length; let visibles = 0;
-        $("[data-pv=sug]", box).textContent = `Sugeridos · ${nSug}`;
-        $$("[data-pv]", box).forEach((b) => b.classList.toggle("on", b.dataset.pv === vista));
-        $("[data-pcat]", box).hidden = vista !== "cat" || !!qp;
-        $("[data-pcat]", box).innerHTML = this.botonCategoria(actualP, infoP(actualP).texto);
-        filas.forEach((f) => { const el = $(`[data-p="${f.p.id}"]`, box);
-          const ver = qp ? sinAcentos(f.p.nombre + " " + (f.p.sku || "")).includes(qp) : vista === "sug" ? esSug(f) || cant(f) > 0 : famP[f.p.id] === actualP.id;
-          el.hidden = !ver; if (ver) visibles++; });
-        $("#pedvacio", box).hidden = visibles > 0;
-      };
-      $$("[data-pv]", box).forEach((b) => (b.onclick = () => { vista = b.dataset.pv; qp = ""; $("#pedq", box).value = ""; pintarP(); }));
-      $("[data-pcat]", box).onclick = () => this.elegirCategoria(catsP, actualP.id, infoP, (c) => { actualP = c; v.pedCat = c.id; Visita.set(v); pintarP(); });
-      $("#pedq", box).oninput = (e) => { e.stopPropagation(); qp = sinAcentos(e.target.value.trim()); pintarP(); };
-      pintarP();
-    }
+    // Un solo pedido, visto por categoría: el selector va siempre. Abre en la categoría que tiene sugeridos y, dentro de ella, lo sugerido sale primero.
+    const catsP = this.categorias(prods, cat), famP = {}; catsP.forEach((c) => c.prods.forEach((x) => (famP[x.id] = c.id)));
+    const cant = (f) => parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0;
+    const esSug = (f) => f.bajo || f.sug > 0 || !!v.agot?.[f.p.id];
+    const sugDe = (c) => filas.filter((f) => famP[f.p.id] === c.id && esSug(f));
+    let actualP = catsP.find((c) => c.id === v.pedCat) || catsP.find((c) => sugDe(c).length) || catsP[0], qp = "";
+    $("#pedl", box).insertAdjacentHTML("beforebegin", `<button type="button" class="cat-sel" data-pcat></button>
+      <input class="in" id="pedq" placeholder="Buscar producto o código…" style="margin-bottom:10px">
+      <div class="empty card flat" id="pedvacio" hidden>Ningún producto coincide con la búsqueda.</div>`);
+    filas.forEach((f) => { $(`[data-p="${f.p.id}"]`, box).style.order = esSug(f) ? 0 : 1; });
+    const infoP = (c) => { const n = filas.filter((f) => famP[f.p.id] === c.id && cant(f) > 0).length, sg = sugDe(c).length; return { listo: !sg, texto: sg ? plur(sg, "sugerido") : n ? `${n} en el pedido` : plur(c.prods.length, "producto") }; };
+    const pintarP = () => {
+      let visibles = 0;
+      $("[data-pcat]", box).hidden = !!qp;
+      $("[data-pcat]", box).innerHTML = this.botonCategoria(actualP, infoP(actualP).texto);
+      filas.forEach((f) => { const el = $(`[data-p="${f.p.id}"]`, box), ver = qp ? sinAcentos(f.p.nombre + " " + (f.p.sku || "")).includes(qp) : famP[f.p.id] === actualP.id; el.hidden = !ver; if (ver) visibles++; });
+      $("#pedvacio", box).hidden = visibles > 0;
+    };
+    $("[data-pcat]", box).onclick = () => this.elegirCategoria(catsP, actualP.id, infoP, (c) => { actualP = c; v.pedCat = c.id; Visita.set(v); pintarP(); });
+    $("#pedq", box).oninput = (e) => { e.stopPropagation(); qp = sinAcentos(e.target.value.trim()); pintarP(); };
+    const calcKg0 = box.oninput; box.oninput = (e) => { calcKg0(e); if (!e.target.closest("#pedq")) $("[data-pcat]", box).innerHTML = this.botonCategoria(actualP, infoP(actualP).texto); };
+    pintarP();
     const no = $("[data-no]", box); if (no) no.onclick = () => this.pSinPedido(box, v, cat, siguiente, bajos > 0 || filas.some((f) => v.agot?.[f.p.id]));
     const cn = $("[data-cancel]", box); if (cn) cn.onclick = () => { v.editandoPedido = false; Visita.set(v); this.pPedido(box, v, cat, siguiente); };
     $("[data-ok]", box).onclick = async () => {
+      const otras = catsP.filter((c) => c.id !== actualP.id && sugDe(c).some((f) => cant(f) === 0));
+      if (otras.length && !(await confirmar(`Hay productos sugeridos sin pedir en ${otras.map((c) => c.nombre).join(", ")}. Puedes revisarlos con el selector de categoría.`, "Enviar así", "Revisar", "Quedan sugeridos sin pedir"))) return;
       const items = filas.map((f) => ({ producto_id: f.p.id, nombre: f.p.nombre, unidad: f.p.unidad_pedido, stock: f.contado ? f.stock : null, sugerido: f.sug || null,
         propuesto: parseFloat($(`[data-p="${f.p.id}"] input`, box).value) || 0 })).filter((i) => i.propuesto > 0);
       if (!items.length && previo) {
