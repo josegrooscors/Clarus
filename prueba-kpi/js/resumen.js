@@ -288,13 +288,13 @@ const R = {
         <div class="dsh-2">
           <div class="card dsh-c"><div class="dsh-h"><h3>Por atender</h3><span class="tiny muted">${nAt ? plur(nAt, "pendiente") : etPer0()}</span></div>${fAt || `<div class="fv-o menta" style="margin-top:6px">${ic("ok", 16)}<span>Nada pendiente en este período.</span></div>`}</div>
           <div class="dsh-col">
-            <div class="card dsh-c"><div class="dsh-h"><h3>Pedidos por semana</h3><span class="tiny muted">kg pedidos · ${esc(MERMA.nombreMes(mes0))}</span></div>${serieP.some((x) => x[0]) ? R.barritas(serieP, (v) => fmtNum(v, 0)) : `<div class="small muted">Sin pedidos este mes.</div>`}</div>
+            <div class="card dsh-c"><div class="dsh-h"><h3>Pedidos por semana${sig("SIN")}</h3><span class="tiny muted">kg pedidos · ${esc(MERMA.nombreMes(mes0))}</span></div>${serieP.some((x) => x[0]) ? R.barritas(serieP, (v) => fmtNum(v, 0)) : `<div class="small muted">Sin pedidos este mes.</div>`}</div>
             ${serieM.some((x) => x[0] != null) ? `<div class="card dsh-c"><div class="dsh-h"><h3>Merma · 6 meses</h3><span class="tiny muted">% de la venta · límite ${fmtNum(lim, 0)}%</span></div>${R.barritas(serieM, (v) => (v == null ? "–" : fmtNum(v, 1)), 64)}</div>` : ""}
           </div>
         </div>
         ${rk.length ? `<div class="dsh-h dsh-ht"><h3>Dónde mejorar</h3><span class="tiny muted">lo más urgente primero</span></div>
         <div class="dsh-tabs" role="tablist">${rk.map(([k, t]) => `<button type="button" role="tab" data-dk-b="${k}" class="${k === kAct ? "on" : ""}">${t}</button>`).join("")}</div>
-        <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}${sig({ tienda: "PEIT", rep: "PEI" }[k])}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
+        <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}${sig({ tienda: "PEIT", rep: "PEI", cadena: "RR", producto: "RR" }[k])}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
       </div>`;
     })();
 
@@ -376,7 +376,7 @@ const R = {
         ${prodR.data.map((p) => kpi(fmtNum(kgProd[p.id] || 0, 0) + " kg", esc(p.nombre), "", p.kg_por_pedido ? fmtNum((kgProd[p.id] || 0) / p.kg_por_pedido, 1) + " cajas" : "")).join("")}
         ${kpi(sinVenta.length, "Productos sin pedido · " + esc(etPer), sinVenta.length ? "alerta" : "", sinVenta.map((p) => esc(p.nombre)).join(", "))}
       </div>
-      <div class="card" id="ven-por"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:8px"><h3 class="grow" style="margin:0">Ventas</h3><span class="tiny muted" id="vp-nota"></span></div>
+      <div class="card" id="ven-por"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:8px"><h3 class="grow" style="margin:0">Ventas<span id="vp-sig"></span></h3><span class="tiny muted" id="vp-nota"></span></div>
         <div class="dsh-fil" style="margin-bottom:6px"><label><span>Ver por</span><select class="in" id="vp-s">${[["cadena", "Cadena"], ["tienda", "Tienda"], ...(vend ? [] : [["rep", "Representante"]]), ["categoria", "Categoría"], ["producto", "Producto"], ["zona", "Zona o ruta"]].map(([k, t]) => `<option value="${k}" ${LS.get("res.vp", "cadena") === k ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
         <div id="vp-l"></div></div>
       ${(() => { // Vista Merma: notas de crédito por merma sobre la venta facturada, del mes del período elegido
@@ -504,6 +504,7 @@ const R = {
         const fs = Object.values(m).filter((x) => x.o > 0 || x.v > 0).sort((a, b) => b.v - a.v || a.n.localeCompare(b.n)), mx = Math.max(1, ...fs.map((x) => x.v));
         const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esp = mes0 === hoy.slice(0, 8) + "01" ? (dHoy / dMes) * 100 : 100;
         const tono = (q) => (q >= 100 || (q / esp) * 100 >= 95 ? "ok" : (q / esp) * 100 >= 75 ? "medio" : "bajo");
+        $("#vp-sig", root).innerHTML = conMeta ? sig("RR") : "";
         $("#vp-nota", root).textContent = conMeta ? `facturado en ${mesTxt} · % del objetivo` : `kg pedidos · ${etPer}`;
         $("#vp-l", root).innerHTML = fs.length ? R.paginar(fs.map((x) => { const pc = x.o > 0 ? pct(x.v, x.o) : null, c = conMeta && pc != null ? tono(pc) : "", sub = (k === "tienda" ? "" : plur(x.t.size, "tienda") + " · ") + (conMeta && x.o > 0 ? `${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg` : `${fmtNum(x.v, 0)} kg`);
           return `<div class="inv-f dsh-rk">${conMeta ? `<i class="sem-d ${c || "sin"}"></i>` : ""}<div class="grow"><b>${esc(x.n)}</b><div class="tiny muted">${esc(sub)}</div><div class="barra"><i class="${c || "act"}" style="width:${Math.max(0, Math.min(100, conMeta && pc != null ? pc : (x.v / mx) * 100))}%"></i></div></div><b class="inv-v ${c}">${conMeta ? (pc != null ? pc + "%" : "–") : fmtNum(x.v, 0) + " kg"}</b></div>`; }), "vp") : `<div class="small muted" style="padding:10px 0">Sin ventas ${conMeta ? "ni objetivos cargados en " + esc(mesTxt) : "en el período"}.</div>`;
