@@ -39,7 +39,7 @@ const R = {
     const hace = (n) => new Date(Date.now() - n * 864e5).toLocaleDateString("en-CA", { timeZone: "America/Panama" });
     const [asigR, perfR, visR, pedR, itR, alR, objR, pedMesR, prodR, cliR, visMesR, justR, vencR, visHoyR, facR, invR, ped30R] = await Promise.all([
       sb.from("asignacion_tiendas").select("vendedor_id, cliente_id, dias_semana, clientes(nombre, cadena)"),
-      sb.from("perfiles").select("id, nombre, rol, activo").in("rol", ["vendedor", "supervisor"]).eq("activo", true),
+      sb.from("perfiles").select("id, nombre, rol, activo, inicio_clarus").in("rol", ["vendedor", "supervisor"]).eq("activo", true),
       sb.from("v_visitas").select("id, vendedor_id, vendedor, cliente_id, tienda, fecha, checkin_at, checkout_at, minutos_en_tienda, estado, checkin_dentro, checkout_dentro, num_fotos, con_inventario").gte("fecha", desde).lte("fecha", hasta).limit(5000),
       sb.from("v_pedidos").select("id, visita_id, vendedor_id, cliente_id, creado_at, total_kg, estado, documento").neq("estado", "anulado").gte("creado_at", t0).lte("creado_at", t1).limit(5000),
       sb.from("pedido_items").select("producto_id, propuesto, pedidos!inner(creado_at, estado, vendedor_id, cliente_id), productos(nombre, kg_por_pedido, unidades_por_pedido, peso_kg_unidad)").neq("pedidos.estado", "anulado").gte("pedidos.creado_at", t0).lte("pedidos.creado_at", t1).limit(5000),
@@ -79,8 +79,10 @@ const R = {
     const visKey = new Set(vis.map((v) => v.vendedor_id + "|" + v.cliente_id + "|" + v.fecha));
     // Justificadas (reunión en oficina, tienda cerrada, otro): salen de lo programado, salvo que al final sí se visitó
     const justTodas = justR.error ? [] : justR.data, justKey = new Map(justTodas.map((x) => [x.vendedor_id + "|" + x.cliente_id + "|" + x.fecha, x]));
+    // Quien aún no ejecuta en Clarus (sin fecha de inicio, o antes de ella) no acumula programadas sin hacer: solo cuenta lo que sí visitó (cargado de la otra plataforma)
+    const iniDe = Object.fromEntries(perfR.data.map((u) => [u.id, u.inicio_clarus || "9999-12-31"]));
     const prog = [], justif = [];
-    dias.forEach((d) => { const w = this.dia(d); asig.forEach((a) => { if ((a.dias_semana || []).includes(w)) { const k = a.vendedor_id + "|" + a.cliente_id + "|" + d, hecha = visKey.has(k); if (justKey.has(k) && !hecha) justif.push({ ...a, fecha: d, j: justKey.get(k) }); else prog.push({ ...a, fecha: d, hecha }); } }); });
+    dias.forEach((d) => { const w = this.dia(d); asig.forEach((a) => { if ((a.dias_semana || []).includes(w)) { const k = a.vendedor_id + "|" + a.cliente_id + "|" + d, hecha = visKey.has(k); if (justKey.has(k) && !hecha) justif.push({ ...a, fecha: d, j: justKey.get(k) }); else if (hecha || d >= (iniDe[a.vendedor_id] || "")) prog.push({ ...a, fecha: d, hecha }); } }); });
     const progN = prog.length, progOk = prog.filter((p) => p.hecha).length;
     const progKey = new Set(prog.map((p) => p.vendedor_id + "|" + p.cliente_id + "|" + p.fecha));
     const fueraAgenda = vis.filter((v) => !progKey.has(v.vendedor_id + "|" + v.cliente_id + "|" + v.fecha)).length;
@@ -134,7 +136,7 @@ const R = {
     const wHoy = this.dia(hoy), visHoy = visHoyR.error ? [] : visHoyR.data, minAhora = JORNADA.min(), horaAhora = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", hour12: false }).format(new Date()));
     const equipo = vendedoras.map((u) => {
       const ag = asigTodas.filter((a) => a.vendedor_id === u.id && (a.dias_semana || []).includes(wHoy)), vs = visHoy.filter((v) => v.vendedor_id === u.id).sort((a, b) => a.checkin_at.localeCompare(b.checkin_at));
-      if (!ag.length && !vs.length) return null;
+      if ((!ag.length && !vs.length) || (!vs.length && hoy < iniDe[u.id])) return null; // por iniciar: no aparece en el equipo de hoy
       const hechas = ag.filter((a) => vs.some((v) => v.cliente_id === a.cliente_id && v.checkout_at)).length, justs = ag.filter((a) => justKey.has(u.id + "|" + a.cliente_id + "|" + hoy) && !vs.some((v) => v.cliente_id === a.cliente_id)).length;
       const abierta = vs.find((v) => !v.checkout_at), ult = vs.filter((v) => v.checkout_at).slice(-1)[0], fueraAg = vs.filter((v) => !ag.some((a) => a.cliente_id === v.cliente_id)).length;
       const av = ag.length ? `${hechas} de ${ag.length}` : plur(vs.length, "visita") + " fuera de agenda";
@@ -592,7 +594,7 @@ const R = {
       let asis = 0, faltas = 0;
       const celdas = dias.map((d) => {
         const n = cuenta[u.id + "|" + d.iso] || 0, prog0 = mias.filter((a) => (a.dias_semana || []).includes(d.w)).length;
-        const nj = Math.min(prog0, just.filter((x) => x.vendedor_id === u.id && x.fecha === d.iso).length), prog = prog0 - nj; // las justificadas no cuentan como programadas
+        const antes = d.iso < (u.inicio_clarus || "9999-12-31"), nj = Math.min(prog0, just.filter((x) => x.vendedor_id === u.id && x.fecha === d.iso).length), prog = antes ? 0 : prog0 - nj; // las justificadas no cuentan como programadas
         const fecha = new Date(d.iso + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
         let c = "fut", t = fecha, x = "";
         if (d.iso > hoy) { c = "fut"; x = prog || ""; t += prog ? ` · ${plur(prog, "visita")} programada${prog === 1 ? "" : "s"}` : " · sin ruta"; }
@@ -603,6 +605,7 @@ const R = {
           if (!prog || n >= prog * 0.9) { c = "ok"; x = n; t += ` · cumplió su ruta: ${plur(n, "visita")}${prog ? " de " + prog : ""}`; }
           else { c = "parcial"; x = `${n}<i>·${falt}</i>`; t += ` · ${plur(n, "visita")}, ${falt} programada${falt === 1 ? "" : "s"} sin hacer`; }
         }
+        else if (antes) { c = "libre"; t += " · aún no ejecuta en Clarus"; }
         else if (d.iso === hoy) { c = "hoy"; x = prog ? "0" : ""; t += prog ? ` · hoy, aún sin visitas (${prog} programadas)` : " · hoy, sin ruta"; }
         else if (!prog && nj && d.iso <= hoy) { c = "libre"; x = "J"; t += ` · ${plur(nj, "visita")} justificada${nj === 1 ? "" : "s"}, sin falta`; }
         else if (prog) { c = "falta"; x = "0"; faltas++; t += ` · FALTA: tenía ${plur(prog, "visita")} y no registró ninguna`; }
@@ -610,7 +613,7 @@ const R = {
         const abre = (n || c === "falta") && d.iso <= hoy; // días con visitas o con falta: se puede abrir el cierre de ese día
         return `<td><span class="asi ${c}${d.iso === hoy ? " es-hoy" : ""}${abre ? " toca" : ""}" title="${esc(t)}"${abre ? ` data-cierre="${u.id}|${d.iso}" role="button" tabindex="0"` : ""}>${x}</span></td>`;
       }).join("");
-      return `<tr><td class="asi-n">${esc(u.nombre)}</td>${celdas}<td class="asi-t"><b style="color:var(--azul-osc)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
+      return `<tr><td class="asi-n">${esc(u.nombre)}${u.inicio_clarus && u.inicio_clarus <= hoy ? "" : `<div class="tiny muted" style="font-weight:400">Por iniciar</div>`}</td>${celdas}<td class="asi-t"><b style="color:var(--azul-osc)">${asis}</b></td><td class="asi-t"><b style="color:${faltas ? "var(--rosa-t)" : "inherit"}">${faltas}</b></td></tr>`;
     }).join("");
     const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
     setTimeout(() => { const h = document.querySelector(".asis th.hoyc"), sx = h?.closest(".scroll-x"); if (sx) sx.scrollLeft = Math.max(0, h.offsetLeft - sx.clientWidth + h.offsetWidth * 2.2); }, 60); // abre mostrando hoy y los días anteriores
