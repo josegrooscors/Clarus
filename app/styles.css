@@ -1045,3 +1045,5 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .dsh-g .sig{margin:1px auto 0;text-align:center}
 .panel .sig,.desemp .sig{color:#B7C3D9}
 .sig-pop{position:absolute;z-index:70;background:var(--noche);color:#fff;font:500 12.5px/1.4 var(--font);padding:9px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(11,27,51,.25);box-sizing:border-box}
+/* Tarjetas de indicadores con ícono: nunca más anchas que su columna (320 px) */
+.kpis>.kpi{min-width:0}.kpi.ki .ki-t{overflow-wrap:anywhere}
