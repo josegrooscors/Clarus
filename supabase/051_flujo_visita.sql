@@ -1,0 +1,12 @@
+-- 051 · Flujo nuevo de la visita (Etapa 1 + empacado) y candados. Aplicado el 19-nov-2026 (migración flujo_visita_etapa1). Todo aditivo.
+-- visitas.incompleta / incompleta_nota: visita cerrada sin terminar (botón «Cerrar sin terminar», cierre desde otro teléfono o cierre del sistema al abrir otra tienda)
+-- inventarios.detalle (jsonb): desglose de la exhibición por mueble y presentación [{mueble, tipo, barras, rebanado, rallado}]
+-- fotos.producto_id: foto de bodega de un producto
+-- private.cerrar_visita_previa(): además de cerrar la visita anterior, la marca incompleta
+-- v_visitas: agrega incompleta e incompleta_nota al final
+-- public.mi_visita_abierta(p_id_local): visita abierta del usuario que no es la de este teléfono (antes del check-in)
+-- public.cerrar_visita_incompleta(p_id, p_nota): cierra una visita propia abierta y la marca incompleta
+-- public.cierre_dia(): agrega 'incompletas' y, en cada visita, 'incompleta' e 'incompleta_nota'
+-- Validado en bloque que se deshace solo con Demo, Yerenis y José: segunda entrada cierra y marca la anterior; nadie cierra visitas ajenas;
+-- inventario con desglose, foto con producto y cierre incompleto se guardan como Demo; gerencia ve el desglose y el conteo de incompletas.
+-- (El SQL completo está en la migración flujo_visita_etapa1 del proyecto.)

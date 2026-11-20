@@ -89,8 +89,8 @@ const PL = {
     const t = this.totales(pl), e = this.espacio(pl);
     const barra = this.barraEspacio(e);
     if (!t.length) return barra + `<div class="small muted">Aún no hay productos en el planograma.</div>`;
-    return barra + `<table class="t pl-tabla"><tr><th>Producto</th><th>Frentes</th><th>Fondo</th><th>Altura</th><th>Unidades</th></tr>
-      ${t.map((x) => `<tr><td><span class="pl-dot" style="background:${x.color}"></span>${esc(x.nombre)}</td><td><b>${x.frentes}</b></td><td>${x.fondo}</td><td>${x.alto}</td><td><b>${x.unidades}</b></td></tr>`).join("")}</table>`;
+    return barra + `<div class="scroll-x"><table class="t pl-tabla"><tr><th>Producto</th><th>Frentes</th><th>Fondo</th><th>Altura</th><th>Unidades</th></tr>
+      ${t.map((x) => `<tr><td><span class="pl-dot" style="background:${x.color}"></span>${esc(x.nombre)}</td><td><b>${x.frentes}</b></td><td>${x.fondo}</td><td>${x.alto}</td><td><b>${x.unidades}</b></td></tr>`).join("")}</table></div>`;
   },
 
   // ---------- Lista ----------

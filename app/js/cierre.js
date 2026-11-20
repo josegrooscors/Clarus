@@ -37,6 +37,7 @@ const CIERRE = {
   areas(r) {
     const o = [];
     if (CIERRE.fin(r)) r.tiendas.filter((t) => t.estado === "pendiente").forEach((t) => o.push(["rosa", `No visitó ${t.nombre}.`]));
+    (r.visitas || []).filter((x) => x.incompleta).forEach((x) => o.push(["rosa", `${x.tienda}: visita cerrada sin terminar. ${x.incompleta_nota || ""}`.trim()]));
     if (r.abiertas && JORNADA.tarde(r.fecha)) o.push(["rosa", `${plur(r.abiertas, "visita")} sin cerrar.`]);
     // Jornada de la empresa: entrada a más tardar a las 8:00 a. m. y 8 horas desde la entrada (quien entra a las 7 sale a las 3). La salida solo se evalúa con el día terminado.
     const minPa = (t) => { const p = new Intl.DateTimeFormat("en-US", { timeZone: "America/Panama", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date(t)); return (Number(p.find((x) => x.type === "hour").value) % 24) * 60 + Number(p.find((x) => x.type === "minute").value); };

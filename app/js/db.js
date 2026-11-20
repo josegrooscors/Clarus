@@ -194,7 +194,7 @@ const DB = {
       }
       case "visita_out": {
         const id = await this.idVisita(op.lid);
-        ok(await sb.from("visitas").update({ checkout_at: d.at, checkout_lat: d.lat, checkout_lng: d.lng, checkout_precision_m: d.precision, comentario: d.comentario || null }).eq("id", id));
+        ok(await sb.from("visitas").update({ checkout_at: d.at, checkout_lat: d.lat, checkout_lng: d.lng, checkout_precision_m: d.precision, comentario: d.comentario || null, ...(d.incompleta ? { incompleta: true, incompleta_nota: d.incompleta_nota || null } : {}) }).eq("id", id));
         return;
       }
       case "alertas": {
@@ -251,14 +251,14 @@ const DB = {
         const id = await this.idVisita(op.lid);
         const del = op.rows.filter((x) => x.unidades == null);
         const up = op.rows.filter((x) => x.unidades != null);
-        if (up.length) ok(await sb.from("inventarios").upsert(up.map((x) => ({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion, unidades: x.unidades, agotado: !!x.agotado })), { onConflict: "visita_id,producto_id,ubicacion" }));
+        if (up.length) ok(await sb.from("inventarios").upsert(up.map((x) => ({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion, unidades: x.unidades, agotado: !!x.agotado, ...(op.conDetalle ? { detalle: x.detalle || [] } : {}) })), { onConflict: "visita_id,producto_id,ubicacion" }));
         for (const x of del) await sb.from("inventarios").delete().match({ visita_id: id, producto_id: x.producto_id, ubicacion: x.ubicacion });
         return;
       }
       case "foto": {
         const id = await this.idVisita(op.lid);
         const path = await this.subir("fotos", op.blob, op.lid, "jpg", "image/jpeg");
-        ok(await sb.from("fotos").insert({ id_local: op.blob, visita_id: id, tipo: d.tipo, mueble: d.mueble || null, storage_path: path, tomada_at: d.at, lat: d.lat, lng: d.lng }));
+        ok(await sb.from("fotos").insert({ id_local: op.blob, visita_id: id, tipo: d.tipo, mueble: d.mueble || null, ...(d.producto_id ? { producto_id: d.producto_id } : {}), storage_path: path, tomada_at: d.at, lat: d.lat, lng: d.lng }));
         await IDB.delBlob(op.blob);
         return;
       }

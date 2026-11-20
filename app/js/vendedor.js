@@ -29,9 +29,20 @@ const MOTIVOS_SIN_PEDIDO = [
   ["no_hace_falta", "No hace falta: el inventario alcanza"],
   ["otro", "Otro motivo"],
 ];
+// El orden sigue el recorrido real de la tienda: bodega → exhibición (por mueble, con su foto y su conteo) → pedido → gestión (planograma, espacio, promociones) → cierre
 const PASOS = [
-  ["fotos", "Fotos"], ["inventario", "Inventario"], ["promos", "Promociones"],
+  ["inventario", "Inventario"], ["exhibicion", "Exhibición"],
   ["pedido", "Pedido"], ["gestion", "Gestión"], ["cierre", "Cierre"],
+];
+const PASO_VIEJO = { fotos: "exhibicion", promos: "gestion" };
+// Presentaciones que se cuentan en la exhibición. El empacado se cuenta en paquetes y Clarus lo pasa a kilos con el peso promedio del paquete.
+const PAQ_KG = 0.13;
+const PRES = [["b", null, null], ["r", "Rebanado", "paquetes de 130 g"], ["l", "Rallado", "paquetes de 130 g"]];
+const MOTIVOS_INCOMPLETA = [
+  ["me_fui", "Ya no estoy en la tienda"],
+  ["sin_acceso", "No me dejaron terminar"],
+  ["sin_tiempo", "No me alcanzó el tiempo"],
+  ["otro", "Otro motivo"],
 ];
 // Evidencias obligatorias: sin ellas no se puede hacer check-out
 // Fotos por mueble: la tienda tiene sus muebles (nevera abierta, vitrina deli...) y cada uno lleva al menos 1 foto. Bodega siempre.
@@ -52,7 +63,9 @@ const FOTOS = {
   },
   guardar(v) { LS.set("mf:" + v.cliente_id, v.mueblesFoto.map((m) => m.mueble)); Visita.set(v); },
   // lista de evidencias obligatorias: [clave, texto]
-  req(v) { return [["bodega", "Bodega"], ...FOTOS.slots(v).map((m) => [m.k, m.nombre])]; },
+  req(v) { return FOTOS.slots(v).map((m) => [m.k, m.nombre]); },
+  // Fotos de bodega de un producto (una visita empezada con la versión anterior trae una sola foto de bodega, que vale para todos)
+  deProd(v, pid) { return v.fotos.filter((f) => (f.slot || (f.tipo === "bodega" ? "bodega" : null)) === "bodega" && (f.pid == null || String(f.pid) === String(pid))); },
   de(v, k) { return v.fotos.filter((f) => (f.slot || (f.tipo === "bodega" ? "bodega" : null)) === k); },
 };
 const FOTOS_REQ = [["bodega", "Bodega"], ["exhibicion_deli", "Exhibición deli"], ["exhibicion_empacado", "Exhibición empacado"]];
@@ -156,6 +169,18 @@ const V = {
 
   async iniciar(c) {
     if (Visita.get()) { toast("Primero cierra la visita en curso"); location.hash = "#visita"; return; }
+    // Candado: si el servidor tiene una visita mía abierta que este teléfono no conoce (otro teléfono, datos borrados), hay que cerrarla antes de entrar a otra tienda
+    if (navigator.onLine && !(await IDB.ops()).some((o) => o.t === "visita_in" || o.t === "visita_out")) {
+      try {
+        const r = await Promise.race([sb.rpc("mi_visita_abierta", { p_id_local: null }), new Promise((_, no) => setTimeout(() => no(new Error("lento")), 5000))]);
+        if (r.data?.id) {
+          if (!(await confirmar(`Tienes una visita abierta en ${r.data.tienda} (entrada: ${fmtHora(r.data.entrada)}). Para entrar a otra tienda primero hay que cerrarla. Queda registrada como incompleta y la ve tu supervisor.`, "Cerrar esa visita", "Volver", "Tienes una visita sin cerrar"))) return;
+          const c2 = await sb.rpc("cerrar_visita_incompleta", { p_id: r.data.id, p_nota: "Cerrada sin terminar: la visita no estaba en este teléfono" });
+          if (c2.error || !c2.data) { toast("No se pudo cerrar esa visita. Revisa tu señal e intenta de nuevo.", 4000); return; }
+          toast("Visita cerrada como incompleta");
+        }
+      } catch {}
+    }
     if (!(await confirmar(`Vas a hacer check-in en ${c.nombre}. Se registrará tu hora y ubicación.`, "Hacer check-in"))) return;
     toast("Obteniendo ubicación…", 9000);
     let pos;
@@ -167,7 +192,7 @@ const V = {
     } else aviso = "Esta tienda todavía no tiene ubicación registrada, así que no se puede validar que estés en ella. Avísale a tu supervisor.";
     if (aviso && !(await confirmar(aviso, "Continuar igual"))) return;
     const v = { lid: uid(), cliente_id: c.id, tienda: c.nombre, cadena: c.cadena, modalidad: c.modalidad || "pedido_tienda", at: new Date().toISOString(), lat: pos.lat, lng: pos.lng, precision: pos.precision,
-      gestiones: {}, fotos: [], inv: {}, promos: [], pedido: null, guardado: {} };
+      gestiones: {}, fotos: [], inv: {}, exh: {}, flujo: 2, promos: [], pedido: null, guardado: {} };
     Visita.set(v);
     await DB.encolar({ t: "visita_in", lid: v.lid, data: { cliente_id: c.id, at: v.at, lat: pos.lat, lng: pos.lng, precision: pos.precision } });
     toast(dist != null && dist > (c.radio_m || 100) ? `Check-in fuera de radio (${fmtDist(dist)})` : "Check-in registrado ✓", 3500);
@@ -215,8 +240,18 @@ const V = {
     if (!v) { location.hash = "#hoy"; return; }
     const cat = await DB.catalogos();
     if ((v.alertas?.length || v.merma) && !v.alertasOk) return this.alertas(root, v);
-    paso = paso || LS.get("paso") || "fotos";
-    if (!PASOS.some((p) => p[0] === paso)) paso = "fotos";
+    // Una visita empezada con la versión anterior se pasa al flujo nuevo sin perder lo contado
+    if (v.flujo !== 2) {
+      v.flujo = 2; v.exh = v.exh || {};
+      const sl = FOTOS.slots(v), hay = Object.keys(v.inv || {}).filter((k) => k.endsWith(":exhibicion") && v.inv[k] !== "");
+      if (hay.length && sl[0]) { const c = {}; hay.forEach((k) => (c[k.split(":")[0]] = { b: Number(v.inv[k]) || 0 })); sl.forEach((m, i) => (v.exh[m.k] = { ok: true, c: i ? {} : c })); }
+      Visita.set(v);
+    }
+    let abrir = null;
+    paso = paso || LS.get("paso") || "inventario";
+    if (paso.includes(":")) [paso, abrir] = paso.split(":");
+    paso = PASO_VIEJO[paso] || paso;
+    if (!PASOS.some((p) => p[0] === paso)) paso = "inventario";
     LS.set("paso", paso);
     const hecho = this.estado(v);
     root.innerHTML = `
@@ -228,9 +263,8 @@ const V = {
     const box = $("#paso", root);
     const sig = (p) => () => V.visita(root, p);
     App.syncPill();
-    if (paso === "fotos") return this.pFotos(box, v, sig("inventario"));
-    if (paso === "inventario") return this.pInventario(box, v, cat, sig("promos"));
-    if (paso === "promos") return this.pPromos(box, v, cat, sig("pedido"));
+    if (paso === "inventario") return this.pInventario(box, v, cat, sig("exhibicion"));
+    if (paso === "exhibicion") return this.pExhibicion(box, v, cat, sig("pedido"), abrir);
     if (paso === "pedido") return this.pPedido(box, v, cat, sig("gestion"));
     if (paso === "gestion") return this.pGestion(box, v, cat, sig("cierre"));
     if (paso === "cierre") return this.pCierre(box, v, (p) => V.visita(root, p));
@@ -238,17 +272,23 @@ const V = {
 
   // Qué está completo en la visita
   estado(v) {
-    const fotosOk = FOTOS.req(v).every(([k]) => FOTOS.de(v, k).length);
+    const slots = FOTOS.slots(v), exhOk = slots.every((m) => FOTOS.de(v, m.k).length && v.exh?.[m.k]?.ok);
     // Gestión ya no es una lista para marcar: solo pide respuesta si la tienda tiene planograma que revisar
     const pls = PL.deTienda(LS.get("cat") || {}, v.cliente_id) || [];
     const gestion = !!v.guardado.gestion || pls.every((p) => (v.planos || {})[p.id]);
-    return { fotos: fotosOk, inventario: !!v.guardado.inventario, promos: !!v.guardado.promos || v.promos.length > 0, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion };
+    return { inventario: !!v.guardado.inventario && !this.sinFotoBodega(v).length, exhibicion: exhOk, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion };
+  },
+  // Productos con existencia en bodega que todavía no tienen su foto (la foto solo es obligatoria si hay producto)
+  sinFotoBodega(v) {
+    const cat = LS.get("cat") || {};
+    return Object.keys(v.inv || {}).filter((k) => k.endsWith(":bodega") && Number(v.inv[k]) > 0).map((k) => k.split(":")[0]).filter((pid) => !FOTOS.deProd(v, pid).length)
+      .map((pid) => ({ id: pid, nombre: ((cat.productos || []).find((p) => String(p.id) === pid)?.nombre || "producto").replace(/^Queso /, "") }));
   },
   pendientes(v) {
     const e = this.estado(v), out = [];
-    FOTOS.req(v).forEach(([k, t]) => { if (!FOTOS.de(v, k).length) out.push(["fotos", "Foto de " + t.toLowerCase()]); });
-    if (!e.inventario) out.push(["inventario", "Inventario"]);
-    if (!e.promos) out.push(["promos", "Promociones"]);
+    if (!v.guardado.inventario) out.push(["inventario", "Inventario de bodega"]);
+    this.sinFotoBodega(v).forEach((p) => out.push(["inventario", "Foto de " + p.nombre + " en bodega"]));
+    FOTOS.slots(v).forEach((m) => { if (!FOTOS.de(v, m.k).length) out.push(["exhibicion:" + m.k, "Foto de " + m.nombre.toLowerCase()]); if (!v.exh?.[m.k]?.ok) out.push(["exhibicion:" + m.k, "Conteo de " + m.nombre.toLowerCase()]); });
     if (!e.pedido) out.push(["pedido", "Pedido"]);
     if (!e.gestion) out.push(["gestion", "Revisar planograma"]);
     return out;
@@ -257,39 +297,65 @@ const V = {
   pGestion(box, v, cat, siguiente) {
     box.onclick = null; box.oninput = null;
     const pls = PL.deTienda(cat, v.cliente_id);
+    const tiposP = { oferta_precio: "Oferta de precio", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" };
     box.innerHTML = `${AUD.enVisita(v, cat)}${PL.enVisita(v, cat)}
       ${pls.length ? "" : `<p class="muted small" style="margin-top:0">Esta tienda no tiene planograma que revisar. Lo que hiciste queda registrado solo con tus fotos, inventario y pedido.</p>`}
+      <div class="card" style="margin-top:12px"><div class="row" style="align-items:baseline;gap:8px"><h3 class="sp" style="margin:0">Promociones</h3><span class="tiny muted">las que viste hoy, con su foto</span></div>
+        ${v.promos.length ? `<div class="list" style="margin-top:10px">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" alt="Foto de la promoción" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tiposP[p.tipo])}</div><div class="small muted">${esc(p.producto || "General")}${p.precio_oferta ? " · $" + p.precio_oferta : ""}</div></div></div>`).join("")}</div>` : `<div class="small muted" style="margin:8px 0 0">Sin promociones registradas. Si no hay, sigue.</div>`}
+        <button type="button" class="btn sec block sm" style="margin-top:12px" data-promo>+ Agregar promoción</button></div>
       <button class="btn block" style="margin-top:16px" data-ok>Seguir</button>`;
+    $("[data-promo]", box).onclick = () => this.promoNueva(v, cat, tiposP, () => this.pGestion(box, v, cat, siguiente));
     PL.enlazarVisita(box, v);
     AUD.enlazarVisita(box, v, cat, () => this.pGestion(box, v, cat, siguiente));
     $("[data-ok]", box).onclick = async () => {
       if (pls.some((p) => !(v.planos || {})[p.id])) return toast("Indica si la exhibición cumple el planograma");
       if (pls.length) await DB.encolar({ t: "planos", lid: v.lid, rows: pls.map((p) => ({ planograma_id: p.id, cumple: v.planos[p.id] })) });
-      v.guardado.gestion = true; Visita.set(v); siguiente();
+      v.guardado.gestion = true; v.guardado.promos = true; Visita.set(v); siguiente();
     };
   },
 
 
-  pFotos(box, v, siguiente) {
+  // ---------- Exhibición: cada mueble se cierra con su foto (cómo quedó) y el conteo de lo exhibido ----------
+  presDe(m) { return ["deli", "vitrina"].includes(m.mueble) ? ["b"] : ["r", "l"]; },
+  exhKg(x, p) { return (Number(x?.b) || 0) * Number(p.peso_kg_unidad) + ((Number(x?.r) || 0) + (Number(x?.l) || 0)) * PAQ_KG; },
+  exhTexto(v, m, prods) {
+    const e = v.exh?.[m.k]; if (!e?.ok) return "Falta el conteo";
+    const t = prods.map((p) => { const x = e.c?.[p.id] || {}, b = Number(x.b) || 0, q = (Number(x.r) || 0) + (Number(x.l) || 0); return b || q ? `${p.nombre.replace(/^Queso /, "")} ${[b ? fmtNum(b) + " " + plural(b, p.unidad_conteo) : "", q ? q + " paq." : ""].filter(Boolean).join(" + ")}` : ""; }).filter(Boolean);
+    return t.length ? t.join(" · ") : "Sin producto nuestro";
+  },
+  // Agotado en la tienda: bodega en cero y nada exhibido, cuando ya se contaron la bodega y todos los muebles
+  recalcAgot(v, prods) {
+    const todo = FOTOS.slots(v).every((m) => v.exh?.[m.k]?.ok); v.agot = v.agot || {};
+    prods.forEach((p) => { const b = v.inv[p.id + ":bodega"]; v.agot[p.id] = todo && (b ?? "") !== "" && Number(b) === 0 && !(Number(v.inv[p.id + ":exhibicion"]) > 0); });
+  },
+  // Suma lo exhibido en los muebles ya contados y lo guarda como inventario de exhibición, con el desglose por mueble
+  async guardarExh(v, prods) {
+    const slots = FOTOS.slots(v).filter((m) => v.exh?.[m.k]?.ok);
+    const filas = prods.map((p) => {
+      let kg = 0; const det = [];
+      slots.forEach((m) => { const x = v.exh[m.k].c?.[p.id]; if (!x) return; const k = this.exhKg(x, p); if (!k) return; kg += k; det.push({ mueble: m.nombre, tipo: m.mueble, barras: Number(x.b) || 0, rebanado: Number(x.r) || 0, rallado: Number(x.l) || 0 }); });
+      const un = Number(p.peso_kg_unidad) > 0 ? Math.round((kg / Number(p.peso_kg_unidad)) * 1000) / 1000 : 0;
+      v.inv[p.id + ":exhibicion"] = un;
+      return { producto_id: p.id, ubicacion: "exhibicion", unidades: un, detalle: det };
+    });
+    this.recalcAgot(v, prods); Visita.set(v);
+    if (!slots.length) return;
+    await DB.encolar({ t: "inventario", lid: v.lid, conDetalle: true, rows: filas.map((f) => ({ ...f, agotado: !!v.agot[f.producto_id] })) });
+    const bod = prods.filter((p) => this.contado(v, p)); if (bod.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, bod) });
+  },
+  pExhibicion(box, v, cat, siguiente, abrir) {
     box.onclick = null; box.oninput = null;
-    const slots = FOTOS.slots(v), completo = this.estado(v).fotos;
-    const tarjeta = (k, nombre, icono, quitar) => {
-      const fs = FOTOS.de(v, k);
-      return `<div class="inv"><div class="row"><span class="foto-ic">${icono}</span><div class="sp"><div class="nm">${esc(nombre)}</div>
-          <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
-          ${fs.length ? `<span class="pill p-menta">✓ Lista</span>` : `<span class="pill p-durazno">Falta</span>`}</div>
-        ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
-        <div class="row" style="gap:8px;margin-top:10px"><button class="btn ${fs.length ? "ghost" : "sec"} sm sp" data-f="${k}">${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button>
-          ${quitar && !fs.length ? `<button class="btn ghost sm" data-quitar="${k}">Quitar mueble</button>` : ""}</div></div>`;
-    };
-    box.innerHTML = `<p class="muted small" style="margin-top:0">Toma la bodega y <b>al menos 1 foto de cada mueble</b> de la tienda. Puedes tomar varias y borrar las que salgan mal antes del check-out.</p>
-      <div class="list">${tarjeta("bodega", "Bodega", ic("caja", 22), false)}</div>
-      <h3 class="sec-t" style="margin-top:16px">Muebles de la tienda</h3>
-      <div class="list">${slots.map((m) => tarjeta(m.k, m.nombre, PL.icono(m.mueble, 24), slots.length > 1)).join("")}</div>
-      <button class="btn ghost block" style="margin-top:10px" data-add>+ Agregar mueble</button>
+    const slots = FOTOS.slots(v), prods = this.productosTienda(v, cat), redibujar = (k) => this.pExhibicion(box, v, cat, siguiente, k);
+    if (abrir && slots.some((m) => m.k === abrir)) return this.pMueble(box, v, cat, prods, abrir, () => redibujar());
+    const completo = (m) => FOTOS.de(v, m.k).length > 0 && !!v.exh?.[m.k]?.ok, todo = slots.every(completo);
+    box.innerHTML = `<p class="muted small" style="margin-top:0">Después de rebanar y acomodar: en cada mueble toma la foto de <b>cómo quedó</b> y cuenta lo exhibido.</p>
+      <div class="list">${slots.map((m) => { const nf = FOTOS.de(v, m.k).length; return `<button type="button" class="inv mue" data-mue="${m.k}"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span>
+        <span class="grow"><b>${esc(m.nombre)}</b><span class="tiny muted">${nf ? plur(nf, "foto") + " ✓" : "Falta la foto"} · ${esc(this.exhTexto(v, m, prods))}</span></span>
+        <span class="pill ${completo(m) ? "p-menta" : "p-durazno"}">${completo(m) ? "Completo" : "Pendiente"}</span>${ic("chev", 18)}</button>`; }).join("")}</div>
+      <button class="btn ghost block" style="margin-top:10px" data-add>+ Agregar otro mueble</button>
       <div id="addm" hidden><div class="pl-tipos" style="margin-top:10px">${Object.entries(PL.MUEBLES).map(([t, n]) => `<button type="button" class="pl-tipo" data-tipo="${t}">${PL.icono(t)}<span>${n}</span></button>`).join("")}</div></div>
-      <button class="btn block" style="margin-top:16px" data-ok ${completo ? "" : "disabled"}>${completo ? "Seguir" : "Toma las fotos que faltan para seguir"}</button>`;
-    const redibujar = () => this.pFotos(box, v, siguiente);
+      <button class="btn block" style="margin-top:16px" data-ok ${todo ? "" : "disabled"}>${todo ? "Seguir a Pedido" : "Completa los muebles que faltan para seguir"}</button>`;
+    $$("[data-mue]", box).forEach((b) => (b.onclick = () => redibujar(b.dataset.mue)));
     $("[data-add]", box).onclick = () => { $("#addm", box).hidden = !$("#addm", box).hidden; };
     $$("[data-tipo]", box).forEach((b) => (b.onclick = () => {
       const tipos = v.mueblesFoto.map((m) => m.mueble).concat(b.dataset.tipo);
@@ -297,29 +363,104 @@ const V = {
       v.mueblesFoto = FOTOS.armar(tipos).map((m) => viejos[m.k] ? { ...viejos[m.k], nombre: m.nombre } : m);
       FOTOS.guardar(v); toast(`${PL.MUEBLES[b.dataset.tipo]} agregado`); redibujar();
     }));
-    $$("[data-quitar]", box).forEach((b) => (b.onclick = () => { v.mueblesFoto = v.mueblesFoto.filter((m) => m.k !== b.dataset.quitar); FOTOS.guardar(v); redibujar(); }));
-    $$("[data-borrar]", box).forEach((b) => (b.onclick = async () => {
-      if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
-      const key = b.dataset.borrar;
-      v.fotos = v.fotos.filter((f) => f.key !== key); Visita.set(v);
-      // si todavía no se subió, se quita de la cola; si ya se subió, se borra en el servidor
-      const op = (await IDB.ops()).find((o) => o.t === "foto" && o.blob === key);
-      if (op) { await IDB.delOp(op.k); await IDB.delBlob(key); } else await DB.encolar({ t: "foto_borrar", key });
-      toast("Foto borrada"); redibujar();
-    }));
-    $$("[data-f]", box).forEach((b) => (b.onclick = async () => {
-      try {
-        const k = b.dataset.f, m = v.mueblesFoto.find((x) => x.k === k);
-        const nombre = k === "bodega" ? "Bodega" : m.nombre, tipo = k === "bodega" ? "bodega" : "exhibicion_" + m.mueble;
-        const r = await Camara.evidencia({ titulo: nombre, marca: v.tienda });
-        if (!r) return;
-        const key = uid(); await IDB.putBlob(key, r.blob);
-        v.fotos.push({ key, tipo, slot: k, tipoTxt: nombre, at: r.at, thumb: r.thumb }); Visita.set(v);
-        await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo, mueble: k === "bodega" ? null : nombre, at: r.at, lat: v.lat, lng: v.lng } });
-        redibujar();
-      } catch (e) { toast(e.message, 4000); }
-    }));
     $("[data-ok]", box).onclick = siguiente;
+  },
+  pMueble(box, v, cat, prods, k, volver) {
+    const slots = FOTOS.slots(v), m = slots.find((x) => x.k === k), cats = this.categorias(prods, cat);
+    v.exh = v.exh || {}; const e = (v.exh[k] = v.exh[k] || { c: {} }); e.c = e.c || {};
+    const base = this.presDe(m), hayOtra = Object.values(e.c).some((x) => PRES.some(([pr]) => !base.includes(pr) && Number(x[pr]) > 0));
+    let actual = cats.find((c) => c.id === v.exhCat) || cats[0], todas = hayOtra;
+    const etq = (pr, p) => (pr === "b" ? [plural(2, p.unidad_conteo).replace(/^./, (c) => c.toUpperCase()), `${fmtNum(p.peso_kg_unidad, 2)} kg cada una`] : PRES.find((x) => x[0] === pr).slice(1));
+    const info = (c) => { const n = c.prods.filter((p) => this.exhKg(e.c[p.id], p) > 0).length; return { listo: n > 0, texto: n ? n + " con conteo" : "sin conteo" }; };
+    const pintar = () => {
+      const fs = FOTOS.de(v, k), vis = PRES.map((x) => x[0]).filter((pr) => todas || base.includes(pr));
+      box.innerHTML = `<button type="button" class="venc-lk mue-volver" data-volver>‹ Todos los muebles</button>
+        <div class="inv"><div class="row"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span><div class="sp" style="min-width:0"><div class="nm">${esc(m.nombre)}</div>
+            <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Foto obligatoria: cómo quedó el mueble"}</div></div>
+            ${fs.length ? `<span class="pill p-menta">✓ Foto</span>` : `<span class="pill p-durazno">Falta la foto</span>`}</div>
+          ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de ${esc(m.nombre)}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
+          <button type="button" class="btn ${fs.length ? "ghost" : "sec"} sm block" style="margin-top:10px" data-foto>${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button></div>
+        <h3 class="sec-t" style="margin-top:16px">Lo exhibido en este mueble</h3>
+        <button type="button" class="cat-sel" data-catbtn>${this.botonCategoria(actual, info(actual).texto)}</button>
+        <div class="list">${actual.prods.map((p) => `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span></div>
+          ${vis.map((pr) => { const [t, sub] = etq(pr, p); return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
+            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>`; }).join("")}</div>`).join("")}</div>
+        <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
+        <p class="tiny muted" style="margin:10px 0 0">Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
+        <button class="btn block" style="margin-top:14px" data-ok>Guardar mueble</button>
+        ${slots.length > 1 && !fs.length ? `<button type="button" class="btn ghost block sm" style="margin-top:8px" data-quitar>Quitar este mueble</button>` : ""}`;
+      const kgs = () => $$(".inv[data-p]", box).forEach((el) => { const p = prods.find((x) => x.id == el.dataset.p), kg = this.exhKg(e.c[p.id], p); $("[data-kg]", el).textContent = kg ? "≈ " + fmtNum(kg, 1) + " kg" : "0 kg"; $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto); });
+      kgs();
+      box.onclick = async (ev) => {
+        const t = ev.target;
+        if (t.closest("[data-volver]")) return volver();
+        if (t.closest("[data-catbtn]")) return this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.exhCat = c.id; Visita.set(v); pintar(); });
+        if (t.closest("[data-todas]")) { todas = !todas; return pintar(); }
+        if (t.closest("[data-quitar]")) { v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods); return volver(); }
+        const bo = t.closest("[data-borrar]");
+        if (bo) {
+          if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
+          await this.borrarFoto(v, bo.dataset.borrar); toast("Foto borrada"); return pintar();
+        }
+        if (t.closest("[data-foto]")) {
+          try {
+            const r = await Camara.evidencia({ titulo: m.nombre, marca: v.tienda }); if (!r) return;
+            const key = uid(); await IDB.putBlob(key, r.blob);
+            v.fotos.push({ key, tipo: "exhibicion_" + m.mueble, slot: k, tipoTxt: m.nombre, at: r.at, thumb: r.thumb }); Visita.set(v);
+            await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "exhibicion_" + m.mueble, mueble: m.nombre, at: r.at, lat: v.lat, lng: v.lng } });
+            pintar();
+          } catch (err) { toast(err.message, 4000); }
+          return;
+        }
+        const st = t.closest("[data-m],[data-s]");
+        if (st) { const pr = st.dataset.m || st.dataset.s, inp = $(`[data-u="${pr}"]`, st.closest(".pres")); inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (st.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true })); return; }
+        if (t.closest("[data-ok]")) {
+          if (!FOTOS.de(v, k).length) return toast("Toma la foto de cómo quedó el mueble");
+          const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0);
+          if (!hay && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
+          e.ok = true; Visita.set(v); await this.guardarExh(v, prods); toast(`${m.nombre} guardado ✓`); volver();
+        }
+      };
+      box.oninput = (ev) => {
+        const i = ev.target.closest("[data-u]"); if (!i) return;
+        i.value = i.value.replace(i.dataset.u === "b" ? /[^0-9.]/g : /\D/g, "");
+        const pid = i.closest(".inv").dataset.p; e.c[pid] = e.c[pid] || {}; e.c[pid][i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0);
+        e.ok = false; Visita.set(v); kgs();
+      };
+    };
+    pintar();
+  },
+  // Borra una foto de la visita: de la cola si aún no subió, o del servidor
+  async borrarFoto(v, key) {
+    v.fotos = v.fotos.filter((f) => f.key !== key); Visita.set(v);
+    const op = (await IDB.ops()).find((o) => o.t === "foto" && o.blob === key);
+    if (op) { await IDB.delOp(op.k); await IDB.delBlob(key); } else await DB.encolar({ t: "foto_borrar", key });
+  },
+  // Promoción nueva (se registra dentro de Gestión)
+  promoNueva(v, cat, tipos, alGuardar) {
+    const prods = this.productosTienda(v, cat);
+    modal(`<h2>Nueva promoción</h2>
+      <label class="f">Tipo</label><select class="in" name="tipo">${Object.entries(tipos).map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select>
+      <label class="f">Producto</label><select class="in" name="producto"><option value="">— General —</option>${prods.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("")}</select>
+      <div class="row"><div class="sp"><label class="f">Precio normal</label><input class="in" name="pr" inputmode="decimal" placeholder="$"></div><div class="sp"><label class="f">Precio oferta</label><input class="in" name="po" inputmode="decimal" placeholder="$"></div></div>
+      <label class="f">Vigente hasta</label><input class="in" type="date" name="vig">
+      <label class="f">Nota</label><input class="in" name="nota" placeholder="Opcional">
+      <button class="btn block" style="margin-top:16px" data-foto>${ic("camara", 18)} Tomar foto y guardar</button>`, (m, close) => {
+      $("[data-foto]", m).onclick = async () => {
+        try {
+          const r = await Camara.evidencia({ titulo: "Foto de la promoción", marca: v.tienda });
+          if (!r) return;
+          const key = uid(), plid = uid(); await IDB.putBlob(key, r.blob);
+          const f = (n) => $(`[name=${n}]`, m).value;
+          const pid = f("producto") ? Number(f("producto")) : null;
+          const data = { tipo: f("tipo"), producto_id: pid, precio_regular: parseFloat(f("pr")) || null, precio_oferta: parseFloat(f("po")) || null, vigencia_hasta: f("vig") || null, nota: f("nota"), at: r.at, lat: v.lat, lng: v.lng };
+          v.promos.push({ ...data, thumb: r.thumb, producto: prods.find((p) => p.id === pid)?.nombre });
+          Visita.set(v);
+          await DB.encolar({ t: "promo", lid: v.lid, plid, blob: key, data });
+          close(); alGuardar();
+        } catch (e) { toast(e.message, 4000); }
+      };
+    });
   },
 
   productosTienda(v, cat) {
@@ -391,12 +532,8 @@ const V = {
     prods.forEach((p) => { const k = p.familia_id && nom[p.familia_id] ? String(p.familia_id) : "0"; if (!m.has(k)) m.set(k, { id: k, nombre: k === "0" ? "Sin categoría" : nom[p.familia_id], prods: [] }); m.get(k).prods.push(p); });
     return [...m.values()].sort((a, b) => (a.id === "0") - (b.id === "0") || a.nombre.localeCompare(b.nombre));
   },
-  contado(v, p) { return !!v.agot?.[p.id] || ["bodega", "exhibicion"].some((u) => (v.inv[p.id + ":" + u] ?? "") !== ""); },
-  filasInv(v, prods) {
-    const rows = [];
-    prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.agot?.[p.id] ? 0 : v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }); }));
-    return rows;
-  },
+  contado(v, p) { return (v.inv[p.id + ":bodega"] ?? "") !== ""; },
+  filasInv(v, prods) { return prods.map((p) => { const x = v.inv[p.id + ":bodega"]; return { producto_id: p.id, ubicacion: "bodega", unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }; }); },
   // Botón que muestra la categoría actual y su avance; al tocarlo se despliega la lista completa
   botonCategoria(c, avance) {
     return `<span class="cs-t"><span class="cs-l">Categoría</span><b>${esc(c.nombre)}</b></span><span class="cs-a">${esc(avance)}</span>${ic("chev", 18)}`;
@@ -438,33 +575,36 @@ const V = {
 
   pInventario(box, v, cat, siguiente) {
     const prods = this.productosTienda(v, cat);
-    const cats = this.categorias(prods, cat), multi = cats.length > 1, famDe = {};
+    const cats = this.categorias(prods, cat), famDe = {};
     cats.forEach((c) => c.prods.forEach((x) => (famDe[x.id] = c.id)));
-    if (!prods.length) { box.innerHTML = `<div class="empty card flat"><div class="ic">${ic("caja", 34)}</div>No hay productos cargados todavía.</div><button class="btn block" data-ok>Seguir</button>`; $("[data-ok]", box).onclick = siguiente; return; }
-    const val = (p, u) => v.inv[p + ":" + u] ?? "";
-    box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta las unidades. La app las convierte a kilos.</p>
+    if (!prods.length) { box.innerHTML = `<div class="empty card flat"><div class="ic">${ic("caja", 34)}</div>No hay productos cargados todavía.</div><button class="btn block" data-ok>Seguir</button>`; $("[data-ok]", box).onclick = () => { v.guardado.inventario = true; Visita.set(v); siguiente(); }; return; }
+    const val = (p) => v.inv[p + ":bodega"] ?? "";
+    const camHtml = (p) => { const n = FOTOS.deProd(v, p.id).length; return `<button type="button" class="cam-b ${n ? "ok" : ""}" data-cam="${p.id}" aria-label="Tomar foto de ${esc(p.nombre)} en bodega${n ? ". Lleva " + plur(n, "foto") : ""}">${ic("camara", 22)}${n ? `<i>${n}</i>` : ""}</button>`; };
+    const fotosHtml = (p) => { const fs = FOTOS.deProd(v, p.id); return fs.length ? `<div class="thumbs t4" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de ${esc(p.nombre)} en bodega"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""; };
+    box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta lo que queda en la bodega.</p>
       <div class="list">${prods.map((p) => `
-        <div class="inv ${v.agot?.[p.id] ? "agotado" : ""}" data-p="${p.id}" data-fam="${famDe[p.id]}"><div class="row"><div class="grow"><div class="nm">${esc(p.nombre)}</div>
-          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div>
-          <button type="button" class="agot ${v.agot?.[p.id] ? "on" : ""}" data-agot="${p.id}">${v.agot?.[p.id] ? "✕ Agotado" : "Agotado"}</button></div>
-          <div class="cols">${["bodega", "exhibicion"].map((u) => `<div><div class="tiny muted" style="margin-bottom:4px">${u === "bodega" ? "Bodega" : "Exhibición"} (${esc(plural(2, p.unidad_conteo))})</div>
-            <div class="stepper"><button data-m="${u}">−</button><input inputmode="decimal" data-u="${u}" value="${val(p.id, u)}" placeholder="0"><button data-s="${u}">+</button></div></div>`).join("")}</div>
-          <div class="kg"></div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
-      <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total contado</span><b id="totkg"></b></div></div>
+        <div class="inv" data-p="${p.id}" data-fam="${famDe[p.id]}"><div class="row"><div class="sp" style="min-width:0"><div class="nm">${esc(p.nombre)}</div>
+          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div><span data-cam-w="${p.id}">${camHtml(p)}</span></div>
+          <div class="tiny muted" style="margin:10px 0 4px">En bodega (${esc(plural(2, p.unidad_conteo))})</div>
+          <div class="row" style="gap:10px"><div class="stepper sp"><button type="button" data-m="bodega" aria-label="Menos">−</button><input inputmode="decimal" data-u="bodega" value="${val(p.id)}" placeholder="0" aria-label="${esc(plural(2, p.unidad_conteo))} de ${esc(p.nombre)} en bodega"><button type="button" data-s="bodega" aria-label="Más">+</button></div>
+            <button type="button" class="agot ${val(p.id) === 0 ? "on" : ""}" data-cero="${p.id}">Sin existencia</button></div>
+          <div class="kg"></div><div data-fotos="${p.id}">${fotosHtml(p)}</div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
+      <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total en bodega</span><b id="totkg"></b></div></div>
       <button class="btn block" style="margin-top:4px" data-ok>Guardar inventario</button>`;
     const calc = () => {
       let tot = 0;
-      $$(".inv", box).forEach((el) => {
-        const p = prods.find((x) => x.id == el.dataset.p);
-        const b = parseFloat($("[data-u=bodega]", el).value) || 0, e = parseFloat($("[data-u=exhibicion]", el).value) || 0;
-        const kg = (b + e) * Number(p.peso_kg_unidad); tot += kg;
-        $(".kg", el).innerHTML = v.agot?.[p.id] ? `<b style="color:var(--rosa-t)">Producto agotado en la tienda</b>` : b + e ? `${fmtNum(b + e)} ${esc(plural(b + e, p.unidad_conteo))} = <b>${fmtNum(kg, 2)} kg</b>` : "";
+      $$(".inv[data-p]", box).forEach((el) => {
+        const p = prods.find((x) => x.id == el.dataset.p), raw = $("[data-u=bodega]", el).value, b = parseFloat(raw) || 0;
+        const kg = b * Number(p.peso_kg_unidad); tot += kg;
+        $("[data-cero]", el).classList.toggle("on", raw !== "" && b === 0);
+        $(".kg", el).innerHTML = raw === "" ? "" : b === 0 ? `<b style="color:var(--rosa-t)">Sin existencia en bodega</b>` : `${fmtNum(b)} ${esc(plural(b, p.unidad_conteo))} = <b>${fmtNum(kg, 2)} kg</b>${FOTOS.deProd(v, p.id).length ? "" : ` <span class="pill p-durazno">Falta la foto</span>`}`;
       });
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
     // una sola acción por pantalla (onclick reemplaza; addEventListener se acumulaba al volver a dibujar y sumaba de a 2)
     const pintarVenc = (pid) => { const el = $(`[data-venc="${pid}"]`, box), pr = prods.find((x) => x.id == pid); if (el && pr) el.innerHTML = this.vencHtml(v, pr, cat); };
-    box.onclick = (e) => {
+    const pintarFotos = () => prods.forEach((p) => { $(`[data-cam-w="${p.id}"]`, box).innerHTML = camHtml(p); $(`[data-fotos="${p.id}"]`, box).innerHTML = fotosHtml(p); });
+    box.onclick = async (e) => {
       const vi = e.target.closest("[data-vi]"), vc = e.target.closest("[data-vc]");
       if (vi || vc) {
         const pid = (vi || vc).dataset.vi || (vi || vc).dataset.vc, pr = prods.find((x) => x.id == pid); v.venc = v.venc || {};
@@ -472,36 +612,38 @@ const V = {
         else this.vencFecha(v, pr, cat, (st) => { v.venc[pid] = st; Visita.set(v); pintarVenc(pid); });
         return;
       }
-      const ag = e.target.closest("[data-agot]");
-      if (ag) {
-        const pid = ag.dataset.agot, card = ag.closest(".inv"); v.agot = v.agot || {};
-        v.agot[pid] = !v.agot[pid];
-        card.classList.toggle("agotado", v.agot[pid]); ag.classList.toggle("on", v.agot[pid]); ag.textContent = v.agot[pid] ? "✕ Agotado" : "Agotado";
-        if (v.agot[pid]) $$("[data-u]", card).forEach((i) => { i.value = 0; v.inv[pid + ":" + i.dataset.u] = 0; });
-        Visita.set(v); calc(); pintarVenc(pid); return;
+      const cam = e.target.closest("[data-cam]");
+      if (cam) {
+        try {
+          const pr = prods.find((x) => x.id == cam.dataset.cam), corto = pr.nombre.replace(/^Queso /, "");
+          const r = await Camara.evidencia({ titulo: corto + " en bodega", marca: v.tienda }); if (!r) return;
+          const key = uid(); await IDB.putBlob(key, r.blob);
+          v.fotos.push({ key, tipo: "bodega", slot: "bodega", pid: pr.id, tipoTxt: "Bodega · " + corto, at: r.at, thumb: r.thumb }); Visita.set(v);
+          await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "bodega", mueble: null, producto_id: pr.id, at: r.at, lat: v.lat, lng: v.lng } });
+          pintarFotos(); calc();
+        } catch (err) { toast(err.message, 4000); }
+        return;
       }
+      const bo = e.target.closest("[data-borrar]");
+      if (bo) {
+        if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
+        await this.borrarFoto(v, bo.dataset.borrar); toast("Foto borrada"); pintarFotos(); calc(); return;
+      }
+      const ce = e.target.closest("[data-cero]");
+      if (ce) { const inp = $("[data-u=bodega]", ce.closest(".inv")); inp.value = inp.value !== "" && Number(inp.value) === 0 ? "" : 0; inp.dispatchEvent(new Event("input", { bubbles: true })); return; }
       const b = e.target.closest("[data-m],[data-s]"); if (!b) return;
-      const u = b.dataset.m || b.dataset.s, inp = $(`[data-u=${u}]`, b.closest(".inv"));
+      const inp = $("[data-u=bodega]", b.closest(".inv"));
       inp.value = Math.max(0, (parseFloat(inp.value) || 0) + (b.dataset.s ? 1 : -1)); inp.dispatchEvent(new Event("input", { bubbles: true }));
     };
     box.oninput = (e) => {
       const vu = e.target.closest("[data-vu]");
       if (vu) { vu.value = vu.value.replace(/[^0-9.]/g, ""); v.venc = v.venc || {}; if (v.venc[vu.dataset.vu]) { v.venc[vu.dataset.vu].unidades = vu.value; Visita.set(v); } return; }
       const i = e.target.closest("[data-u]"); if (!i) return;
-      v.inv[i.closest(".inv").dataset.p + ":" + i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
+      v.inv[i.closest(".inv").dataset.p + ":bodega"] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
     };
     calc();
-    if (multi) return this.invPorCategoria(box, v, prods, cats, calc, siguiente);
-    $("[data-ok]", box).onclick = async () => {
-      const rows = [];
-      const sinContar = prods.filter((p) => !v.agot?.[p.id] && ["bodega", "exhibicion"].every((u) => (v.inv[p.id + ":" + u] ?? "") === ""));
-      if (sinContar.length) { toast(`Cuenta ${sinContar.map((p) => p.nombre).join(" y ")} o márcalo como agotado`, 4000); return; }
-      const fv = this.vencFalta(v, prods); if (fv) { toast(fv, 4000); return; }
-      await this.vencGuardar(v, prods);
-      prods.forEach((p) => ["bodega", "exhibicion"].forEach((u) => { const x = v.agot?.[p.id] ? 0 : v.inv[p.id + ":" + u]; rows.push({ producto_id: p.id, ubicacion: u, unidades: x === "" || x == null ? 0 : Number(x), agotado: !!v.agot?.[p.id] }); }));
-      await DB.encolar({ t: "inventario", lid: v.lid, rows });
-      v.guardado.inventario = true; Visita.set(v); toast("Inventario guardado ✓"); siguiente();
-    };
+    // El selector de categoría va siempre, aunque la tienda tenga una sola: así la pantalla es la misma con 2 productos o con 200
+    return this.invPorCategoria(box, v, prods, cats, calc, siguiente);
   },
 
   // Inventario con varias categorías: una a la vez, con selector desplegable, buscador y avance. Las tarjetas de las demás quedan ocultas (no se pierden los datos).
@@ -509,7 +651,7 @@ const V = {
     const lista = (c) => c.prods.every((x) => this.contado(v, x));
     const info = (c) => { const n = c.prods.filter((x) => this.contado(v, x)).length; return { listo: n === c.prods.length, texto: `${n} de ${c.prods.length}` }; };
     let actual = cats.find((c) => c.id === v.invCat) || cats.find((c) => !lista(c)) || cats[0], q = "";
-    $("p.muted", box).outerHTML = `<p class="muted small" style="margin-top:0">Cuenta una categoría a la vez. Solo ves lo que vende esta tienda.</p>
+    $("p.muted", box).outerHTML = `<p class="muted small" style="margin-top:0">Cuenta lo que queda en la bodega <b>después de sacar lo que vas a exhibir</b> y toma la foto de cada producto con su cámara.</p>
       <button type="button" class="cat-sel" data-catbtn></button>
       <div class="cat-av"><span class="cat-bar"><i></i></span><span class="tiny muted" data-catav></span></div>
       <input class="in" id="invq" placeholder="Buscar producto o código…" style="margin-bottom:10px">`;
@@ -521,16 +663,18 @@ const V = {
       $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto);
       $("[data-catav]", box).textContent = `${listas} de ${cats.length} categorías listas`;
       $(".cat-bar i", box).style.width = Math.round((listas / cats.length) * 100) + "%";
-      $$(".inv", box).forEach((el) => { const x = prods.find((y) => y.id == el.dataset.p); el.hidden = q ? !sinAcentos(x.nombre + " " + (x.sku || "")).includes(q) : el.dataset.fam !== actual.id; });
-      okBtn.textContent = sig ? `Guardar y seguir con ${sig.nombre}` : "Guardar inventario";
+      $$(".inv[data-p]", box).forEach((el) => { const x = prods.find((y) => y.id == el.dataset.p); el.hidden = q ? !sinAcentos(x.nombre + " " + (x.sku || "")).includes(q) : el.dataset.fam !== actual.id; });
+      okBtn.textContent = sig ? `Guardar y seguir con ${sig.nombre}` : "Guardar y seguir a Exhibición";
       saltar.hidden = cats.every(lista);
     };
     $("[data-catbtn]", box).onclick = () => this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.invCat = c.id; Visita.set(v); q = ""; $("#invq", box).value = ""; pintar(); });
     $("#invq", box).oninput = (e) => { q = sinAcentos(e.target.value.trim()); pintar(); };
-    const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); await this.vencGuardar(v, hechos); };
+    const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); this.recalcAgot(v, prods); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); await this.vencGuardar(v, hechos); };
     okBtn.onclick = async () => {
       const falta = actual.prods.filter((x) => !this.contado(v, x));
-      if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}, o márcalos como agotados`, 4000); return; }
+      if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}. Si no hay en bodega, toca «Sin existencia»`, 4500); return; }
+      const sinF = actual.prods.filter((x) => Number(v.inv[x.id + ":bodega"]) > 0 && !FOTOS.deProd(v, x.id).length);
+      if (sinF.length) { toast(`Falta la foto de ${sinF.length === 1 ? sinF[0].nombre : sinF.length + " productos"} en bodega: toca su cámara`, 4500); return; }
       const fv = this.vencFalta(v, actual.prods); if (fv) { toast(fv, 4000); return; }
       await guardarContados();
       const sig = cats.find((c) => !lista(c));
@@ -549,39 +693,6 @@ const V = {
       });
     };
     pintar();
-  },
-
-  pPromos(box, v, cat, siguiente) {
-    const tipos = { oferta_precio: "Oferta de precio", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" };
-    box.innerHTML = `<p class="muted small" style="margin-top:0">Registra las promociones u ofertas que viste, con su foto.</p>
-      <div class="list">${v.promos.map((p) => `<div class="item"><img src="${p.thumb}" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div class="grow"><div class="t">${esc(tipos[p.tipo])}</div><div class="small muted">${esc(p.producto || "")}${p.precio_oferta ? " · $" + p.precio_oferta : ""}</div></div></div>`).join("") || `<div class="empty"><div class="ic">${ic("etiqueta", 34)}</div>Sin promociones registradas</div>`}</div>
-      <div class="row" style="margin-top:16px"><button class="btn sec sp" data-add>+ Agregar promoción</button><button class="btn sp" data-ok>${v.promos.length ? "Seguir" : "No hay promociones"}</button></div>`;
-    $("[data-ok]", box).onclick = () => { v.guardado.promos = true; Visita.set(v); siguiente(); };
-    $("[data-add]", box).onclick = () => {
-      const prods = this.productosTienda(v, cat);
-      modal(`<h2>Nueva promoción</h2>
-        <label class="f">Tipo</label><select class="in" name="tipo">${Object.entries(tipos).map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select>
-        <label class="f">Producto</label><select class="in" name="producto"><option value="">— General —</option>${prods.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join("")}</select>
-        <div class="row"><div class="sp"><label class="f">Precio normal</label><input class="in" name="pr" inputmode="decimal" placeholder="$"></div><div class="sp"><label class="f">Precio oferta</label><input class="in" name="po" inputmode="decimal" placeholder="$"></div></div>
-        <label class="f">Vigente hasta</label><input class="in" type="date" name="vig">
-        <label class="f">Nota</label><input class="in" name="nota" placeholder="Opcional">
-        <button class="btn block" style="margin-top:16px" data-foto>${ic("camara", 18)} Tomar foto y guardar</button>`, (m, close) => {
-        $("[data-foto]", m).onclick = async () => {
-          try {
-            const r = await Camara.evidencia({ titulo: "Foto de la promoción", marca: v.tienda });
-            if (!r) return;
-            const key = uid(), plid = uid(); await IDB.putBlob(key, r.blob);
-            const f = (n) => $(`[name=${n}]`, m).value;
-            const pid = f("producto") ? Number(f("producto")) : null;
-            const data = { tipo: f("tipo"), producto_id: pid, precio_regular: parseFloat(f("pr")) || null, precio_oferta: parseFloat(f("po")) || null, vigencia_hasta: f("vig") || null, nota: f("nota"), at: r.at, lat: v.lat, lng: v.lng };
-            v.promos.push({ ...data, thumb: r.thumb, producto: prods.find((p) => p.id === pid)?.nombre });
-            Visita.set(v);
-            await DB.encolar({ t: "promo", lid: v.lid, plid, blob: key, data });
-            close(); this.pPromos(box, v, cat, siguiente);
-          } catch (e) { toast(e.message, 4000); }
-        };
-      });
-    };
   },
 
   pPedido(box, v, cat, siguiente) {
@@ -643,7 +754,7 @@ const V = {
       <p class="muted small" style="margin-top:0">${bajos ? `${plur(bajos, "producto")} con inventario bajo. Revisa la sugerencia y ajusta las cantidades.` : "No hay productos bajo el mínimo. Si igual hace falta pedir, escribe las cantidades."}</p>
       <div class="list" id="pedl">${filas.map((f) => `<div class="inv" data-p="${f.p.id}"><div class="row"><div class="sp" style="min-width:0"><div class="nm nm-estado">${esc(f.p.nombre)}${v.agot?.[f.p.id] ? `<span class="pill p-rosa">Agotado</span>` : f.bajo ? `<span class="pill p-rosa">Bajo</span>` : ""}</div>
           ${V.objProducto(cat, v.cliente_id, f.p)}
-          <div class="tiny muted">Inventario: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div></div>
+          <div class="tiny muted">En tienda: ${f.contado ? fmtNum(f.stock) + " " + esc(plural(f.stock, f.p.unidad_conteo)) + ` (bodega ${fmtNum(Number(v.inv[f.p.id + ":bodega"]) || 0)} + exhibido ${fmtNum(Number(v.inv[f.p.id + ":exhibicion"]) || 0)})` : "sin contar"}${f.p.regla?.stock_minimo != null ? " · mínimo " + fmtNum(f.p.regla.stock_minimo) : ""}</div></div></div>
           <div class="row" style="margin-top:10px"><span class="small muted sp">${f.sug ? "Sugerido: <b>" + f.sug + " " + esc(plural(f.sug, f.p.unidad_pedido)) + "</b>" : esc(plural(2, f.p.unidad_pedido))}</span>
           <div class="stepper" style="width:150px"><button data-m>−</button><input inputmode="numeric" value="${f.valor}" placeholder="0"><button data-s>+</button></div></div>
           <div class="kg" data-kg></div></div>`).join("")}</div>
@@ -747,17 +858,17 @@ const V = {
     const ok = !pend.length;
     // Lo que hizo la vendedora sale solo de los pasos y las evidencias (sin casillas para marcar)
     const e = this.estado(v), cat0 = LS.get("cat") || {}, pls = PL.deTienda(cat0, v.cliente_id) || [];
-    const req = FOTOS.req(v), nFotos = req.filter(([k]) => FOTOS.de(v, k).length).length;
+    const slots = FOTOS.slots(v), nMue = slots.filter((m) => FOTOS.de(v, m.k).length && v.exh?.[m.k]?.ok).length, nFB = v.fotos.filter((f) => f.slot === "bodega").length;
     const agot = Object.keys(v.agot || {}).filter((k) => v.agot[k]).length;
     const kgPed = (v.pedido?.items || []).reduce((t, i) => t + kgLinea(i.propuesto, (cat0.productos || []).find((x) => x.id === i.producto_id)), 0);
     const items = [
-      ["fotos", `Fotos de evidencia · ${nFotos} de ${req.length} (${v.fotos.length} foto${v.fotos.length === 1 ? "" : "s"})`, e.fotos],
-      ["inventario", `${v.invIncompleto ? "Inventario · faltó " + plur(v.invIncompleto.cats.length, "categoría") : "Inventario contado"}${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.inventario],
-      ["promos", "Promociones revisadas", e.promos],
+      ["inventario", `${v.invIncompleto ? "Inventario de bodega · faltó " + plur(v.invIncompleto.cats.length, "categoría") : "Inventario de bodega"}${nFB ? ` · ${plur(nFB, "foto")}` : ""}`, e.inventario],
+      ["exhibicion", `Exhibición · ${nMue} de ${plur(slots.length, "mueble")} con foto y conteo${agot ? ` · ${plur(agot, "agotado")}` : ""}`, e.exhibicion],
       ["pedido", v.pedido?.ninguno ? `Sin pedido${v.pedido.motivo ? " · " + (MOTIVOS_SIN_PEDIDO.find((m) => m[0] === v.pedido.motivo)?.[1] || "") : ""}` : v.pedido?.items?.length ? `Pedido enviado · ${fmtKg(kgPed)}` : "Pedido", e.pedido],
       ...(pls.length ? [["gestion", `Planograma revisado${pls.length > 1 ? " (" + pls.length + ")" : ""}`, e.gestion]] : []),
       ...(v.auditoria ? [["gestion", `Auditoría de espacio · ${v.auditoria.pct == null ? "hecha" : v.auditoria.pct + "% de la categoría"}`, true]] : []),
       ...((v.fotosCat || []).length ? [["gestion", `Fotos de la categoría · ${v.fotosCat.length}`, true]] : []),
+      ...(v.promos.length ? [["gestion", `Promociones registradas · ${v.promos.length}`, true]] : []),
     ];
     box.innerHTML = `<div class="card"><h2 style="margin-bottom:10px">Lo que hiciste en la visita</h2>
       ${items.map(([p, t, h]) => `<div class="row" style="padding:7px 0;cursor:pointer" data-ir="${p}"><span class="sp">${h ? "✓ " : ""}${esc(t)}</span>${h ? `<span class="pill p-menta">Listo</span>` : `<span class="pill p-rosa">Pendiente ›</span>`}</div>`).join("")}
@@ -779,7 +890,10 @@ const V = {
         <div class="small" style="margin-top:4px">Motivo: <b>${esc(motivoInvIncompleto(v.invIncompleto.motivo))}</b>${v.invIncompleto.nota ? " · " + esc(v.invIncompleto.nota) : ""}. Le aparecerá a tu supervisor.</div>
         <div class="row" style="margin-top:8px"><button class="btn sm" data-ir="inventario">Contar ahora</button></div></div>` : ""}
       <label class="f">Comentario de la visita</label><textarea class="in" id="com" placeholder="Opcional">${esc(v.comentario || "")}</textarea>
-      <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>`;
+      <button class="btn block ok" style="margin-top:16px" data-out ${ok ? "" : "disabled"}>Hacer check-out</button>
+      ${ok ? "" : `<button type="button" class="btn ghost block" style="margin-top:8px" data-inc>Cerrar sin terminar</button>
+        <p class="tiny muted" style="text-align:center;margin:6px 0 0">Úsalo solo si no puedes completar la visita. Queda registrada como incompleta.</p>`}`;
+    const inc = $("[data-inc]", box); if (inc) inc.onclick = () => this.cerrarIncompleta(v);
     $$("[data-ir]", box).forEach((el) => (el.onclick = () => ir(el.dataset.ir)));
     $("#com").oninput = (e) => { v.comentario = e.target.value; Visita.set(v); };
     const ma = $("[data-motag]", box); if (ma) ma.onclick = () => {
@@ -805,6 +919,37 @@ const V = {
       toast(`Visita cerrada · ${minutos(v.at, at)} min en tienda ✓`, 3500);
       location.hash = "#hoy";
     };
+  },
+
+  // Cerrar la visita sin terminar: pide el motivo, registra lo que faltó y la marca incompleta para gerencia. Se puede hacer desde cualquier lugar.
+  cerrarIncompleta(v) {
+    const pend = this.pendientes(v).map((x) => x[1]); let sel = "";
+    modal("", (m, close) => {
+      const sheet = $(".sheet", m);
+      const pintar = (nota = "") => {
+        sheet.innerHTML = `<h2 style="margin-bottom:4px">Cerrar sin terminar</h2>
+          <p class="muted small" style="margin:0 0 12px">Faltó: <b>${esc(pend.join(", "))}</b>. La visita queda registrada como <b>incompleta</b> y la ve tu supervisor.</p>
+          <div class="list">${MOTIVOS_INCOMPLETA.map(([k, t]) => `<div class="check ${sel === k ? "on" : ""}" data-mot="${k}" role="button" tabindex="0"><div class="box">✓</div><div>${esc(t)}</div></div>`).join("")}</div>
+          <label class="f">${sel === "otro" ? "Escribe el motivo" : 'Comentario <span class="tiny muted">(opcional)</span>'}</label><input class="in" id="icn" maxlength="140" value="${esc(nota)}" placeholder="Ej.: me llamaron de la oficina">
+          <div class="row" style="margin-top:16px"><button class="btn sec sp" data-no>Volver a la visita</button><button class="btn peligro sp" data-ok>Cerrar incompleta</button></div>`;
+        $$("[data-mot]", sheet).forEach((el) => (el.onclick = () => { sel = el.dataset.mot; pintar($("#icn", sheet).value); }));
+        $("[data-no]", sheet).onclick = close;
+        $("[data-ok]", sheet).onclick = async () => {
+          const nota = $("#icn", sheet).value.trim();
+          if (!sel) return toast("Elige el motivo");
+          if (sel === "otro" && !nota) return toast("Escribe el motivo");
+          toast("Obteniendo ubicación…", 9000);
+          let pos = null; try { pos = await ubicacion(); } catch {} // si no hay ubicación se cierra igual: lo importante es que no quede abierta
+          const at = new Date().toISOString(), mot = MOTIVOS_INCOMPLETA.find((x) => x[0] === sel)[1];
+          await DB.encolar({ t: "visita_out", lid: v.lid, data: { at, lat: pos?.lat ?? null, lng: pos?.lng ?? null, precision: pos?.precision ?? null, comentario: v.comentario,
+            incompleta: true, incompleta_nota: (`Faltó: ${pend.join(", ")} · Motivo: ${mot}` + (nota ? " · " + nota : "")).slice(0, 480) } });
+          const hechas = LS.get("hechas:" + hoyISO(), {}); hechas[v.cliente_id] = at; LS.set("hechas:" + hoyISO(), hechas);
+          Visita.fin(); LS.del("paso"); close();
+          toast("Visita cerrada como incompleta", 3500); location.hash = "#hoy";
+        };
+      };
+      pintar();
+    });
   },
 
   // ---------- Objetivos de venta ----------

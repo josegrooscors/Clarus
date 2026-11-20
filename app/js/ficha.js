@@ -4,7 +4,7 @@
 const FICHA = {
   mueble(tipo, m) {
     const k = m || String(tipo || "").replace(/^exhibicion_?/, "");
-    if (tipo === "bodega") return "Bodega";
+    if (tipo === "bodega") return "Bodega" + (m && typeof m === "object" && m.nombre ? " · " + m.nombre.replace(/^Queso /, "") : "");
     if (tipo === "categoria") return "Categoría completa";
     return (typeof PL !== "undefined" && PL.MUEBLES?.[k]) || (tipo === "exhibicion" ? "Exhibición" : k ? k[0].toUpperCase() + k.slice(1) : "Foto");
   },
@@ -37,8 +37,8 @@ const FICHA = {
     const [vR, vxR, fR, iR, pR, aR, plR, prR, veR] = await Promise.all([
       sb.from("v_visitas").select("*").eq("id", id).limit(1),
       sb.from("visitas").select("comentario, sin_pedido_motivo, sin_pedido_nota, inv_incompleto_motivo, inv_incompleto_nota").eq("id", id).limit(1),
-      sb.from("fotos").select("id, tipo, mueble, storage_path, tomada_at").eq("visita_id", id).order("tomada_at"),
-      sb.from("inventarios").select("producto_id, ubicacion, unidades, kg, agotado, productos(nombre)").eq("visita_id", id),
+      sb.from("fotos").select("id, tipo, mueble, producto_id, storage_path, tomada_at, productos(nombre)").eq("visita_id", id).order("tomada_at"),
+      sb.from("inventarios").select("producto_id, ubicacion, unidades, kg, agotado, detalle, productos(nombre)").eq("visita_id", id),
       sb.from("v_pedidos").select("id, estado, total_cajas, total_kg, numero_orden, nota_vendedor").eq("visita_id", id),
       sb.from("auditorias_espacio").select("pct, nuestro, competencia, otra, vacio").eq("visita_id", id).order("creado_at", { ascending: false }).limit(1),
       sb.from("planograma_revisiones").select("cumple, nota, planogramas(nombre)").eq("visita_id", id),
@@ -59,6 +59,8 @@ const FICHA = {
       const p = (porProd[i.producto_id] = porProd[i.producto_id] || { id: i.producto_id, nombre: (i.productos?.nombre || "Producto").replace(/^Queso /, ""), bod: null, exh: null, kg: 0, agot: false });
       const u = Number(i.unidades || 0); if (i.ubicacion === "bodega") p.bod = (p.bod || 0) + u; else p.exh = (p.exh || 0) + u;
       p.kg += Number(i.kg || 0); p.agot = p.agot || !!i.agotado;
+      // Exhibición del flujo nuevo: desglose por mueble (barras y paquetes)
+      if (Array.isArray(i.detalle) && i.detalle.length) p.det = i.detalle.map((x) => `${x.mueble}: ${[x.barras ? fmtNum(x.barras) + " en barra" : "", x.rebanado ? x.rebanado + " paq. rebanado" : "", x.rallado ? x.rallado + " paq. rallado" : ""].filter(Boolean).join(" + ")}`).join(" · ");
     });
     const inv = Object.values(porProd).map((p) => ({ ...p, total: (p.bod || 0) + (p.exh || 0) })).sort((a, b) => a.nombre.localeCompare(b.nombre));
     return { v: vR.data[0], vx: (vxR.data || [])[0], fotos: fotos.map((f) => ({ ...f, url: url[f.storage_path] })), inv, pedidos, items: itR.data || [], analisis: anR.data || [],
@@ -75,8 +77,8 @@ const FICHA = {
       <div class="item-pie" style="margin:0 0 14px">${v.checkout_at ? `<span class="pill p-gris">Cerrada</span>` : `<span class="pill p-azul">En tienda ahora</span>`}${G.gps(v)}${d.pedidos.length ? `<span class="pill p-menta">Con pedido</span>` : v.checkout_at ? `<span class="pill p-durazno">Sin pedido</span>` : ""}</div>
       <div class="fv-kpis"><div><b>${fmtHora(v.checkin_at)}</b><span>Entrada</span></div><div><b>${v.checkout_at ? fmtHora(v.checkout_at) : "–"}</b><span>Salida</span></div><div><b>${v.checkout_at ? FICHA.dur(v.minutos_en_tienda) : "En curso"}</b><span>En tienda</span></div></div>
       ${op.length ? sec("Áreas de oportunidad", `<div class="fv-op">${op.map(([c, t]) => `<div class="fv-o ${c}">${ic("alerta", 16)}<span>${esc(t)}</span></div>`).join("")}</div>`, op.length) : v.checkout_at ? `<div class="fv-o menta" style="margin-bottom:16px">${ic("ok", 16)}<span>Visita completa, sin observaciones.</span></div>` : ""}
-      ${sec("Fotos", d.fotos.length ? `<div class="fv-fotos">${d.fotos.map((f) => { const g = FICHA.mueble(f.tipo, f.mueble); return `<figure class="fv-fig">${f.url ? `<button class="fv-f" data-foto="${esc(f.url)}" data-pie="${esc(g + " · " + fmtHora(f.tomada_at))}"><img src="${esc(f.url)}" alt="${esc(g)}" loading="lazy"></button>` : `<div class="fv-f pend">Subiendo…</div>`}<figcaption>${esc(g)}<span>${fmtHora(f.tomada_at)}</span></figcaption></figure>`; }).join("")}</div>` : `<p class="muted small">Todavía no hay fotos.</p>`, d.fotos.length)}
-      ${sec("Inventario", d.inv.length ? `<table class="fv-t"><tr><th>Producto</th><th>Bodega</th><th>Exhibición</th><th>Total</th></tr>${d.inv.map((p) => `<tr><td><b>${esc(p.nombre)}</b>${p.total === 0 || p.agot ? ` <span class="pill p-rosa">Agotado</span>` : ""}</td><td>${p.bod == null ? "–" : fmtNum(p.bod, 0)}</td><td>${p.exh == null ? "–" : fmtNum(p.exh, 0)}</td><td><b>${fmtNum(p.total, 0)}</b><div class="tiny muted">${fmtKg(p.kg)}</div></td></tr>`).join("")}</table>` : `<p class="muted small">Todavía no registró inventario.</p>`)}
+      ${sec("Fotos", d.fotos.length ? `<div class="fv-fotos">${d.fotos.map((f) => { const g = FICHA.mueble(f.tipo, f.tipo === "bodega" ? f.productos : f.mueble); return `<figure class="fv-fig">${f.url ? `<button class="fv-f" data-foto="${esc(f.url)}" data-pie="${esc(g + " · " + fmtHora(f.tomada_at))}"><img src="${esc(f.url)}" alt="${esc(g)}" loading="lazy"></button>` : `<div class="fv-f pend">Subiendo…</div>`}<figcaption>${esc(g)}<span>${fmtHora(f.tomada_at)}</span></figcaption></figure>`; }).join("")}</div>` : `<p class="muted small">Todavía no hay fotos.</p>`, d.fotos.length)}
+      ${sec("Inventario", d.inv.length ? `<table class="fv-t"><tr><th>Producto</th><th>Bodega</th><th>Exhibición</th><th>Total</th></tr>${d.inv.map((p) => `<tr><td><b>${esc(p.nombre)}</b>${p.total === 0 || p.agot ? ` <span class="pill p-rosa">Agotado</span>` : ""}${p.det ? `<div class="tiny muted">${esc(p.det)}</div>` : ""}</td><td>${p.bod == null ? "–" : fmtNum(p.bod, 1)}</td><td>${p.exh == null ? "–" : fmtNum(p.exh, 1)}</td><td><b>${fmtNum(p.total, 1)}</b><div class="tiny muted">${fmtKg(p.kg)}</div></td></tr>`).join("")}</table>` : `<p class="muted small">Todavía no registró inventario.</p>`)}
       ${(d.venc || []).length ? sec("Vencimiento", `<table class="fv-t"><tr><th>Producto</th><th>Vence primero</th><th>Unidades</th></tr>${d.venc.map((x) => `<tr><td><b>${esc(x.nombre)}</b></td><td>${x.sin_fecha ? "No se vio la fecha" : esc(fmtDia(x.vence)) + `<div class="tiny ${x.dias <= x.plazo ? "" : "muted"}" ${x.dias <= x.plazo ? 'style="color:var(--rosa-t)"' : ""}>${esc(faltan(x.vence))}${x.confirmada ? " · sigue igual" : ""}</div>`}</td><td>${x.unidades == null ? "–" : fmtNum(x.unidades, 0)}</td></tr>`).join("")}</table>`) : ""}
       ${sec("Pedido", d.pedidos.length ? d.pedidos.map((p) => `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px">${pillPedido(p.estado)}<span class="small">${plur(fmtNum(p.total_cajas, 0), "caja")}${p.total_kg != null ? " · " + fmtKg(p.total_kg) : ""}${p.numero_orden ? " · Orden " + esc(p.numero_orden) : ""}</span></div>
           <table class="fv-t"><tr><th>Producto</th><th>Sugerido</th><th>Pedido</th></tr>${d.items.filter((i) => i.pedido_id === p.id).map((i) => `<tr><td>${esc((i.productos?.nombre || "").replace(/^Queso /, ""))}</td><td>${fmtNum(i.sugerido, 0)}</td><td><b>${fmtNum(i.propuesto, 0)}</b></td></tr>`).join("")}</table>${p.nota_vendedor ? `<p class="small muted" style="margin-top:6px">Nota: ${esc(p.nota_vendedor)}</p>` : ""}`).join("")
@@ -166,7 +168,7 @@ const FICHA = {
       filas.forEach((f) => { f.forEach((t, i) => { F(i === 0 || i === f.length - 1 ? 600 : 400, 25); x.fillStyle = TI; x.fillText(String(t), X[i], y + 8); }); y += 46; x.fillStyle = BD; x.fillRect(M, y - 2, AN, 1.5); });
       y += 30;
     };
-    if (d.inv.length) { titulo("Inventario"); tabla(["Producto", "Bodega", "Exhibición", "Total"], d.inv.map((p) => [p.nombre + (p.total === 0 || p.agot ? "  (agotado)" : ""), p.bod == null ? "–" : fmtNum(p.bod, 0), p.exh == null ? "–" : fmtNum(p.exh, 0), fmtNum(p.total, 0)]), [0.46, 0.18, 0.2, 0.16]); }
+    if (d.inv.length) { titulo("Inventario"); tabla(["Producto", "Bodega", "Exhibición", "Total"], d.inv.map((p) => [p.nombre + (p.total === 0 || p.agot ? "  (agotado)" : ""), p.bod == null ? "–" : fmtNum(p.bod, 1), p.exh == null ? "–" : fmtNum(p.exh, 1), fmtNum(p.total, 1)]), [0.46, 0.18, 0.2, 0.16]); }
     if ((d.venc || []).length) { titulo("Vencimiento"); tabla(["Producto", "Vence primero", "Unidades"], d.venc.map((z) => [z.nombre, z.sin_fecha ? "No se vio la fecha" : `${fmtDia(z.vence)} (${faltan(z.vence)})`, z.unidades == null ? "–" : fmtNum(z.unidades, 0)]), [0.3, 0.52, 0.18]); }
     titulo("Pedido");
     if (d.pedidos.length) d.pedidos.forEach((p) => {
@@ -185,7 +187,7 @@ const FICHA = {
           caja(X, y, fw, fh, 18, FO);
           if (it.bmp) { const e = Math.min(fw / it.bmp.width, fh / it.bmp.height), w = it.bmp.width * e, h = it.bmp.height * e; x.save(); x.beginPath(); x.roundRect(X, y, fw, fh, 18); x.clip(); x.drawImage(it.bmp, X + (fw - w) / 2, y + (fh - h) / 2, w, h); x.restore(); }
           else { F(400, 22); x.fillStyle = GR; x.fillText("Foto no disponible", X + 24, y + fh / 2); }
-          F(600, 22); x.fillStyle = TI; x.fillText(FICHA.mueble(it.f.tipo, it.f.mueble), X, y + fh + 12);
+          F(600, 22); x.fillStyle = TI; x.fillText(FICHA.mueble(it.f.tipo, it.f.tipo === "bodega" ? it.f.productos : it.f.mueble), X, y + fh + 12);
           F(400, 20); x.fillStyle = GR; x.fillText(fmtHora(it.f.tomada_at), X, y + fh + 42);
         });
         y += fh + 90;

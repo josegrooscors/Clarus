@@ -894,3 +894,20 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
   .dsh-rks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
   .dsh-rks>.card{display:block}
 }
+
+/* v0.14.76 · Flujo nuevo de la visita: cámara por producto en bodega y exhibición por mueble */
+.cam-b{position:relative;flex:none;width:48px;height:48px;border-radius:14px;border:1.5px solid var(--azul);background:var(--azul-cl);color:var(--azul);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.cam-b.ok{background:#fff}
+.cam-b i{position:absolute;top:-7px;right:-7px;min-width:21px;height:21px;padding:0 5px;border-radius:11px;background:#0F7A4F;color:#fff;font:700 12px var(--font);font-style:normal;display:flex;align-items:center;justify-content:center}
+.thumbs.t4{grid-template-columns:repeat(4,1fr)}
+button.inv.mue{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+button.inv.mue .grow{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:3px}
+button.inv.mue b{font-weight:600}
+button.inv.mue>svg{flex:none;color:var(--gris);transform:rotate(-90deg)}
+.mue-volver{display:inline-flex;min-height:44px;align-items:center;margin:-6px 0 4px;font-size:14.5px}
+.pres{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 0 0;margin-top:8px;border-top:1px solid var(--borde)}
+.pres .grow{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pres b{font-weight:600;font-size:14.5px}
+.pres .stepper{flex:none;width:148px}
+.inv .agot[data-cero]{min-height:44px;flex:none}
+.prueba-b{position:sticky;top:0;z-index:40;background:#8A5A00;color:#fff;font:600 12.5px var(--font);text-align:center;padding:6px 10px}
