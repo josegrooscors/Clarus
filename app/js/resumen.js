@@ -288,7 +288,7 @@ const R = {
             ${serieM.some((x) => x[0] != null) ? `<div class="card dsh-c"><div class="dsh-h"><h3>Merma · 6 meses</h3><span class="tiny muted">% de la venta · límite ${fmtNum(lim, 0)}%</span></div>${R.barritas(serieM, (v) => (v == null ? "–" : fmtNum(v, 1)), 64)}</div>` : ""}
           </div>
         </div>
-        ${rk.length ? `<div class="dsh-h dsh-ht"><h3>Dónde mejorar</h3><span class="tiny muted">de menor a mayor</span></div>
+        ${rk.length ? `<div class="dsh-h dsh-ht"><h3>Dónde mejorar</h3><span class="tiny muted">lo más urgente primero</span></div>
         <div class="dsh-tabs" role="tablist">${rk.map(([k, t]) => `<button type="button" role="tab" data-dk-b="${k}" class="${k === kAct ? "on" : ""}">${t}</button>`).join("")}</div>
         <div class="dsh-rks">${rk.map(([k, , t, sub, fs]) => `<div class="card dsh-c ${k === kAct ? "on" : ""}" data-dk="${k}"><div class="dsh-h"><h3>${t}</h3><span class="tiny muted">${sub}</span></div>${R.paginar(fs, "dsh" + k, 5)}</div>`).join("")}</div>` : ""}
       </div>`;
@@ -489,6 +489,7 @@ const R = {
       const rv = $("#rv", root), w = document.createElement("div"); w.className = "dsh-fil"; rv.before(w);
       w.innerHTML = `<label><span>Equipo</span></label><label><span>Cadena</span><select class="in" id="rc"><option value="">Todas</option>${cadenas.map((c) => `<option ${c === cad ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></label>`;
       w.firstElementChild.append(rv); rv.style.marginBottom = "0";
+      rv.options[0].textContent = "Todos"; // el rótulo ya dice «Equipo»
       rv.onchange = (e) => R.render(root, periodo, e.target.value);
       $("#rc", root).onchange = (e) => { LS.set("dash.c", e.target.value); R.render(root, periodo, vend); };
       $$("[data-ir]", root).forEach((b) => (b.onclick = () => { const [t, k] = b.dataset.ir.split(":"); if (t === "tab") { LS.set("res.tab", k); LS.set("res.p", periodo === "rango" ? "mes" : periodo); LS.set("res.v", vend); location.hash = "#resumen"; } else location.hash = "#" + k; }));
