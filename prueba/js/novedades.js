@@ -19,7 +19,7 @@ const NOV = {
       como: ["Termina tu visita y toca «Hacer check-out».", "Si no pudiste terminar, toca «Cerrar sin terminar» y elige el motivo.", "Ya puedes entrar a la siguiente tienda."],
       m: [["Super 99 Brisas del Golf", "Visita abierta", "azul"], ["Xtra Los Pueblos", "Cierra la anterior", "ambar"]] },
   ],
-  aplica() { return typeof DB !== "undefined" && DB.puede && DB.puede("visitar"); },
+  aplica() { return typeof DB !== "undefined" && !!DB.user && !!DB.perfil; }, // todo el equipo: campo, supervisión, operaciones y gerencia
   // ¿Hay que mostrarlo? Si ya confirmó en otro teléfono, el servidor lo sabe.
   async debe() {
     if (!this.aplica() || LS.get("nov.ok", "") === this.id || this._abierto) return false;

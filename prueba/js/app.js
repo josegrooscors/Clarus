@@ -103,7 +103,7 @@ const App = {
       else if (ruta === "picking") await PK.render(root, sub);
       else if (ruta === "yo") await this.yo(root);
       if (ruta === "resumen") await this.primerosPasos(root).catch(() => {});
-      if (ruta === "hoy") { NOV.reintentar(); NOV.alEntrar(); } // instructivo de novedades: una vez, al entrar a la ruta
+      if (ruta !== "visita") { NOV.reintentar(); NOV.alEntrar(); } // instructivo de novedades: una vez, al entrar a la ruta
       if (this.barraPrueba()) { root.insertAdjacentHTML("afterbegin", this.barraPrueba()); $("[data-contratar]", root).onclick = () => this.contratar(); }
       if ((ruta === "hoy" || ruta === "resumen" || ruta === "dashboard") && MSG.bannerPush()) { root.insertAdjacentHTML("afterbegin", MSG.bannerPush()); MSG.enlazarBanner(root, () => App.render()); }
     } catch (e) {

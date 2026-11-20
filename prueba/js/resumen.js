@@ -500,7 +500,7 @@ const R = {
         const k = $("#vp-s", root).value, de = CL[k] || CL.cadena, m = {};
         const suma = (c, q, o, v) => { const n = de(c, q), x = (m[n] = m[n] || { n, o: 0, v: 0, t: new Set() }); x.o += o; x.v += v; x.t.add(c); };
         if (conMeta) obj.forEach((o) => suma(o.cliente_id, o.producto_id, Number(o.objetivo_kg || 0), Number(o.venta_kg || 0)));
-        else items.forEach((i) => suma(i.pedidos.cliente_id, i.producto_id, 0, kgLinea(i.propuesto, i.productos)));
+        else items.forEach((i) => i.pedidos && suma(i.pedidos.cliente_id, i.producto_id, 0, kgLinea(i.propuesto, i.productos)));
         const fs = Object.values(m).filter((x) => x.o > 0 || x.v > 0).sort((a, b) => b.v - a.v || a.n.localeCompare(b.n)), mx = Math.max(1, ...fs.map((x) => x.v));
         const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esp = mes0 === hoy.slice(0, 8) + "01" ? (dHoy / dMes) * 100 : 100;
         const tono = (q) => (q >= 100 || (q / esp) * 100 >= 95 ? "ok" : (q / esp) * 100 >= 75 ? "medio" : "bajo");
