@@ -184,7 +184,7 @@ const R = {
     const facV = vend ? fac.filter((x) => misClientes.has(x[1])) : fac;
     const mTot = MERMA.de(facV, mes0), mSerie = MERMA.meses(mes0, 6).map((m) => ({ mes: m, ...MERMA.suma(facV, (x) => x[0] === m) }));
     const vendDe = {}; asigTodas.forEach((a) => (vendDe[a.cliente_id] = vendDe[a.cliente_id] || []).push(a.vendedor_id));
-    const mVend = vend ? [] : [...vendedoras.map((u) => ({ n: u.nombre, id: u.id, ...MERMA.de(fac, mes0, (x) => (vendDe[x[1]] || []).includes(u.id)) })), { n: "Tiendas sin vendedora", ...MERMA.de(fac, mes0, (x) => !vendDe[x[1]]) }].filter((x) => x.mes.m || x.mes.v || x.ant.m).sort((a, b) => (b.mes.p ?? -1) - (a.mes.p ?? -1));
+    const mVend = vend ? [] : [...vendedoras.map((u) => ({ n: u.nombre, id: u.id, ...MERMA.de(fac, mes0, (x) => (vendDe[x[1]] || []).includes(u.id)) })), { n: "Tiendas sin responsable", ...MERMA.de(fac, mes0, (x) => !vendDe[x[1]]) }].filter((x) => x.mes.m || x.mes.v || x.ant.m).sort((a, b) => (b.mes.p ?? -1) - (a.mes.p ?? -1));
     const mProd = [...prodR.data.map((p) => ({ n: p.nombre.replace(/^Queso /, ""), ...MERMA.de(facV, mes0, (x) => x[2] === p.id) })), { n: "Sin detalle de producto", ...MERMA.de(facV, mes0, (x) => x[2] === 0) }].filter((x) => x.mes.m || x.ant.m);
     const mTiendas = [...new Set(facV.map((x) => x[1]))].map((id) => ({ id, ...MERMA.de(facV, mes0, (x) => x[1] === id) })).filter((x) => x.mes.m > 0 || x.ant.m > 0).sort((a, b) => b.mes.m - a.mes.m || b.ant.m - a.ant.m);
 
@@ -222,22 +222,23 @@ const R = {
         <span style="color:var(--rosa-t)">${ic("alerta", 28)}</span><div class="grow"><b style="color:var(--rosa-t)">Agotados sin pedido · ${esc(etPer)}</b>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:6px 0">${Object.entries(agotSinPed.reduce((m, a) => { const k = a.producto.replace(/^Queso /, ""); (m[k] = m[k] || new Set()).add(a.cliente_id); return m; }, {})).map(([p, t]) => `<span class="pill" style="background:#fff;color:var(--rosa-t);border:1px solid #F3C4C0">${esc(p)}: ${t.size} tienda${t.size === 1 ? "" : "s"}</span>`).join("")}</div>
         <div class="small">${plur(new Set(agotSinPed.map((a) => a.cliente_id)).size, "tienda")} en total · ${plur(agotSinPed.length, "conteo")} en ${plur(new Set(agotSinPed.map((a) => a.visita_id)).size, "visita")}. <a href="#alertas-res" onclick="event.preventDefault();document.getElementById('alertas-res').scrollIntoView({behavior:'smooth'})">Ver detalle abajo</a>.</div></div>
-        ${DB.puede("avisar") ? `<button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar a las vendedoras</button>` : ""}</div>` : ""}
+        ${DB.puede("avisar") ? `<button class="btn sm row" style="gap:6px" onclick="R.avisar('todas')">${ic("megafono", 17)} Avisar al equipo</button>` : ""}</div>` : ""}
 
       <h3 class="sec-t" data-g="equipo">Equipo hoy</h3>
       ${equipo.length ? `<div class="card desemp panel noche"><div class="lbl">Equipo hoy · ${new Date(hoy + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "short" })}</div>
         <div class="desemp-top"><span class="desemp-pct">${equipo.filter((e) => e.conVis).length} de ${equipo.length}</span><span class="desemp-tag ${eqN("falta") ? "bajo" : eqN("ruta") + eqN("espera") ? "" : "ok"}">${eqN("falta") ? "Hay ausencias" : eqN("ruta") + eqN("espera") ? "En curso" : "Día completo"}</span></div>
-        <div class="desemp-sub">vendedoras con visitas registradas hoy</div>
+        <div class="desemp-sub">personas con visitas registradas hoy</div>
         <div class="barra"><i class="${eqN("falta") ? "medio" : "ok"}" style="width:${Math.round((equipo.filter((e) => e.conVis).length / equipo.length) * 100)}%"></i></div>
         <div class="eqh-ch"><span>${eqN("ruta")} en ruta</span><span>${eqN("cerro")} ${eqN("cerro") === 1 ? "cerró" : "cerraron"} su día</span>${eqN("just") ? `<span>${plur(eqN("just"), "justificada")}</span>` : ""}${eqN("espera") ? `<span>${eqN("espera")} por iniciar</span>` : ""}${eqN("falta") ? `<span class="mal">${eqN("falta")} sin entrada</span>` : ""}</div>
         ${(() => { const act = equipo.filter((e) => e.conVis).sort((a, b) => b.enTienda - a.enTienda || a.u.nombre.localeCompare(b.u.nombre)); if (!act.length) return "";
-          return `<div class="eqh-r"><div class="eqh-t">En campo hoy · toca para ver el detalle</div>${act.slice(0, 5).map((e) => `<div class="eqh-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="grow"><b>${esc(e.u.nombre)}</b><span class="eqh-s">${e.enTienda ? `<i class="eqh-p"></i>` : ""}${esc(e.ahora)}</span>${e.pcA != null ? `<div class="barra"><i class="${e.pcA >= 100 ? "ok" : ""}" style="width:${Math.min(100, e.pcA)}%"></i></div>` : ""}<span class="eqh-s">${esc(e.det)}</span></div><b class="eqh-v">${e.pcA != null ? e.pcA + "%" : e.nVis}<small>${e.pcA != null ? "de su ruta" : e.nVis === 1 ? "visita" : "visitas"}</small></b></div>`).join("")}${act.length > 5 ? `<div class="eqh-s" style="margin-top:8px">Y ${act.length - 5} más en «Cómo va cada una».</div>` : ""}</div>`; })()}</div>
+          return `<div class="eqh-r"><div class="eqh-t">En campo hoy · toca para ver el detalle</div>${act.slice(0, 5).map((e) => `<div class="eqh-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="grow"><b>${esc(e.u.nombre)}</b><span class="eqh-s">${e.enTienda ? `<i class="eqh-p"></i>` : ""}${esc(e.ahora)}</span>${e.pcA != null ? `<div class="barra"><i class="${e.pcA >= 100 ? "ok" : ""}" style="width:${Math.min(100, e.pcA)}%"></i></div>` : ""}<span class="eqh-s">${esc(e.det)}</span></div><b class="eqh-v">${e.pcA != null ? e.pcA + "%" : e.nVis}<small>${e.pcA != null ? "de su ruta" : e.nVis === 1 ? "visita" : "visitas"}</small></b></div>`).join("")}${act.length > 5 ? `<div class="eqh-s" style="margin-top:8px">Y ${act.length - 5} más en «Avance por persona».</div>` : ""}</div>`; })()}</div>
         <button type="button" class="btn sec block" style="margin-bottom:12px" onclick="document.getElementById('r-asis')?.scrollIntoView({behavior:'smooth',block:'start'})">Ver asistencia del mes</button>
         <div class="card">${DB.puede("aviso_cierre") && MSG.pushPosible() && Notification.permission !== "granted" ? `<div class="cd-est mal" style="margin-bottom:10px">${ic("alerta", 16)}<span><b>Este dispositivo no recibe el aviso de cierre.</b> Actívalo en Más › Configuración › Permisos.</span></div>` : ""}
-          <div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">Cómo va cada una</h3><span class="tiny muted">toca para ver su cierre</span></div>
+          <div class="row" style="margin-bottom:8px"><h3 class="sp" style="margin:0">Avance por persona</h3><span class="tiny muted">toca la tarjeta para ver su cierre</span></div>
           <div class="eq-dia"><button type="button" class="on" data-eqd="${hoy}">Hoy</button><button type="button" data-eqd="${hace(1)}">Ayer</button><label class="eq-otro"><span>Otro día</span><input type="date" id="eq-f" max="${hoy}" value="" aria-label="Elegir otro día"></label></div>
+          <select class="in" id="eq-p" aria-label="Elegir persona" style="margin:10px 0 8px"></select>
           <div class="list" id="eq-lista">${equipo.map((e) => `<div class="item eq-f" data-cierre="${e.u.id}|${hoy}" role="button" tabindex="0"><div class="ava">${esc(iniciales(e.u.nombre))}</div><div class="grow"><div class="t">${esc(e.u.nombre)}</div><div class="small muted">${esc(e.txt)}</div></div><span class="pill ${e.tono}">${ETQ[e.est]}</span></div>`).join("")}</div></div>`
-        : `<div class="empty card flat">Hoy ninguna vendedora tiene tiendas agendadas.</div>`}
+        : `<div class="empty card flat">Hoy nadie del equipo tiene tiendas agendadas.</div>`}
 
       <h3 class="sec-t" data-g="vendedora">${hoja ? "Hoja de " + esc(hoja.u.nombre) : "Ejecución del equipo"}</h3>
       ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
@@ -294,7 +295,7 @@ const R = {
       </div>
       ${(() => { // Vista Merma: notas de crédito por merma sobre la venta facturada, del mes del período elegido
         const mesN = MERMA.nombreMes(mes0), lim = MERMA.lim(), p = mTot.mes.p, cl = MERMA.tono(p), prev = mSerie[4], cab = `<h3 class="sec-t" data-g="merma">Merma · ${esc(mesN)}</h3>`;
-        if (!facV.length) return cab + `<div class="empty card flat">Todavía no hay facturación ni notas de crédito cargadas para ${vend ? "las tiendas de esta vendedora" : "este período"}.</div>`;
+        if (!facV.length) return cab + `<div class="empty card flat">Todavía no hay facturación ni notas de crédito cargadas para ${vend ? "sus tiendas" : "este período"}.</div>`;
         const barra = (x) => `<div class="barra"><i class="${MERMA.tono(x) || "ok"}" style="width:${Math.min(100, ((x || 0) / (lim * 2)) * 100)}%"></i></div>`;
         const fila = (n, x, sub) => `<div class="mb"><div class="mb-t"><span><b>${esc(n)}</b>${sub ? `<span class="tiny muted"> · ${sub}</span>` : ""}</span><span class="mb-v ${MERMA.tono(x.mes.p)}">${MERMA.fp(x.mes.p)}${din ? ` <small>· ${fmtUsd(x.mes.m)}</small>` : ""}</span></div>${barra(x.mes.p)}<div class="tiny muted" style="margin-top:4px">3 meses anteriores: ${MERMA.fp(x.ant.p)}${din ? " · " + fmtUsd(x.ant.m) : ""}</div></div>`;
         const totDet = mProd.reduce((t, x) => t + x.ant.m + x.mes.m, 0);
@@ -305,9 +306,9 @@ const R = {
           <div class="tiny desemp-cifras">Límite ${fmtNum(lim, 0)}% de la venta${facCorte ? " · datos al " + fmtFecha(facCorte + "T12:00:00") : ""}</div>
           <div class="desemp-mini"><div><span>3 meses anteriores</span><b>${MERMA.fp(mTot.ant.p)}</b></div><div><span>${esc(MERMA.nombreMes(prev.mes))}</span><b>${MERMA.fp(prev.p)}</b></div><div><span>Tiendas con merma en ${esc(mesN)}</span><b>${mTiendas.filter((t) => t.mes.m > 0).length}</b></div></div></div>
           <div class="card"><h3 style="margin:0 0 2px">Últimos 6 meses</h3>${mSerie.map((x) => `<div class="mb"><div class="mb-t"><span><b style="text-transform:capitalize">${esc(MERMA.nombreMes(x.mes))}</b>${x.mes === mesHoy ? `<span class="tiny muted"> · en curso</span>` : ""}</span><span class="mb-v ${MERMA.tono(x.p)}">${MERMA.fp(x.p)}</span></div>${barra(x.p)}${din ? `<div class="tiny muted" style="margin-top:4px">${fmtUsd(x.m)} de merma sobre ${fmtUsd(x.v)} facturados</div>` : ""}</div>`).join("")}</div>
-          ${mVend.length ? `<div class="card"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Por vendedora</h3><span class="tiny muted">de mayor a menor</span></div>${mVend.map((x) => fila(x.n, x)).join("")}</div>` : ""}
+          ${mVend.length ? `<div class="card"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Por persona</h3><span class="tiny muted">de mayor a menor</span></div>${mVend.map((x) => fila(x.n, x)).join("")}</div>` : ""}
           <div class="card"><h3 style="margin:0 0 4px">Por tienda</h3><div class="tiny muted" style="margin-bottom:6px">${plur(mTiendas.length, "tienda")} con merma en ${esc(mesN)} o en los 3 meses anteriores. Primero las de más merma este mes.</div>
-            ${mTiendas.length ? R.paginar(mTiendas.map((t) => `<div class="inv-f"><i class="sem-d ${MERMA.tono(t.mes.p ?? (t.mes.m ? lim * 2 : null)) || "sin"}"></i><div class="grow"><b>${esc(nomCli[t.id] || "Tienda")}</b><div class="tiny muted">${esc((vendDe[t.id] || []).map((id) => vendedoras.find((u) => u.id === id)?.nombre.split(" ")[0]).filter(Boolean).join(", ") || "Sin vendedora")} · 3 meses ant. ${MERMA.fp(t.ant.p)}${din ? " (" + fmtUsd(t.ant.m) + ")" : ""}</div></div><b class="inv-v ${MERMA.tono(t.mes.p)}">${t.mes.m ? (t.mes.p != null ? MERMA.fp(t.mes.p) : "sin venta") : "0%"}${din && t.mes.m ? `<small>${fmtUsd2(t.mes.m)}</small>` : ""}</b></div>`), "mermat") : `<div class="small muted">Ninguna ✓</div>`}</div>
+            ${mTiendas.length ? R.paginar(mTiendas.map((t) => `<div class="inv-f"><i class="sem-d ${MERMA.tono(t.mes.p ?? (t.mes.m ? lim * 2 : null)) || "sin"}"></i><div class="grow"><b>${esc(nomCli[t.id] || "Tienda")}</b><div class="tiny muted">${esc((vendDe[t.id] || []).map((id) => vendedoras.find((u) => u.id === id)?.nombre.split(" ")[0]).filter(Boolean).join(", ") || "Sin responsable")} · 3 meses ant. ${MERMA.fp(t.ant.p)}${din ? " (" + fmtUsd(t.ant.m) + ")" : ""}</div></div><b class="inv-v ${MERMA.tono(t.mes.p)}">${t.mes.m ? (t.mes.p != null ? MERMA.fp(t.mes.p) : "sin venta") : "0%"}${din && t.mes.m ? `<small>${fmtUsd2(t.mes.m)}</small>` : ""}</b></div>`), "mermat") : `<div class="small muted">Ninguna ✓</div>`}</div>
           ${mProd.length ? `<div class="card"><h3 style="margin:0 0 2px">Por producto · ${esc(mesN)} y 3 meses anteriores</h3>${mProd.map((x) => { const pt = totDet ? Math.round(((x.mes.m + x.ant.m) / totDet) * 100) : 0; return `<div class="mb"><div class="mb-t"><span><b>${esc(x.n)}</b></span><span class="mb-v">${pt}%${din ? ` <small>· ${fmtUsd(x.mes.m + x.ant.m)}</small>` : ""}</span></div><div class="barra"><i style="width:${pt}%"></i></div></div>`; }).join("")}<div class="tiny muted" style="margin-top:6px">Parte de la merma total que corresponde a cada producto.</div>
             <p class="tiny muted" style="margin:8px 0 0">«Sin detalle de producto»: notas de crédito que en el estado de cuenta llegan sin indicar el producto (así vienen las de octubre y noviembre).</p></div>` : ""}
           <p class="tiny muted" style="margin:0 2px 14px">Merma = notas de crédito por merma y por diferencia de peso o entrega, sobre la venta facturada de la tienda. Fuente: Tablero Comercial. Verde hasta ${fmtNum(lim, 0)}%, ámbar hasta ${fmtNum(lim * 1.5, 1)}%, rojo después.</p>`;
@@ -345,18 +346,18 @@ const R = {
           ${kpi(invSin7.length, "Sin conteo en más de 7 días", invSin7.length ? "alerta" : "", "tiendas con ruta que piden en tienda")}
           ${kpi(invCon.filter((x) => x.agotSinPed).length, "Agotados sin pedido", invCon.some((x) => x.agotSinPed) ? "alerta" : "", "producto en cero y sin pedido después del conteo")}
         </div>
-        <div class="card"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Por tienda</h3><span class="tiny muted">las más urgentes primero</span></div>
+        <div class="card" id="inv-tiendas"><div class="row" style="margin-bottom:2px"><h3 class="sp" style="margin:0">Inventario por tienda</h3><span class="tiny muted">las más urgentes primero</span></div>
           ${R.paginar(invT.map((t) => { const sub = t.est === "sin" ? "Sin conteo en los últimos 30 días" : t.ps.map((q) => `${q.n} ${q.agot ? "agotado" : q.caja ? fmtNum(q.kg / q.caja, 1) + " cj" : fmtNum(q.kg, 1) + " kg"}`).join(" · ") + " · contado " + (t.fecha === hoy ? "hoy" : "el " + fCortaD(t.fecha));
             return `<div class="inv-f ${t.visita ? "fv-link" : ""}" ${t.visita ? `data-fv="${t.visita}" role="button" tabindex="0"` : ""}><i class="sem-d ${t.est}"></i><div class="grow"><b>${esc(t.tienda)}</b><div class="tiny muted">${esc(sub)}${t.vendedor && !vend ? " · " + esc(t.vendedor.split(" ")[0]) : ""}</div></div><b class="inv-v ${t.est}">${t.est === "sin" ? "–" : t.sug ? `pedir ${t.sug} cj` : fmtNum(t.cj, 1) + " cj"}</b></div>`; }), "invt")}
           <p class="tiny muted" style="margin:8px 0 0">Último conteo de cada tienda en 30 días. Bajo la alerta: menos de media caja o de la mitad de lo que la tienda compra al mes (40% si compra 4 cajas o más), según lo facturado en los 3 últimos meses cerrados. Cerca: menos de 1.5 veces esa alerta. Toca una tienda para ver la visita.</p></div>`
-        : `<div class="empty card flat">No hay conteos de inventario en los últimos 30 días${vend ? " para esta vendedora" : ""}.</div>`}
+        : `<div class="empty card flat">No hay conteos de inventario en los últimos 30 días${vend ? " para esta persona" : ""}.</div>`}
       <h3 class="sec-t" id="alertas-res">Alertas de inventario</h3>
       <div class="card">${Object.values(porVisita).length ? R.paginar(Object.values(porVisita).sort((a, b) => (b.prods.some((p) => p.agotado) - a.prods.some((p) => p.agotado)) || b.checkin_at.localeCompare(a.checkin_at)).map((a) => `
         <div class="al-fila"><div class="al-t fv-link" data-fv="${a.visita_id}" role="button" tabindex="0"><b>${esc(a.tienda)}</b><span class="tiny muted">${esc(a.vendedor)} · ${fmtFechaHora(a.checkin_at)} · <u>Ver visita</u></span></div>
           <div class="al-p">${a.prods.map((p) => `<span class="pill ${p.agotado ? "p-rosa" : "p-durazno"}">${esc(p.producto.replace(/^Queso /, ""))}: ${p.agotado ? "AGOTADO" : "bajo · " + fmtNum(p.kg, 1) + " kg"}</span>`).join("")}<span class="tiny" style="color:var(--rosa-t)">Sin pedido</span>${a.motivo ? `<span class="pill al-m ${a.motivo === "sin_stock" ? "p-gris" : "p-durazno"}">Motivo: ${esc((MOTIVOS_SIN_PEDIDO.find((m) => m[0] === a.motivo) || [, a.motivo])[1])}${a.motivoNota ? " · " + esc(a.motivoNota) : ""}</span>` : ""}</div>
           ${DB.puede("avisar") ? `<button class="btn sm al-b" onclick="R.avisar(${a.visita_id})">${ic("megafono", 15)} Avisar</button>` : ""}</div>`), "alertas")
         : `<div class="empty"><div class="ic">${ic("ok", 30)}</div>Sin alertas: no hay agotados ni inventario bajo sin pedido en ${esc(etPer)}.</div>`}
-        <p class="tiny muted" style="margin:8px 0 0">Agotado: la vendedora lo marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
+        <p class="tiny muted" style="margin:8px 0 0">Agotado: en la visita se marcó agotado o contó 0. Bajo: debajo del mínimo de la tienda o, si no hay mínimo, menos del 40% del objetivo semanal. "Sin pedido": no hubo pedido de ese producto en esa visita ni ese día.</p></div>
 
       ${(() => { // Producto por vencer: lo último que cada vendedora confirmó en cada tienda (próximos 30 días o ya vencido)
         const nomT = Object.fromEntries(asigTodas.map((a) => [a.cliente_id, a.clientes?.nombre])), filas = (vencR.error ? [] : vencR.data).filter((z) => (!vend || misClientes.has(z.cliente_id)) && nomT[z.cliente_id]);
@@ -381,7 +382,7 @@ const R = {
 
       <div class="grid2" data-g="equipo">
         <div class="card"><h3>Clientes programados sin visita</h3>${R.lista(sinVisita.map((p) => [p.clientes?.nombre, (vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00")]))}</div>
-        ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la vendedora avisó que no haría. No cuentan en el cumplimiento.</div>${R.paginar(justif.map((p) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(p.clientes?.nombre || "—")}</div><div class="tiny muted">${esc((vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : ""))}</div>${p.j.foto_path ? `<a href="#" class="tiny" data-jfoto="${esc(p.j.foto_path)}" data-jt="${esc((p.clientes?.nombre || "") + " · " + fmtHora(p.j.foto_at) + (p.j.dist_m != null ? " · " + (p.j.dentro ? "en la tienda" : "a " + fmtDist(p.j.dist_m) + " de la tienda") : " · sin ubicación"))}">Ver foto de la tienda cerrada ›</a>${p.j.dentro === false ? ` <span class="pill p-rosa">Fuera del radio</span>` : ""}` : p.j.motivo === "tienda_cerrada" ? `<span class="pill p-durazno">Sin foto</span>` : ""}</div>`))}</div>` : ""}
+        ${justif.length ? `<div class="card"><h3>Visitas justificadas <span class="pill p-gris">${justif.length}</span></h3><div class="tiny muted" style="margin-bottom:6px">Programadas que la persona avisó que no haría. No cuentan en el cumplimiento.</div>${R.paginar(justif.map((p) => `<div style="padding:7px 0;border-top:1px solid var(--borde)"><div style="font-weight:500">${esc(p.clientes?.nombre || "—")}</div><div class="tiny muted">${esc((vendedoras.find((u) => u.id === p.vendedor_id)?.nombre || "") + " · " + fmtFecha(p.fecha + "T12:00:00") + " · " + motivoNoVisita(p.j.motivo) + (p.j.nota ? ": " + p.j.nota : ""))}</div>${p.j.foto_path ? `<a href="#" class="tiny" data-jfoto="${esc(p.j.foto_path)}" data-jt="${esc((p.clientes?.nombre || "") + " · " + fmtHora(p.j.foto_at) + (p.j.dist_m != null ? " · " + (p.j.dentro ? "en la tienda" : "a " + fmtDist(p.j.dist_m) + " de la tienda") : " · sin ubicación"))}">Ver foto de la tienda cerrada ›</a>${p.j.dentro === false ? ` <span class="pill p-rosa">Fuera del radio</span>` : ""}` : p.j.motivo === "tienda_cerrada" ? `<span class="pill p-durazno">Sin foto</span>` : ""}</div>`))}</div>` : ""}
         <div class="card"><h3>Clientes sin pedido</h3>${R.lista(sinPedido.map((a) => [a.clientes?.nombre, vendedoras.find((u) => u.id === a.vendedor_id)?.nombre || ""]))}</div>
       </div>`;
     // Equipo: ver cómo le fue a cada una hoy, ayer o cualquier otro día (tocar la fila abre su cierre de ese día)
@@ -390,6 +391,15 @@ const R = {
       const ver = (f) => { marca(f); if (f === hoy) { eqL.innerHTML = hoyHtml; return; } R.equipoDia(eqL, f, vendedoras, asigTodas, justTodas); };
       $$("[data-eqd]", root).forEach((b) => (b.onclick = () => ver(b.dataset.eqd)));
       $("#eq-f", root).onchange = (e) => { if (e.target.value) ver(e.target.value > hoy ? hoy : e.target.value); };
+      // Nunca una lista que crece con el equipo: se elige la persona en el filtro (orden alfabético) y se ve solo su tarjeta. Abre en la primera que necesita atención.
+      const selP = $("#eq-p", root); let elegida = "";
+      const filtra = () => { const its = $$(".item", eqL); selP.hidden = !its.length; if (!its.length) return;
+        const noms = its.map((it) => it.querySelector(".t")?.textContent || ""), ord = [...noms].sort((a, b) => a.localeCompare(b));
+        if (!noms.includes(elegida)) elegida = noms[0];
+        selP.innerHTML = ord.map((n) => `<option ${n === elegida ? "selected" : ""}>${esc(n)}</option>`).join("");
+        its.forEach((it, i) => (it.hidden = noms[i] !== elegida)); };
+      selP.onchange = () => { elegida = selP.value; filtra(); };
+      new MutationObserver(filtra).observe(eqL, { childList: true }); filtra();
     }
     $$("[data-eqv]", root).forEach((c) => (c.onclick = () => { LS.set("res.tab", "vendedora"); R.render(root, periodo, c.dataset.eqv); window.scrollTo({ top: 0 }); }));
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
@@ -413,7 +423,7 @@ const R = {
       return { u, o, html: `<div class="item eq-f" data-cierre="${u.id}|${fecha}" role="button" tabindex="0"><div class="ava">${esc(iniciales(u.nombre))}</div><div class="grow"><div class="t">${esc(u.nombre)}</div><div class="small muted">${esc(txt)}</div></div><span class="pill ${tono}">${etq}</span></div>` };
     }).filter(Boolean).sort((a, b) => a.o - b.o || a.u.nombre.localeCompare(b.u.nombre));
     const tit = new Date(fecha + "T12:00:00").toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" });
-    el.innerHTML = `<div class="tiny muted" style="padding:2px 0 6px;text-transform:capitalize">${esc(tit)}</div>` + (filas.map((x) => x.html).join("") || `<div class="small muted" style="padding:10px 0">Ese día ninguna vendedora tenía tiendas agendadas ni registró visitas.</div>`);
+    el.innerHTML = `<div class="tiny muted" style="padding:2px 0 6px;text-transform:capitalize">${esc(tit)}</div>` + (filas.map((x) => x.html).join("") || `<div class="small muted" style="padding:10px 0">Ese día nadie del equipo tenía tiendas agendadas ni registró visitas.</div>`);
   },
 
   // El Resumen se ve por vistas: Campo (clave "equipo") · Equipo (clave "vendedora") · Inventario · Merma · Ventas. Cada bloque pertenece a la vista de su título (data-g) o a la del título que tiene encima.
@@ -429,6 +439,8 @@ const R = {
       else if (g === "inventario" && el.matches(".card") && !el.previousElementSibling?.matches("h3.sec-t") && el.previousElementSibling === rv) hayAlerta = true;
       el.dataset.rt = g;
     }
+    const pt = $("#inv-tiendas", root);
+    if (pt) for (let el = $("#alertas-res", root), sig; el && el.id !== "r-espacio" && !el.dataset.g && (el.id === "alertas-res" || !el.matches("h3.sec-t") || /por vencer/i.test(el.textContent)); el = sig) { sig = el.nextElementSibling; pt.before(el); }
     const tabs = [["equipo", "Campo"], ["vendedora", "Equipo"], ["inventario", "Inventario"], ["merma", "Merma"], ["ventas", "Ventas"]];
     let act = LS.get("res.tab", "equipo"); if (!tabs.some((t) => t[0] === act)) act = "equipo";
     rv.insertAdjacentHTML("afterend", `<div class="rtabs" id="rtabs">${tabs.map(([k, t]) => `<button data-rt-b="${k}">${t}${k === "inventario" && hayAlerta ? `<i class="dot-n"></i>` : ""}</button>`).join("")}</div>`);
@@ -474,8 +486,8 @@ const R = {
     const mes = d0.toLocaleDateString("es-PA", { month: "long", year: "numeric" });
     setTimeout(() => { const h = document.querySelector(".asis th.hoyc"), sx = h?.closest(".scroll-x"); if (sx) sx.scrollLeft = Math.max(0, h.offsetLeft - sx.clientWidth + h.offsetWidth * 2.2); }, 60); // abre mostrando hoy y los días anteriores
     return `<h3 class="sec-t" id="r-asis" data-g="equipo">Asistencia · ${esc(mes)}</h3>
-      <div class="card"><div class="tiny muted" style="margin-bottom:8px">El número es la cantidad de visitas registradas ese día. «5 ·1» = 5 hechas y 1 programada sin hacer. «J» = no visitó, pero justificó sus tiendas. <b>Toca un día para ver el cierre de esa vendedora.</b></div>
-      <div class="scroll-x"><table class="asis"><tr><th class="asi-n">Vendedora</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
+      <div class="card"><div class="tiny muted" style="margin-bottom:8px">El número es la cantidad de visitas registradas ese día. «5 ·1» = 5 hechas y 1 programada sin hacer. «J» = no visitó, pero justificó sus tiendas. <b>Toca un día para ver el cierre de esa persona.</b></div>
+      <div class="scroll-x"><table class="asis"><tr><th class="asi-n">Persona</th>${dias.map((d) => `<th class="${d.iso === hoy ? "hoyc" : ""}"><div class="tiny muted">${DIAS_C[d.w]}</div>${d.n}</th>`).join("")}<th class="asi-t">Asist.</th><th class="asi-t">Faltas</th></tr>${filas}</table></div>
       <div class="asi-ley tiny muted"><span><span class="asi ok"></span> Cumplió</span><span><span class="asi parcial"></span> Dejó visitas sin hacer</span><span><span class="asi falta"></span> No asistió</span><span><span class="asi libre">F</span> Feriado o libre</span>${inicio > mes0 ? `<span>Registro en Clarus desde el ${new Date(inicio + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "long" })}</span>` : ""}</div></div>`;
   },
 
@@ -504,7 +516,7 @@ const R = {
         return { uid, nombre: v.nombre, titulo, cuerpo, n: ts.length };
       });
     };
-    modal(`<h2 class="row" style="gap:8px"><span style="color:var(--azul)">${ic("megafono", 24)}</span>Avisar a las vendedoras</h2>
+    modal(`<h2 class="row" style="gap:8px"><span style="color:var(--azul)">${ic("megafono", 24)}</span>Avisar al equipo</h2>
       <p class="small muted" style="margin-top:4px">Le llega a su buzón de Clarus y al teléfono, con «Entendido». Si no confirma, se le recuerda cada hora (7 am a 7 pm).</p>
       ${prods.length > 1 ? `<label class="f">Productos a incluir</label><div class="row" style="flex-wrap:wrap;gap:6px">${prods.map((p) => `<button class="btn sm ${elegidos.has(p) ? "" : "sec"}" data-prod="${esc(p)}">${esc(corto(p))}</button>`).join("")}</div>
         <div class="tiny muted" style="margin-top:4px">Quita el producto que no tienes en inventario para pedir (p. ej. Muenster agotado en la empresa).</div>` : ""}

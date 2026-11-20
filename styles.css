@@ -839,3 +839,9 @@ table.perm th{white-space:normal;text-align:center;font-size:12px;min-width:92px
 /* El fondo de las barras fijas no sube más que el espacio libre que tienen encima: antes tapaba el borde inferior del selector de vendedora */
 .rtabs::before,.met-fil::before{top:-6px}
 @media(min-width:900px){.rtabs::before,.met-fil::before{top:-6px}}
+
+/* v0.14.74 · Celular: el fondo de las pestañas fijas llena justo la franja hasta el encabezado (14 px), sin tapar el selector de arriba. En computadora sigue en 6 px. */
+@media(max-width:899px){.rtabs::before,.met-fil::before{top:-14px}}
+/* La barra de deslizamiento de los cuadros de 5 filas va a la derecha de las cifras, no encima */
+.list.pag.lim5-on{padding-right:14px;margin-right:-8px}
+#eq-lista .item[hidden]{display:none}
