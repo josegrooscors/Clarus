@@ -1,11 +1,12 @@
 // Resumen (dashboard): efectividad de visitas, pedidos vs objetivo, alertas de agotados sin pedido
 const R = {
-  periodos: [["hoy", "Hoy"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"], ["mes_anterior", "Mes anterior"], ["rango", "Rango de fechas"]],
+  periodos: [["hoy", "Hoy"], ["ayer", "Ayer"], ["semana", "Esta semana"], ["semana_pasada", "Semana pasada"], ["mes", "Mes actual"], ["mes_anterior", "Mes anterior"], ["rango", "Rango de fechas"]],
 
   rango(p) {
     const hoy = hoyISO(), d = new Date(hoy + "T12:00:00"), iso = (x) => x.toISOString().slice(0, 10);
     const lunes = new Date(d.getTime() - (((d.getDay() + 6) % 7) * 864e5));
     if (p === "hoy") return [hoy, hoy];
+    if (p === "ayer") { const a = iso(new Date(d.getTime() - 864e5)); return [a, a]; }
     if (p === "semana") return [iso(lunes), hoy];
     if (p === "rango") { const a = LS.get("res.d1", hoy.slice(0, 8) + "01"), b = LS.get("res.d2", hoy); return a <= b ? [a, b] : [b, a]; }
     if (p === "mes_anterior") { const f = new Date(hoy.slice(0, 8) + "01T12:00:00"); f.setDate(0); const fin = iso(f); return [fin.slice(0, 8) + "01", fin]; }
@@ -25,13 +26,13 @@ const R = {
     const gen = (root._resGen = (root._resGen || 0) + 1); // si se vuelve a pintar mientras carga, esta carga se descarta
     const [desde, hasta] = this.rango(periodo), [t0, t1] = this.ts(desde, hasta), hoy = hoyISO(), mes0 = hasta.slice(0, 8) + "01", finMes = hasta < hoy ? hasta : hoy; // mes del período elegido
     root.innerHTML = `<div class="top"><div><div class="muted small">${new Date().toLocaleDateString("es-PA", { weekday: "long", day: "numeric", month: "long" })}</div><h1>${dash ? "Dashboard" : "Resumen"}</h1></div></div>
-      <div class="steps">${this.periodos.map(([k, t]) => `<div class="step ${k === periodo ? "on" : ""}" data-per="${k}">${t}</div>`).join("")}</div>
-      ${periodo === "rango" ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin:-4px 0 14px;align-items:flex-end">
-        <div><label class="f" style="margin-top:0">Desde</label><input class="in" type="date" id="rd1" value="${desde}" max="${hoy}"></div>
-        <div><label class="f" style="margin-top:0">Hasta</label><input class="in" type="date" id="rd2" value="${hasta}" max="${hoy}"></div>
-        <button class="btn sm" id="rdok" style="height:44px">Aplicar</button></div>` : ""}
+      <div class="per-fil"><label><span>Período</span><select class="in" id="per" aria-label="Período">${this.periodos.map(([k, t]) => `<option value="${k}" ${k === periodo ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+      ${periodo === "rango" ? `<div class="per-rg">
+        <label><span>Desde</span><input class="in" type="date" id="rd1" value="${desde}" max="${hoy}"></label>
+        <label><span>Hasta</span><input class="in" type="date" id="rd2" value="${hasta}" max="${hoy}"></label>
+        <button class="btn sm" id="rdok">Aplicar</button></div>` : ""}
       <div id="rs" class="muted">Cargando…</div>`;
-    $$("[data-per]", root).forEach((el) => (el.onclick = () => R.render(root, el.dataset.per, vend)));
+    $("#per", root).onchange = (e) => R.render(root, e.target.value, vend);
     const rok = $("#rdok", root);
     if (rok) rok.onclick = () => { const a = $("#rd1", root).value, b = $("#rd2", root).value; if (!a || !b) return toast("Elige las dos fechas"); LS.set("res.d1", a); LS.set("res.d2", b); R.render(root, "rango", vend); };
 
@@ -217,11 +218,12 @@ const R = {
     invT.sort((a, b) => ordInv[a.est] - ordInv[b.est] || (b.sug || 0) - (a.sug || 0) || a.tienda.localeCompare(b.tienda));
 
     const nomCortos = (rs) => { const n = rs.map((r) => esc(r.u.nombre.split(" ")[0])); return n.length > 3 ? n.slice(0, 3).join(", ") + " y " + (n.length - 3) + " más" : n.join(", "); }; // nunca una lista que crece con el equipo
-    const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ${cls}"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:4px">${sub}</div>` : ""}</div>`;
+    const kpiIc = (l) => (/inventario|conteo|agotado/i.test(l) ? "caja" : /producto/i.test(l) ? "etiqueta" : /pedido/i.test(l) ? "pedidos" : /cliente|tienda/i.test(l) ? "pin" : /sin cerrar/i.test(l) ? "reloj" : "equipo");
+    const kpi = (v, l, cls = "", sub = "") => `<div class="kpi ki ${cls}"><span class="ki-c">${ic(kpiIc(l), 18)}</span><div class="ki-t"><div class="v">${v}</div><div class="l">${l}</div>${sub ? `<div class="tiny muted" style="margin-top:2px">${sub}</div>` : ""}</div></div>`;
     const fCortaD = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const fCorta = (d) => new Date(d + "T12:00:00").toLocaleDateString("es-PA", { day: "numeric", month: "short" });
     const etPer = periodo === "rango" ? `del ${fCorta(desde)} al ${fCorta(hasta)}` : periodo === "mes_anterior" ? new Date(desde + "T12:00:00").toLocaleDateString("es-PA", { month: "long" }) : this.periodos.find((x) => x[0] === periodo)[1].toLowerCase();
-    const etPer0 = () => (periodo === "hoy" ? "hoy" : periodo === "semana" ? "esta semana" : periodo === "mes" ? "este mes" : "en el período");
+    const etPer0 = () => (periodo === "hoy" ? "hoy" : periodo === "ayer" ? "ayer" : periodo === "semana" ? "esta semana" : periodo === "mes" ? "este mes" : "en el período");
     // ================= DASHBOARD: indicadores principales, lo que hay que atender, tendencias y dónde mejorar =================
     let porProc = null;
     if (dash && DB.puede("ver_pedidos")) { const q = await sb.from("pedidos").select("id", { count: "exact", head: true }).in("estado", ["propuesto", "aprobado", "orden_escaneada"]).not("id_local", "like", "handy-%"); if (gen !== root._resGen || !$("#rs", root)) return; porProc = q.error ? null : q.count || 0; }
@@ -320,7 +322,7 @@ const R = {
         : `<div class="empty card flat">Hoy nadie del equipo tiene tiendas agendadas.</div>`}
 
       <h3 class="sec-t" data-g="vendedora">${hoja ? "Hoja de " + esc(hoja.u.nombre) : "Ejecución del equipo"}</h3>
-      ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
+      ${hoja ? (() => { const h = hoja, C = 2 * Math.PI * 50, cl = h.sem(h.nota), col = { ok: "#4FD3D8", medio: "#FFB27A", bajo: "#FF7F87", "": "#FFFFFF" }[cl];
         const frase = h.nota == null ? "Sin visitas en este período" : h.nota >= 90 ? "Ejecución excelente en punto de venta" : h.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
         const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
         const tT = h.tv == null ? "" : h.tv >= 30 ? "ok" : h.tv >= 15 ? "medio" : "bajo", tEn = h.jv.e == null ? "" : h.jv.e <= 480 ? "ok" : h.jv.e <= 510 ? "medio" : "bajo", jor = h.jv.s == null || h.jv.e == null ? null : h.jv.s - h.jv.e, tSa = jor == null ? "" : jor >= 480 ? "ok" : jor >= 450 ? "medio" : "bajo", tE = [tEn, tSa].includes("bajo") ? "bajo" : [tEn, tSa].includes("medio") ? "medio" : tEn || tSa; // jornada de la empresa: entrada a más tardar a las 8:00 y 8 horas desde la entrada
@@ -336,7 +338,7 @@ const R = {
           </div>
           ${mTot.mes.m || mTot.ant.m ? `<div class="card"><div class="row" style="gap:10px"><div class="grow"><b>Merma de sus tiendas · ${MERMA.nombreMes(mes0)}</b><div class="tiny muted">${din ? fmtUsd(mTot.mes.m) + " en notas de crédito · " : ""}3 meses anteriores: ${MERMA.fp(mTot.ant.p)} · límite ${fmtNum(MERMA.lim(), 0)}%</div></div><span class="pill ${MERMA.pill(mTot.mes.p)}" style="font-size:15px">${MERMA.fp(mTot.mes.p)}</span></div></div>` : ""}
           ${DB.puede("ver_metas") && h.porProd.length ? `<div class="card"><h3 style="margin:0 0 8px">Venta del mes</h3>${h.porProd.map((x) => { const pc = pct(x.v, x.o) ?? 0; return `<div class="mb"><div class="mb-t"><span><b>${esc(x.n)}</b></span><span class="mb-v">${pc}%</span></div><div class="barra"><i class="${pc >= 100 ? "ok" : ""}" style="width:${Math.min(100, pc)}%"></i></div><div class="tiny muted" style="margin-top:4px">${fmtNum(x.v, 0)} de ${fmtNum(x.o, 0)} kg · ${x.v >= x.o ? "objetivo cumplido" : "faltan " + fmtNum(x.o - x.v, 0) + " kg"}</div></div>`; }).join("")}<p class="tiny muted" style="margin:8px 0 0">Facturado${corte ? " al " + fmtFecha(corte + "T12:00:00") : ""}. Los pedidos posteriores se ven en Ventas.</p></div>` : ""}`; })()
-        : (() => { const E = EJ, x = E.tot, sem = (q) => (q == null ? "" : q >= 90 ? "ok" : q >= 70 ? "medio" : "bajo"), C = 2 * Math.PI * 50, cl = sem(E.nota), col = { ok: "#5FD39B", medio: "#FFD39A", bajo: "#FFB4AE", "": "#FFFFFF" }[cl];
+        : (() => { const E = EJ, x = E.tot, sem = (q) => (q == null ? "" : q >= 90 ? "ok" : q >= 70 ? "medio" : "bajo"), C = 2 * Math.PI * 50, cl = sem(E.nota), col = { ok: "#4FD3D8", medio: "#FFB27A", bajo: "#FF7F87", "": "#FFFFFF" }[cl];
         if (!E.pers.length) return `<div class="card flat"><div class="small muted">Nadie del equipo tenía ruta ni registró visitas en este período.</div></div>`;
         const frase = E.nota == null ? "Sin visitas en este período" : E.nota >= 90 ? "Ejecución excelente en punto de venta" : E.nota >= 70 ? "Ejecución aceptable, con puntos por mejorar" : "Ejecución por debajo de lo esperado";
         const tj = (lbl, val, subt, c) => `<div class="sem-t"><span class="sem-l"><i class="sem-d ${c}"></i>${lbl}</span><b class="sem-v ${c}">${val}</b><span class="tiny muted">${subt}</span></div>`;
@@ -500,7 +502,7 @@ const R = {
 
   // Velocímetro en tarjeta clara: valor grande al centro y, si se pide, la marca de la meta, el ritmo o el límite
   velo(pc, tono, titulo, valor, sub, marca = null) {
-    const L = Math.PI * 48, v = Math.max(0, Math.min(100, pc || 0)), col = { ok: "#0F7A4F", medio: "#B7791F", bajo: "#B3261E", "": "#C5CCD8" }[tono || ""], a = Math.PI * (1 - Math.max(0, Math.min(100, marca ?? 0)) / 100);
+    const L = Math.PI * 48, v = Math.max(0, Math.min(100, pc || 0)), col = { ok: "#12A3A8", medio: "#F0633B", bajo: "#B3261E", "": "#C5CCD8" }[tono || ""], a = Math.PI * (1 - Math.max(0, Math.min(100, marca ?? 0)) / 100);
     const x = (k) => (60 + k * Math.cos(a)).toFixed(1), y = (k) => (62 - k * Math.sin(a)).toFixed(1);
     return `<div class="dsh-g"><span class="dsh-gt">${titulo}</span><svg role="img" aria-label="${titulo}: ${valor}" viewBox="0 0 120 70"><path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="#E9EDF5" stroke-width="11" stroke-linecap="round"></path>${pc == null ? "" : `<path d="M12 62 A48 48 0 0 1 108 62" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(v / 100) * L} ${L}"></path>`}${marca != null ? `<line x1="${x(39)}" y1="${y(39)}" x2="${x(57)}" y2="${y(57)}" stroke="#0B1B33" stroke-width="2.5" stroke-linecap="round"></line>` : ""}<text x="60" y="60" text-anchor="middle" font-weight="700" font-size="${String(valor).length > 4 ? 19 : 22}" fill="#0B1B33">${valor}</text></svg><span class="dsh-gs ${tono || ""}">${sub}</span></div>`;
   },
