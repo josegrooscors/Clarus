@@ -368,6 +368,15 @@ window.addEventListener("offline", () => App.syncPill());
 })();
 
 // Actualización automática: si sale una versión nueva, se instala y la app se recarga sola una vez
+// Las barras que se quedan fijas (pestañas del Resumen, filtro de Metas) se pegan justo debajo del encabezado, con su alto real medido en este teléfono:
+// así nunca queda una franja por donde se asome la página, mida lo que mida el encabezado.
+const medirBarra = () => {
+  const b = document.querySelector(".barra-marca"); if (!b) return;
+  if (!b._obs && window.ResizeObserver) { b._obs = new ResizeObserver(medirBarra); b._obs.observe(b, { box: "border-box" }); }
+  if (b.offsetParent) document.documentElement.style.setProperty("--barra-h", Math.floor(b.getBoundingClientRect().height) + "px");
+};
+const medirBarraPronto = () => [0, 300, 1200, 3000].forEach((t) => setTimeout(medirBarra, t));
+document.addEventListener("DOMContentLoaded", medirBarraPronto); window.addEventListener("resize", medirBarra); window.addEventListener("hashchange", medirBarraPronto);
 // Versión de prueba (carpeta /prueba/): mismo servidor y mismos datos, pero sin instalar su propio trabajador de servicio y con una franja que la distingue
 const ES_PRUEBA = /\/prueba\//.test(location.pathname);
 if (ES_PRUEBA) document.addEventListener("DOMContentLoaded", () => document.body.insertAdjacentHTML("afterbegin", `<div class="prueba-b" role="status">Versión de prueba · no usar en ruta</div>`));

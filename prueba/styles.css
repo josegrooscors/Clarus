@@ -976,3 +976,8 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 .cd-est.ok,.cd-est.mal{color:var(--tinta)}.cd-est.ok svg{color:var(--verde)}.cd-est.mal svg{color:var(--ambar)}
 /* El botón principal es siempre azul (también el de cerrar la visita); el rojo queda para lo que borra o anula */
 .btn.ok{background:var(--azul);color:#fff}
+
+/* Barras fijas pegadas al encabezado (alto real medido), con 1 px de traslape: no queda franja por donde se vea la página */
+@media(max-width:899px){.rtabs,.met-fil{top:calc(var(--barra-h,48px) - 1px)}.rtabs::before,.met-fil::before{top:-14px}}
+/* Picking: la casilla de cada pedido con su espacio dentro de la tarjeta */
+.check.pk-ped{padding:10px 14px}
