@@ -2,6 +2,8 @@
 // Se abre con FICHA.abrir(idVisita) desde Equipo, Alertas de inventario o una notificación (#ficha/123).
 // Solo lee: horas, GPS, fotos por mueble, inventario, pedido o motivo, auditoría de espacio, planograma y lo que leyó Clarus Vision.
 const FICHA = {
+  // Estado de una revisión de planograma: [clave, color, texto]. Acepta también el verdadero/falso de datos antiguos.
+  plano(c) { const k = c === true ? "si" : c === false ? "no" : ["si", "parcial", "no"].includes(c) ? c : "no"; return [k, { si: "p-menta", parcial: "p-durazno", no: "p-rosa" }[k], { si: "Cumple", parcial: "Parcial", no: "No cumple" }[k]]; },
   mueble(tipo, m) {
     const k = m || String(tipo || "").replace(/^exhibicion_?/, "");
     if (tipo === "bodega") return "Bodega" + (m && typeof m === "object" && m.nombre ? " · " + m.nombre.replace(/^Queso /, "") : "");
@@ -29,7 +31,8 @@ const FICHA = {
     });
     if (d.vx?.inv_incompleto_motivo) o.push(["durazno", `Inventario incompleto. ${d.vx.inv_incompleto_nota || ""} Motivo: ${motivoInvIncompleto(d.vx.inv_incompleto_motivo)}.`.replace(/\s+/g, " ")]);
     if (v.checkout_at && !d.pedidos.length && !d.vx?.sin_pedido_motivo) o.push(["durazno", "Cerró sin pedido y sin indicar el motivo."]);
-    d.plano.filter((r) => r.cumple === false).forEach((r) => o.push(["durazno", `Planograma no cumplido${r.nota ? ": " + r.nota : "."}`]));
+    // El planograma se guarda como "si", "parcial" o "no" (antes se leía como verdadero/falso y todo salía «Cumple»)
+    d.plano.filter((r) => FICHA.plano(r.cumple)[0] !== "si").forEach((r) => { const [k] = FICHA.plano(r.cumple), nom = r.planogramas?.nombre ? ` (${r.planogramas.nombre})` : ""; o.push([k === "no" ? "rosa" : "durazno", `${k === "no" ? "Planograma no cumplido" : "Planograma cumplido solo en parte"}${nom}${r.nota ? ": " + r.nota : "."}`]); });
     return o;
   },
 
@@ -84,7 +87,7 @@ const FICHA = {
           <table class="fv-t"><tr><th>Producto</th><th>Sugerido</th><th>Pedido</th></tr>${d.items.filter((i) => i.pedido_id === p.id).map((i) => `<tr><td>${esc((i.productos?.nombre || "").replace(/^Queso /, ""))}</td><td>${fmtNum(i.sugerido, 0)}</td><td><b>${i.kg_pedido != null ? fmtNum(i.kg_pedido, 2) + " kg" : fmtNum(i.propuesto, 0)}</b></td></tr>`).join("")}</table>${p.nota_vendedor ? `<p class="small muted" style="margin-top:6px">Nota: ${esc(p.nota_vendedor)}</p>` : ""}`).join("")
         : motivo ? `<p class="small"><b>Sin pedido.</b> Motivo: ${esc(motivo)}${vx.sin_pedido_nota ? " · " + esc(vx.sin_pedido_nota) : ""}</p>` : `<p class="muted small">${v.checkout_at ? "Cerró sin pedido y sin motivo." : "Todavía no hay pedido."}</p>`)}
       ${d.aud ? sec("Auditoría de espacio", `<p class="small"><b style="font-size:20px;font-family:var(--font-t)">${d.aud.pct == null ? "–" : fmtNum(d.aud.pct, 0) + "%"}</b> de participación · ${fmtNum(d.aud.nuestro, 0)} frentes nuestros y ${fmtNum(d.aud.competencia, 0)} de la competencia</p>${sig("SOS")}`) : ""}
-      ${d.plano.length ? sec("Planograma", d.plano.map((r) => `<div class="row" style="gap:8px;margin-bottom:4px"><span class="pill ${r.cumple ? "p-menta" : "p-durazno"}">${r.cumple ? "Cumple" : "No cumple"}</span><span class="small">${esc(r.planogramas?.nombre || "")}${r.nota ? " · " + esc(r.nota) : ""}</span></div>`).join("")) : ""}
+      ${d.plano.length ? sec("Planograma", d.plano.map((r) => `<div class="row" style="gap:8px;margin-bottom:4px"><span class="pill ${FICHA.plano(r.cumple)[1]}">${FICHA.plano(r.cumple)[2]}</span><span class="small">${esc(r.planogramas?.nombre || "")}${r.nota ? " · " + esc(r.nota) : ""}</span></div>`).join("")) : ""}
       ${d.promos.length ? sec("Promociones", d.promos.map((p) => `<p class="small" style="margin:0 0 4px"><b>${esc((p.productos?.nombre || "").replace(/^Queso /, ""))}</b> · ${esc({ oferta_precio: "Oferta de precio", descuento: "Descuento", "2x1": "2x1 / combo", degustacion: "Degustación", material_pop: "Material POP", otra: "Otra" }[p.tipo] || p.tipo || "")}${p.descuento_pct ? " −" + fmtNum(p.descuento_pct, 1) + "%" : ""}${p.precio_oferta ? " · $" + fmtNum(p.precio_oferta, 2) : ""}${p.nota ? " · " + esc(p.nota) : ""}</p>`).join(""), d.promos.length) : ""}
       ${d.analisis.length ? sec(`${visionIc(16)} Clarus Vision`, vis.length ? vis.map((a) => `<p class="small" style="margin:0 0 6px">${esc(a.resultado?.observaciones || "Foto revisada.")}</p>`).join("") : `<p class="muted small">${plur(espera, "foto")} en espera de lectura.</p>`) : ""}
       ${vx.comentario ? sec("Comentario de la vendedora", `<p class="small">${esc(vx.comentario)}</p>`) : ""}`;
