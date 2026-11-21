@@ -1071,3 +1071,7 @@ button.inv.mue .grow>b,button.inv.mue .grow>span,button.inv.mue .grow>.tiny{disp
 .al-p{min-width:0;max-width:100%}
 .al-p .pill{white-space:normal;max-width:100%;min-width:0;text-align:left;flex-wrap:wrap;overflow-wrap:anywhere;height:auto}
 .al-p .pill small{white-space:nowrap}
+
+/* Opciones por presentación en el mueble: «Agotado» y «Fuera de surtido», solo cuando la cantidad está en cero */
+.pres-op{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.pres-op[hidden]{display:none}

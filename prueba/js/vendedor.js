@@ -423,6 +423,9 @@ const V = {
     let actual = cats.find((c) => c.id === v.exhCat) || cats[0], todas = hayOtra;
     const etq = (pr, p) => (pr === "b" ? [plural(2, p.unidad_conteo).replace(/^./, (c) => c.toUpperCase()), `${fmtNum(p.peso_kg_unidad, 2)} kg cada una`] : PRES.find((x) => x[0] === pr).slice(1));
     const info = (c) => { const n = c.prods.filter((p) => this.exhKg(e.c[p.id], p) > 0).length; return { listo: n > 0, texto: n ? n + " con conteo" : c.prods.length + " SKU" }; };
+    // «Agotado» y «Fuera de surtido» van por presentación (rebanado y rallado son espacios distintos); una visita empezada antes traía la marca por producto
+    const zDe = (pid, pr) => { const z = e.c[pid]?.z; return z === true || !!(z && z[pr]); };
+    const zSet = (pid, pr, on) => { const c = (e.c[pid] = e.c[pid] || {}); if (c.z === true) c.z = Object.fromEntries(PRES.map((x) => [x[0], true])); c.z = c.z || {}; if (on) c.z[pr] = true; else delete c.z[pr]; };
     const pintar = () => {
       const fs = FOTOS.de(v, k), vis = PRES.map((x) => x[0]).filter((pr) => todas || base.includes(pr));
       box.innerHTML = `<button type="button" class="venc-lk mue-volver" data-volver>‹ Todos los muebles</button>
@@ -434,8 +437,8 @@ const V = {
           ${vis.map((pr) => { const [t, sub] = etq(pr, p);
             if (fu(pr)) return `<div class="pres fs"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">Fuera de surtido en esta tienda</span></div><button type="button" class="venc-lk" data-fsadd="${pr}">Agregar</button></div>`;
             return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
-            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}`; }).join("")}
-          ${act.length ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="agot ${e.c[p.id]?.z ? "on" : ""}" data-sinex>Agotado</button><button type="button" class="agot" data-fs="${act.join(",")}">Fuera de surtido</button></div>` : ""}</div>`; }).join("")}</div>
+            <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}
+            <div class="pres-op" data-op="${pr}"><button type="button" class="agot ${zDe(p.id, pr) ? "on" : ""}" data-sinex="${pr}" aria-label="${esc(t)} de ${esc(p.nombre)}: agotado">Agotado</button><button type="button" class="agot" data-fs="${pr}" aria-label="${esc(t)} de ${esc(p.nombre)}: fuera de surtido">Fuera de surtido</button></div>`; }).join("")}</div>`; }).join("")}</div>
         <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
         <p class="tiny muted" style="margin:10px 0 0">Si no hay producto en este mueble, toca «Agotado» y toma igual la foto. Lo que esta tienda no maneja, márcalo «Fuera de surtido». Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
         <h3 class="sec-t" style="margin-top:16px">Foto del mueble</h3>
@@ -446,7 +449,7 @@ const V = {
           <button type="button" class="btn ${fs.length ? "ghost" : "sec"} sm block" style="margin-top:10px" data-foto>${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button></div>
         <button class="btn block" style="margin-top:14px" data-ok>Guardar mueble</button>
         ${slots.length > 1 && !fs.length ? `<button type="button" class="btn ghost block sm" style="margin-top:8px" data-quitar>Quitar este mueble</button>` : ""}`;
-      const kgs = () => $$(".inv[data-p]", box).forEach((el) => { const p = prods.find((x) => x.id == el.dataset.p), kg = this.exhKg(e.c[p.id], p); $("[data-kg]", el).textContent = kg ? "≈ " + fmtNum(kg, 1) + " kg" : "0 kg"; $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto); });
+      const kgs = () => $$(".inv[data-p]", box).forEach((el) => { const p = prods.find((x) => x.id == el.dataset.p), kg = this.exhKg(e.c[p.id], p); $("[data-kg]", el).textContent = kg ? "≈ " + fmtNum(kg, 1) + " kg" : "0 kg"; $("[data-catbtn]", box).innerHTML = this.botonCategoria(actual, info(actual).texto); $$("[data-op]", el).forEach((o) => { o.hidden = Number(e.c[p.id]?.[o.dataset.op]) > 0; $("[data-sinex]", o).classList.toggle("on", zDe(p.id, o.dataset.op)); }); });
       const ves = (solo) => $$(".vemp", box).forEach((el) => { const pid = el.closest(".inv").dataset.p, pr = el.dataset.ve; if (solo && solo !== el) return; const hay = Number(e.c[pid]?.[pr]) > 0; if (el.hidden === !hay && !solo && el.innerHTML) return; el.hidden = !hay; el.innerHTML = hay ? this.empHtml(v, prods.find((x) => x.id == pid), pr, cat, el.dataset.cam === "1") : ""; });
       kgs(); ves();
       box.onchange = (ev) => { const i = ev.target.closest("[data-ve-in]"); if (!i || !i.value) return; const el = i.closest(".vemp"), pid = el.closest(".inv").dataset.p; v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: i.value }; el.dataset.cam = ""; e.ok = false; Visita.set(v); ves(el); };
@@ -458,7 +461,7 @@ const V = {
           const pid = fsb.closest(".inv").dataset.p, prs = fsb.dataset.fs.split(","), tenia = prs.filter((pr) => this.surtBase(v, cat, m, pid, pr) === "activo");
           if (tenia.length && !(await confirmar(`Esta tienda sí tenía ${tenia.map((pr) => nomPres(pid, pr)).join(" y ")} en ${m.nombre}. Se registrará como espacio perdido.`, "Sí, ya no lo tiene", "Cancelar", "¿Fuera de surtido?"))) return;
           for (const pr of tenia) await this.espacio(v, m, pid, pr, "perdido");
-          e.c[pid] = e.c[pid] || {}; prs.forEach((pr) => { e.c[pid][pr] = 0; if (v.vencE) delete v.vencE[pid + pr]; }); delete e.c[pid].z; e.ok = false;
+          e.c[pid] = e.c[pid] || {}; prs.forEach((pr) => { e.c[pid][pr] = 0; zSet(pid, pr, false); if (v.vencE) delete v.vencE[pid + pr]; }); e.ok = false;
           await this.surtSet(v, cat, m, prs.map((pr) => [pid, pr]), "fuera"); return pintar();
         }
         const fsa = t.closest("[data-fsadd]");
@@ -471,7 +474,7 @@ const V = {
           await this.surtSet(v, cat, m, [[pid, pr]], "activo"); e.ok = false; Visita.set(v); return pintar();
         }
         const sx = t.closest("[data-sinex]");
-        if (sx) { const el = sx.closest(".inv"), pid = el.dataset.p, on = !e.c[pid]?.z; e.c[pid] = on ? { ...(e.c[pid] || {}), ...Object.fromEntries($$("[data-u]", el).map((i) => [i.dataset.u, 0])), z: true } : Object.fromEntries(Object.entries(e.c[pid] || {}).filter(([kk]) => kk !== "z" && !$(`[data-u="${kk}"]`, el))); $$("[data-u]", el).forEach((i) => (i.value = on ? "0" : "")); sx.classList.toggle("on", on); e.ok = false; Visita.set(v); kgs(); return ves(); }
+        if (sx) { const el = sx.closest(".inv"), pid = el.dataset.p, pr = sx.dataset.sinex, on = !zDe(pid, pr); zSet(pid, pr, on); e.c[pid][pr] = on ? 0 : ""; $(`[data-u="${pr}"]`, el).value = on ? "0" : ""; if (on && v.vencE) delete v.vencE[pid + pr]; e.ok = false; Visita.set(v); kgs(); return ves(); }
         const ve = t.closest("[data-ve-ig],[data-ve-cam]");
         if (ve) { const el = ve.closest(".vemp"), pid = el.closest(".inv").dataset.p; if (ve.dataset.veIg) { v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: ve.dataset.veIg, igual: true }; el.dataset.cam = ""; e.ok = false; Visita.set(v); } else el.dataset.cam = "1"; return ves(el); }
         if (t.closest("[data-volver]")) return volver();
@@ -504,7 +507,7 @@ const V = {
         if (t.closest("[data-ok]")) {
           const fve = this.empFalta(v, prods, e); if (fve) return toast(fve, 4000);
           if (!FOTOS.de(v, k).length) return toast("Toma la foto de cómo quedó el mueble");
-          const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0), marcado = prods.length > 0 && prods.every((p) => e.c[p.id]?.z);
+          const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0), marcado = prods.length > 0 && prods.every((p) => PRES.every(([pr]) => this.surtEst(v, cat, m, p.id, pr) === "fuera" || zDe(p.id, pr) || !(this.presDe(m).includes(pr))));
           if (!hay && !marcado && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
           const nuevos = [];
           if (this.surtBase(v, cat, m, 0, "") !== "activo" && this.surtEst(v, cat, m, 0, "") !== "activo") nuevos.push([0, ""]);
@@ -517,7 +520,7 @@ const V = {
         const i = ev.target.closest("[data-u]"); if (!i) return;
         i.value = i.value.replace(i.dataset.u === "b" ? /[^0-9.]/g : /\D/g, "");
         const pid = i.closest(".inv").dataset.p; e.c[pid] = e.c[pid] || {}; e.c[pid][i.dataset.u] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0);
-        if (e.c[pid].z && Number(e.c[pid][i.dataset.u]) > 0) { delete e.c[pid].z; $("[data-sinex]", i.closest(".inv")).classList.remove("on"); }
+        if (Number(e.c[pid][i.dataset.u]) > 0 && zDe(pid, i.dataset.u)) zSet(pid, i.dataset.u, false);
         e.ok = false; Visita.set(v); kgs(); ves();
       };
     };
