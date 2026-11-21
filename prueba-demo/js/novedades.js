@@ -1,0 +1,75 @@
+// Novedades: instructivo paso a paso que sale una vez al entrar después de una actualización. Al final la persona confirma («Entendido») y queda registrado.
+// Para un instructivo nuevo basta cambiar `id` y `pasos`.
+const NOV = {
+  id: "2026-11-20-flujo",
+  pasos: [
+    { t: "Inventario: ahora solo cuentas la bodega", antes: "Contabas en una sola pantalla lo de la bodega y lo que estaba exhibido.", ahora: "En «Inventario» cuentas únicamente lo que está guardado en la bodega. Lo exhibido se cuenta en el paso siguiente.",
+      como: ["Escribe cuánto hay en bodega de cada producto.", "Al final de la lista, toma la foto de la bodega. Una sola cámara: toma las fotos que hagan falta para que se vea todo.", "Si no hay nada en bodega, toca «Agotado»."],
+      m: [["Queso Mozzarella · bodega", "4 barras"], ["Queso Muenster", "Agotado", "ambar"], ["Fotos de la bodega", "Tomar foto", "azul"]] },
+    { t: "Exhibición: se cuenta mueble por mueble", antes: "Lo exhibido se contaba junto con la bodega, sin separar dónde estaba.", ahora: "En «Exhibición» aparece cada mueble de la tienda (nevera de empacados, vitrina deli…). Cuentas lo que hay en cada uno.",
+      como: ["Toca el mueble que vas a revisar.", "Escribe cuánto hay de cada producto en ese mueble. Si no hay, toca «Agotado». Si esa tienda no lo maneja (por ejemplo, no ralla), toca «Fuera de surtido».", "Al final, toma la foto del mueble ya ordenado. La foto va siempre, aunque no haya producto."],
+      m: [["Mozzarella rebanado", "12 paquetes"], ["Mozzarella rallado", "Fuera de surtido", "gris"], ["Fotos del mueble", "al final", "azul"]] },
+    { t: "Vencimiento: solo del rebanado y el rallado", antes: "La fecha de vencimiento se pedía por producto, también en bodega.", ahora: "Solo se pide la fecha de lo empacado en la tienda: rebanado y rallado. Es la fecha de la etiqueta de la báscula. En bodega y en la vitrina del deli ya no se pide.",
+      como: ["En el mueble, escribe cuántos paquetes hay.", "Mira las etiquetas y pon la fecha del paquete que vence primero. Si es la misma de tu última visita, toca «Sigue igual».", "Si Clarus avisa «revisa y reempaca» o «Vencido», avisa en la tienda y retira lo vencido."],
+      m: [["Mozzarella rebanado", "12 paquetes"], ["Vence el 22 de noviembre", "Vence en 2 días", "ambar"], ["Mozzarella rallado", "Sigue igual · 27 nov", "azul"]] },
+    { t: "Pedido: una sola lista, lo sugerido arriba", antes: "Había dos botones: «Sugeridos» y «Por categoría», y tenías que cambiar entre ellos.", ahora: "Hay una sola lista. Clarus suma lo que contaste en bodega y en exhibición y te pone arriba lo que recomienda pedir.",
+      como: ["Revisa la cantidad sugerida de cada producto.", "Cámbiala si la tienda necesita más o menos.", "Si la tienda compra menos de una caja, cambia la unidad de «Caja» a «Kilo» (está al lado de la cantidad) y escribe los kilos.", "Toca «Enviar pedido»."],
+      m: [["Queso Mozzarella", "2 · Caja", "azul"], ["Queso Muenster", "6.5 · Kilo", "azul"], ["Tienes: bodega 4 + exhibido 12", "", "gris"]] },
+    { t: "Promociones: nuevo tipo «Descuento (%)»", antes: "No había cómo registrar una promoción de porcentaje de descuento.", ahora: "Si la tienda tiene el producto con un porcentaje de descuento, ya lo puedes registrar.",
+      como: ["En «Gestión», toca «+ Agregar promoción».", "En el tipo, elige «Descuento (%)».", "Escribe el porcentaje, por ejemplo 15, y toma la foto."],
+      m: [["Tipo de promoción", "Descuento (%)"], ["Descuento", "15 %"], ["Foto de la promoción", "Tomar foto", "azul"]] },
+    { t: "Solo una visita abierta a la vez", antes: "Podías entrar a otra tienda dejando la anterior sin cerrar.", ahora: "Para entrar a otra tienda, primero tienes que cerrar la visita anterior. Clarus no te deja abrir dos.",
+      como: ["Termina tu visita y toca «Hacer check-out».", "Si no pudiste terminar, toca «Cerrar sin terminar» y elige el motivo.", "Ya puedes entrar a la siguiente tienda."],
+      m: [["Super 99 Brisas del Golf", "Visita abierta", "azul"], ["Xtra Los Pueblos", "Cierra la anterior", "ambar"]] },
+  ],
+  aplica() { return typeof DB !== "undefined" && !!DB.user && !!DB.perfil; }, // todo el equipo: campo, supervisión, operaciones y gerencia
+  // ¿Hay que mostrarlo? Si ya confirmó en otro teléfono, el servidor lo sabe.
+  async debe() {
+    if (!this.aplica() || LS.get("nov.ok", "") === this.id || this._abierto) return false;
+    try { const { data } = await sb.from("novedades_vistas").select("novedad").eq("usuario_id", DB.user.id).eq("novedad", this.id).maybeSingle(); if (data) { LS.set("nov.ok", this.id); return false; } } catch (e) { /* sin señal: se muestra */ }
+    return true;
+  },
+  async alEntrar() { if (this._revisado) return; this._revisado = true; if (await this.debe()) this.mostrar(); },
+  async registrar() {
+    LS.set("nov.ok", this.id);
+    try { const { error } = await sb.from("novedades_vistas").upsert({ usuario_id: DB.user.id, novedad: this.id }, { onConflict: "usuario_id,novedad", ignoreDuplicates: true }); LS.set("nov.pend", error ? this.id : ""); } catch (e) { LS.set("nov.pend", this.id); }
+  },
+  async reintentar() { if (LS.get("nov.pend", "") === this.id && this.aplica()) await this.registrar(); },
+  // Gerencia y supervisión: quién confirmó el instructivo (se muestra en Mensajes)
+  async tarjetaGerencia(antes) {
+    if (!antes || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const [{ data: us }, { data: vs, error }] = await Promise.all([sb.from("perfiles").select("id, nombre, rol, inicio_clarus").eq("activo", true).order("nombre"), sb.from("novedades_vistas").select("usuario_id, confirmado_at").eq("novedad", this.id)]);
+    if (error || !us || !antes.isConnected || document.querySelector("#nov-g")) return;
+    const ok = Object.fromEntries((vs || []).map((v) => [v.usuario_id, v.confirmado_at])), hoy = hoyISO(), campo = (u) => u.rol === "vendedor" || u.rol === "supervisor";
+    const fila = us.map((u) => ({ u, at: ok[u.id], ini: campo(u) && !(u.inicio_clarus && u.inicio_clarus <= hoy) })), deben = fila.filter((f) => !f.ini), n = deben.filter((f) => f.at).length;
+    antes.insertAdjacentHTML("afterend", `<div class="card list" id="nov-g" style="margin-bottom:12px"><a class="item" href="javascript:void 0" data-novg><div class="ava" style="color:var(--azul)">${ic("megafono", 22)}</div><div class="grow"><div class="t">Novedades de la actualización</div><div class="small muted">Instructivo que sale al entrar</div><div class="item-pie"><span class="pill ${n === deben.length ? "p-menta" : "p-durazno"}">${n}/${deben.length} confirmaron</span></div></div>›</a></div>`);
+    document.querySelector("[data-novg]").onclick = () => modal(`<div class="row" style="align-items:baseline;gap:8px;margin-bottom:6px"><h2 class="grow" style="margin:0">Quién lo confirmó</h2><span class="tiny muted">${n} de ${deben.length}</span></div>
+      <div class="list" style="gap:0">${fila.sort((a, b) => (a.ini - b.ini) || (!!a.at - !!b.at) || a.u.nombre.localeCompare(b.u.nombre)).map((f) => `<div class="inv-f"><div class="grow"><b>${esc(f.u.nombre)}</b><div class="tiny muted">${f.at ? "Confirmó " + fmtFecha(f.at) + " " + fmtHora(f.at) : f.ini ? "Lo verá el día que empiece en Clarus" : "Aún no lo confirma"}</div></div><span class="pill ${f.at ? "p-menta" : f.ini ? "p-gris" : "p-durazno"}">${f.at ? "Entendido" : f.ini ? "Por iniciar" : "Pendiente"}</span></div>`).join("")}</div>
+      <button class="btn sec block" style="margin-top:14px" data-cerrar>Cerrar</button>`, (m, close) => { m.querySelector("[data-cerrar]").onclick = close; });
+  },
+  mostrar(repaso = false) {
+    if (this._abierto) return; this._abierto = true;
+    const n = this.pasos.length, el = document.createElement("div"); let i = 0;
+    el.className = "nov"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Novedades");
+    const cerrar = () => { el.remove(); this._abierto = false; document.body.style.overflow = ""; };
+    const pinta = () => {
+      const p = this.pasos[i], ult = i === n - 1;
+      el.innerHTML = `<div class="nov-c"><div class="nov-k"><span class="nov-logo">${logo(24)}<b>clarus</b></span><span>Novedades · ${i + 1} de ${n}</span></div>
+        <div class="nov-s"><h2>${esc(p.t)}</h2>
+          <div class="nov-aa"><div><span>Antes</span><p>${esc(p.antes)}</p></div><div class="ahora"><span>Ahora</span><p>${esc(p.ahora)}</p></div></div>
+          <div class="nov-h">Cómo se hace</div><ol class="nov-o">${p.como.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>
+          <div class="nov-h">Ejemplo</div><div class="nov-m">${p.m.map(([a, b, c]) => `<div class="nov-l"><b>${esc(a)}</b><span class="${c || ""}">${esc(b)}</span></div>`).join("")}</div></div>
+        <div class="nov-f"><div class="nov-p" aria-hidden="true">${this.pasos.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>
+        <div class="nov-b">${i ? `<button class="btn sec" data-na>Atrás</button>` : ""}<button class="btn" data-ns>${ult ? (repaso ? "Cerrar" : "Entendido") : "Siguiente"}</button></div>${repaso ? `<button class="nov-x" data-nx>Cerrar</button>` : ""}</div></div>`;
+      el.querySelector(".nov-s").scrollTop = 0;
+      const a = el.querySelector("[data-na]"), x = el.querySelector("[data-nx]");
+      if (a) a.onclick = () => { i--; pinta(); };
+      if (x) x.onclick = cerrar;
+      el.querySelector("[data-ns]").onclick = async () => { if (!ult) { i++; pinta(); return; } cerrar(); if (!repaso) { await this.registrar(); toast("Gracias. Lo puedes repasar en Más › Novedades"); } };
+    };
+    let x0 = null;
+    el.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+    el.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (dx < -60 && i < n - 1) { i++; pinta(); } else if (dx > 60 && i > 0) { i--; pinta(); } }, { passive: true });
+    document.body.appendChild(el); document.body.style.overflow = "hidden"; pinta();
+  },
+};
