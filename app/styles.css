@@ -1058,3 +1058,7 @@ button.inv.mue .grow>b,button.inv.mue .grow>span,button.inv.mue .grow>.tiny{disp
 
 /* Presentación fuera de surtido: línea discreta con «Agregar» */
 .pres.fs{align-items:center}.pres.fs b{color:var(--gris)}
+/* Listas de productos en una alerta: cada etiqueta se parte en dos líneas antes que salirse de la tarjeta */
+.al-p{min-width:0;max-width:100%}
+.al-p .pill{white-space:normal;max-width:100%;min-width:0;text-align:left;flex-wrap:wrap;overflow-wrap:anywhere;height:auto}
+.al-p .pill small{white-space:nowrap}
