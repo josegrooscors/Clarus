@@ -364,6 +364,8 @@ const R = {
           <div class="card"><div class="row" style="align-items:baseline;gap:8px;margin-bottom:4px"><h3 class="grow" style="margin:0">Por persona</h3><span class="tiny muted">toca para ver su hoja</span></div>
           ${R.paginar(orden.map((r) => { const c = sem(r.nota); return `<div class="inv-f met-v" data-eqv="${r.u.id}" role="button" tabindex="0"><i class="sem-d ${c || "sin"}"></i><div class="grow"><b>${esc(r.u.nombre)}</b><div class="tiny muted">${r.n ? `Ruta ${r.ok} de ${r.n}` : "Sin ruta"} · asistió ${r.asis} de ${r.dias} ${r.dias === 1 ? "día" : "días"}</div><div class="barra"><i class="${c || "ok"}" style="width:${Math.min(100, r.nota ?? 0)}%"></i></div></div><b class="inv-v ${c}">${r.nota ?? "–"}${r.nota == null ? "" : "%"}<small>ver ›</small></b></div>`; }), "eqv")}</div>`; })()}
 
+      <h3 class="sec-t" data-g="vendedora">Espacios adicionales · ${esc(etPer)}</h3>
+      <div class="card" id="esp-ad"><div class="small muted">Cargando…</div></div>
       <h3 class="sec-t">Pedidos y objetivo</h3>
       ${objKg && DB.puede("ver_metas") ? (() => { // Panel principal de Ventas (solo quien puede ver Metas; la supervisión no ve el objetivo de la empresa): objetivo del mes, en el azul de la marca
         const dHoy = Number(hoy.slice(8, 10)), dMes = new Date(Number(mes0.slice(0, 4)), Number(mes0.slice(5, 7)), 0).getDate(), esperado = (dHoy / dMes) * 100, ritmo = esperado ? ((pcObj ?? 0) / esperado) * 100 : 100;
@@ -494,6 +496,25 @@ const R = {
     $$("[data-eqv]", root).forEach((c) => (c.onclick = () => { LS.set("res.tab", "vendedora"); R.render(root, periodo, c.dataset.eqv); window.scrollTo({ top: 0 }); }));
     $("#rv", root).onchange = (e) => { if (e.target.value) LS.set("res.tab", "vendedora"); R.render(root, periodo, e.target.value); };
     const esp = $("#r-espacio", root); if (esp) AUD.enResumen(esp, hasta, vend, asig);
+    { // Espacios adicionales: muebles y presentaciones que el equipo ganó o perdió en el período (queda registrado en la visita)
+      const caja = $("#esp-ad", root), gen2 = gen;
+      const fin = new Date(hasta + "T12:00:00"); fin.setDate(fin.getDate() + 1);
+      sb.from("espacios_adicionales").select("id, cliente_id, vendedor_id, mueble, producto_id, presentacion, tipo, motivo, creado_at").gte("creado_at", desde + "T00:00:00-05:00").lt("creado_at", fin.toISOString().slice(0, 10) + "T00:00:00-05:00").order("creado_at", { ascending: false }).then(({ data, error }) => {
+        if (gen2 !== root._resGen || !caja.isConnected) return;
+        if (error) { caja.innerHTML = `<div class="small muted">No se pudo cargar: ${esc(error.message)}</div>`; return; }
+        const nomC = Object.fromEntries(cliR.data.map((c) => [c.id, c.nombre])), nomU = Object.fromEntries(perfR.data.map((u) => [u.id, u.nombre])), nomP = Object.fromEntries(prodR.data.map((q) => [q.id, q.nombre.replace(/^Queso /, "")]));
+        const fs = (data || []).filter((x) => nomC[x.cliente_id] && (!vend || x.vendedor_id === vend) && (!cad || cadDe[x.cliente_id] === cad));
+        const g = fs.filter((x) => x.tipo === "ganado").length, pe = fs.length - g, neto = g - pe;
+        if (!fs.length) { caja.innerHTML = `<div class="small muted">Sin espacios ganados ni perdidos ${esc(etPer0())}. Se registran en la visita, cuando alguien agrega un mueble o una presentación que la tienda no tenía.</div>`; return; }
+        const que = (x) => (x.producto_id ? `${nomP[x.producto_id] || "Producto"} ${x.presentacion === "r" ? "rebanado" : x.presentacion === "l" ? "rallado" : "en barra"} en ${PL.MUEBLES[x.mueble] || x.mueble}` : `${PL.MUEBLES[x.mueble] || x.mueble} (mueble nuevo)`);
+        const por = {}; fs.forEach((x) => { const o = (por[x.vendedor_id] = por[x.vendedor_id] || { g: 0, p: 0 }); x.tipo === "ganado" ? o.g++ : o.p++; });
+        const filasU = Object.entries(por).map(([u, o]) => ({ n: nomU[u] || "Representante", ...o, t: o.g - o.p })).sort((a, b) => b.t - a.t || a.n.localeCompare(b.n));
+        caja.innerHTML = `<div class="row" style="align-items:baseline;gap:10px"><b style="font:700 32px var(--font-t);color:${neto > 0 ? "#0C8589" : neto < 0 ? "var(--rojo)" : "var(--tinta)"}">${neto > 0 ? "+" : ""}${neto}</b><span class="small muted">${plur(g, "ganado")} · ${plur(pe, "perdido")} en ${plur(new Set(fs.map((x) => x.cliente_id)).size, "tienda")}</span></div>
+          ${vend ? "" : `<h3 style="margin:14px 0 2px">Por representante</h3>${R.paginar(filasU.map((u) => `<div class="inv-f"><div class="grow"><b>${esc(u.n)}</b><div class="tiny muted">${plur(u.g, "ganado")} · ${plur(u.p, "perdido")}</div></div><b class="inv-v ${u.t > 0 ? "ok" : u.t < 0 ? "bajo" : ""}">${u.t > 0 ? "+" : ""}${u.t}</b></div>`), "eau")}`}
+          <h3 style="margin:14px 0 2px">Detalle</h3>${R.paginar(fs.map((x) => `<div class="inv-f"><div class="grow"><b>${esc(nomC[x.cliente_id])}</b><div class="tiny muted">${esc(que(x))} · ${esc((nomU[x.vendedor_id] || "").split(" ")[0])} · ${fmtFecha(x.creado_at)}${x.motivo ? " · " + esc(x.motivo) : ""}</div></div><span class="pill ${x.tipo === "ganado" ? "p-menta" : "p-rosa"}">${x.tipo === "ganado" ? "Ganado" : "Perdido"}</span></div>`), "ead")}`;
+        LIM5.aplicar();
+      });
+    }
     { // Ventas «Ver por»: con Metas, venta facturada del mes contra su objetivo; sin Metas, los pedidos capturados en el período
       const cli = Object.fromEntries(cliR.data.map((c) => [c.id, c])), prodDe = Object.fromEntries(prodR.data.map((q) => [q.id, q])), repDe = {}, nomRep = Object.fromEntries(perfR.data.map((u) => [u.id, u.nombre]));
       asigTodas.forEach((a) => { if (!repDe[a.cliente_id]) repDe[a.cliente_id] = a.vendedor_id; });
