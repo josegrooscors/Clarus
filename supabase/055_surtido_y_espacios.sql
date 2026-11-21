@@ -1,0 +1,4 @@
+-- 20-nov-2026 · Aplicado en el servidor (migración surtido_tienda_y_espacios) y validado con Demo, Yerenis y Stephanie en bloque que se deshace.
+-- tienda_surtido: qué mueble, producto y presentación maneja cada tienda ('activo') o deja 'fuera' de surtido. Clave = mueble|producto|presentación.
+-- espacios_adicionales: cada mueble o presentación que el equipo gana o pierde, con visita, representante, fecha y motivo.
+-- Una persona de campo solo ve sus propios espacios; gerencia y supervisión ven todos. Definición completa en la migración del servidor.

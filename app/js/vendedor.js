@@ -37,6 +37,7 @@ const PASOS = [
 const PASO_VIEJO = { fotos: "exhibicion", promos: "gestion" };
 // Presentaciones que se cuentan en la exhibición. El empacado se cuenta en paquetes y Clarus lo pasa a kilos con el peso promedio del paquete.
 const PAQ_KG = 0.13;
+const ESPACIO_MOTIVOS = ["Negociado con el encargado", "Lo pidió la tienda", "Por promoción o temporada", "Otro"];
 const VENC_EMP_DIAS = 3; // el empacado (rebanado, rallado) avisa desde 3 días antes de vencer: su vida útil es la de la etiqueta de la báscula
 const PRES = [["b", null, null], ["r", "Rebanado", "paquetes de 130 g"], ["l", "Rallado", "paquetes de 130 g"]];
 const MOTIVOS_INCOMPLETA = [
@@ -282,15 +283,11 @@ const V = {
     return { inventario: !!v.guardado.inventario && !this.sinFotoBodega(v).length, exhibicion: exhOk, pedido: !!v.pedido || (v.modalidad === "pedido_cliente" && !v.forzarPedido), gestion };
   },
   // Productos con existencia en bodega que todavía no tienen su foto (la foto solo es obligatoria si hay producto)
-  sinFotoBodega(v) {
-    const cat = LS.get("cat") || {};
-    return Object.keys(v.inv || {}).filter((k) => k.endsWith(":bodega") && Number(v.inv[k]) > 0).map((k) => k.split(":")[0]).filter((pid) => !FOTOS.deProd(v, pid).length)
-      .map((pid) => ({ id: pid, nombre: ((cat.productos || []).find((p) => String(p.id) === pid)?.nombre || "producto").replace(/^Queso /, "") }));
-  },
+  sinFotoBodega(v) { return FOTOS.de(v, "bodega").length ? [] : [{ id: "bodega", nombre: "la bodega" }]; }, // una sola cámara para la bodega: al menos 1 foto
   pendientes(v) {
     const e = this.estado(v), out = [];
     if (!v.guardado.inventario) out.push(["inventario", "Inventario de bodega"]);
-    this.sinFotoBodega(v).forEach((p) => out.push(["inventario", "Foto de " + p.nombre + " en bodega"]));
+    if (v.guardado.inventario && this.sinFotoBodega(v).length) out.push(["inventario", "Foto de la bodega"]);
     FOTOS.slots(v).forEach((m) => { if (!FOTOS.de(v, m.k).length) out.push(["exhibicion:" + m.k, "Foto de " + m.nombre.toLowerCase()]); if (!v.exh?.[m.k]?.ok) out.push(["exhibicion:" + m.k, "Conteo de " + m.nombre.toLowerCase()]); });
     if (!e.pedido) out.push(["pedido", "Pedido"]);
     if (!e.gestion) out.push(["gestion", "Revisar planograma"]);
@@ -368,13 +365,41 @@ const V = {
       <button class="btn block" style="margin-top:16px" data-ok ${todo ? "" : "disabled"}>${todo ? "Seguir a Pedido" : "Completa los muebles que faltan para seguir"}</button>`;
     $$("[data-mue]", box).forEach((b) => (b.onclick = () => redibujar(b.dataset.mue)));
     $("[data-add]", box).onclick = () => { $("#addm", box).hidden = !$("#addm", box).hidden; };
-    $$("[data-tipo]", box).forEach((b) => (b.onclick = () => {
+    $$("[data-tipo]", box).forEach((b) => (b.onclick = async () => {
+      const mm = { mueble: b.dataset.tipo }, conocidos = (cat.surtido || []).some((x) => x.cliente_id === v.cliente_id && /\|0\|$/.test(x.clave) && x.estado === "activo");
+      if (conocidos && this.surtBase(v, cat, mm, 0, "") !== "activo" && !v.mueblesFoto.some((m) => m.mueble === b.dataset.tipo)) {
+        const mot = await this.espacioMotivo(`Vas a agregar <b>${esc(PL.MUEBLES[b.dataset.tipo])}</b>. Esta tienda no tenía ese mueble.`); if (!mot) return;
+        await this.espacio(v, mm, 0, "", "ganado", mot); await this.surtSet(v, cat, mm, [[0, ""]], "activo"); toast("Espacio adicional registrado ✓");
+      }
       const tipos = v.mueblesFoto.map((m) => m.mueble).concat(b.dataset.tipo);
       const viejos = Object.fromEntries(v.mueblesFoto.map((m) => [m.k, m]));
       v.mueblesFoto = FOTOS.armar(tipos).map((m) => viejos[m.k] ? { ...viejos[m.k], nombre: m.nombre } : m);
       FOTOS.guardar(v); toast(`${PL.MUEBLES[b.dataset.tipo]} agregado`); redibujar();
     }));
     $("[data-ok]", box).onclick = siguiente;
+  },
+  // ---------- Surtido de la tienda: qué mueble, producto y presentación maneja. «Fuera de surtido» no se cuenta ni se pide; agregar algo que no tenía es un espacio adicional ----------
+  surtClave(m, pid, pr) { return `${m.mueble}|${pid || 0}|${pr || ""}`; },
+  surtBase(v, cat, m, pid, pr) { const k = this.surtClave(m, pid, pr); return (cat.surtido || []).find((x) => x.cliente_id === v.cliente_id && x.clave === k)?.estado || null; }, // lo que ya sabía el servidor
+  surtEst(v, cat, m, pid, pr) { const k = this.surtClave(m, pid, pr); return v.surt && k in v.surt ? v.surt[k] : this.surtBase(v, cat, m, pid, pr); },
+  async surtSet(v, cat, m, filas, estado) { // filas: [[pid, pr]]
+    v.surt = v.surt || {}; const rows = filas.map(([pid, pr]) => { const clave = this.surtClave(m, pid, pr); v.surt[clave] = estado; return { clave, mueble: m.mueble, producto_id: pid || null, presentacion: pr || "", estado }; });
+    Visita.set(v); if (rows.length) await DB.encolar({ t: "surtido", cliente_id: v.cliente_id, rows });
+  },
+  async espacio(v, m, pid, pr, tipo, motivo) { await DB.encolar({ t: "espacio", lid: v.lid, cliente_id: v.cliente_id, clave: this.surtClave(m, pid, pr), mueble: m.mueble, producto_id: pid || null, presentacion: pr || "", tipo, motivo: motivo || null }); },
+  // Pregunta cómo se logró el espacio; devuelve el motivo o null si cancela
+  espacioMotivo(texto) {
+    return new Promise((res) => {
+      let hecho = false; const fin = (x) => { if (!hecho) { hecho = true; res(x); } };
+      modal(`<div class="nov-k av-k" style="margin:0 0 12px;padding:0 0 12px"><span class="nov-logo">${logo(24)}<b>clarus</b></span><span>Espacio adicional</span></div>
+        <h2 style="margin:0 0 6px">¿Qué lograste en esta tienda?</h2><p class="small" style="margin:0 0 4px">${texto}</p>
+        <label class="f">Cómo se logró</label><select class="in" id="eam">${ESPACIO_MOTIVOS.map((t) => `<option>${esc(t)}</option>`).join("")}</select>
+        <p class="tiny muted" style="margin:8px 0 0">Queda registrado a tu nombre con la fecha de hoy.</p>
+        <div class="row" style="margin-top:14px"><button class="btn sec sp" data-no>Cancelar</button><button class="btn sp" data-ok>Agregar</button></div>`, (mo, close) => {
+        $("[data-no]", mo).onclick = () => { close(); fin(null); };
+        $("[data-ok]", mo).onclick = () => { const t = $("#eam", mo).value; close(); fin(t); };
+      });
+    });
   },
   // ---------- Vencimiento del empacado: una fecha por producto y presentación (la más próxima), solo si hay paquetes ----------
   empPrev(v, pid, pr, cat) { return (cat.venc || []).find((x) => x.cliente_id === v.cliente_id && x.producto_id == pid && x.presentacion === pr)?.vence || null; },
@@ -404,13 +429,15 @@ const V = {
         <h2 style="margin:4px 0 10px">${esc(m.nombre)}</h2>
         <h3 class="sec-t" style="margin-top:0">Lo exhibido en este mueble</h3>
         <button type="button" class="cat-sel" data-catbtn>${this.botonCategoria(actual, info(actual).texto)}</button>
-        <div class="list">${actual.prods.map((p) => { const fp = FOTOS.deMue(v, k, p.id); return `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span><button type="button" class="cam-b ${fp.length ? "ok" : ""}" data-camp="${p.id}" aria-label="Tomar foto de ${esc(p.nombre)} en este mueble${fp.length ? ". Lleva " + plur(fp.length, "foto") : ""}">${ic("camara", 22)}${fp.length ? `<i>${fp.length}</i>` : ""}</button></div>
-          ${fp.length ? `<div class="thumbs t4" style="margin:8px 0 2px">${fp.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de ${esc(p.nombre)}"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
-          ${vis.map((pr) => { const [t, sub] = etq(pr, p); return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
+        <div class="list">${actual.prods.map((p) => { const fu = (pr) => this.surtEst(v, cat, m, p.id, pr) === "fuera", act = vis.filter((pr) => !fu(pr));
+          return `<div class="inv" data-p="${p.id}"><div class="row"><div class="nm sp">${esc(p.nombre)}</div><span class="pill p-gris" data-kg></span></div>
+          ${vis.map((pr) => { const [t, sub] = etq(pr, p);
+            if (fu(pr)) return `<div class="pres fs"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">Fuera de surtido en esta tienda</span></div><button type="button" class="venc-lk" data-fsadd="${pr}">Agregar</button></div>`;
+            return `<div class="pres"><div class="grow"><b>${esc(t)}</b><span class="tiny muted">${esc(sub)}</span></div>
             <div class="stepper"><button type="button" data-m="${pr}" aria-label="Menos">−</button><input inputmode="${pr === "b" ? "decimal" : "numeric"}" data-u="${pr}" value="${e.c[p.id]?.[pr] ?? ""}" placeholder="0" aria-label="${esc(t)} de ${esc(p.nombre)}"><button type="button" data-s="${pr}" aria-label="Más">+</button></div></div>${pr === "b" ? "" : `<div class="vemp" data-ve="${pr}" hidden></div>`}`; }).join("")}
-          <button type="button" class="agot ${e.c[p.id]?.z ? "on" : ""}" data-sinex style="margin-top:8px">Sin existencia</button></div>`; }).join("")}</div>
+          ${act.length ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="agot ${e.c[p.id]?.z ? "on" : ""}" data-sinex>Agotado</button><button type="button" class="agot" data-fs="${act.join(",")}">Fuera de surtido</button></div>` : ""}</div>`; }).join("")}</div>
         <button type="button" class="venc-lk" data-todas style="display:block;margin:12px 0 0">${todas ? "Mostrar solo lo habitual de este mueble" : base.includes("b") ? "Contar también empacado (rebanado o rallado)" : "Contar también barras enteras"}</button>
-        <p class="tiny muted" style="margin:10px 0 0">Si no hay producto en este mueble, toca «Sin existencia» y toma igual la foto. Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
+        <p class="tiny muted" style="margin:10px 0 0">Si no hay producto en este mueble, toca «Agotado» y toma igual la foto. Lo que esta tienda no maneja, márcalo «Fuera de surtido». Lo que dejes en blanco cuenta como cero. Los kilos los calcula Clarus: ${fmtNum(PAQ_KG * 1000, 0)} g por paquete.</p>
         <h3 class="sec-t" style="margin-top:16px">Foto del mueble</h3>
         <div class="inv"><div class="row"><span class="foto-ic">${PL.icono(m.mueble, 24)}</span><div class="sp" style="min-width:0"><div class="nm">Foto de cómo quedó</div>
             <div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>
@@ -425,26 +452,38 @@ const V = {
       box.onchange = (ev) => { const i = ev.target.closest("[data-ve-in]"); if (!i || !i.value) return; const el = i.closest(".vemp"), pid = el.closest(".inv").dataset.p; v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: i.value }; el.dataset.cam = ""; e.ok = false; Visita.set(v); ves(el); };
       box.onclick = async (ev) => {
         const t = ev.target;
-        const cp = t.closest("[data-camp]");
-        if (cp) {
-          try {
-            const pr = prods.find((x) => x.id == cp.dataset.camp), corto = pr.nombre.replace(/^Queso /, "");
-            const r = await Camara.evidencia({ titulo: corto + " · " + m.nombre, marca: v.tienda }); if (!r) return;
-            const key = uid(); await IDB.putBlob(key, r.blob);
-            v.fotos.push({ key, tipo: "exhibicion_" + m.mueble, slot: k + "#p", pid: pr.id, tipoTxt: m.nombre + " · " + corto, at: r.at, thumb: r.thumb }); Visita.set(v);
-            await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "exhibicion_" + m.mueble, mueble: m.nombre, producto_id: pr.id, at: r.at, lat: v.lat, lng: v.lng } });
-            pintar();
-          } catch (err) { toast(err.message, 4000); }
-          return;
+        const nomPres = (pid, pr) => { const pp = prods.find((x) => x.id == pid); return `${pp.nombre} ${pr === "b" ? "en barra" : pr === "r" ? "rebanado" : "rallado"}`; };
+        const fsb = t.closest("[data-fs]");
+        if (fsb) { // fuera de surtido: lo que la tienda no maneja en este mueble. Si antes sí lo tenía, es un espacio perdido
+          const pid = fsb.closest(".inv").dataset.p, prs = fsb.dataset.fs.split(","), tenia = prs.filter((pr) => this.surtBase(v, cat, m, pid, pr) === "activo");
+          if (tenia.length && !(await confirmar(`Esta tienda sí tenía ${tenia.map((pr) => nomPres(pid, pr)).join(" y ")} en ${m.nombre}. Se registrará como espacio perdido.`, "Sí, ya no lo tiene", "Cancelar", "¿Fuera de surtido?"))) return;
+          for (const pr of tenia) await this.espacio(v, m, pid, pr, "perdido");
+          e.c[pid] = e.c[pid] || {}; prs.forEach((pr) => { e.c[pid][pr] = 0; if (v.vencE) delete v.vencE[pid + pr]; }); delete e.c[pid].z; e.ok = false;
+          await this.surtSet(v, cat, m, prs.map((pr) => [pid, pr]), "fuera"); return pintar();
+        }
+        const fsa = t.closest("[data-fsadd]");
+        if (fsa) { // agregar algo que estaba fuera de surtido: si el servidor ya lo tenía como fuera, es un espacio ganado
+          const pid = fsa.closest(".inv").dataset.p, pr = fsa.dataset.fsadd;
+          if (this.surtBase(v, cat, m, pid, pr) === "fuera") {
+            const mot = await this.espacioMotivo(`Vas a agregar <b>${esc(nomPres(pid, pr))}</b> en <b>${esc(m.nombre)}</b>. Esta tienda no lo tenía.`); if (!mot) return;
+            await this.espacio(v, m, pid, pr, "ganado", mot); toast("Espacio adicional registrado ✓");
+          }
+          await this.surtSet(v, cat, m, [[pid, pr]], "activo"); e.ok = false; Visita.set(v); return pintar();
         }
         const sx = t.closest("[data-sinex]");
-        if (sx) { const el = sx.closest(".inv"), pid = el.dataset.p, on = !e.c[pid]?.z; e.c[pid] = on ? { b: 0, r: 0, l: 0, z: true } : {}; $$("[data-u]", el).forEach((i) => (i.value = on ? "0" : "")); sx.classList.toggle("on", on); e.ok = false; Visita.set(v); kgs(); return ves(); }
+        if (sx) { const el = sx.closest(".inv"), pid = el.dataset.p, on = !e.c[pid]?.z; e.c[pid] = on ? { ...(e.c[pid] || {}), ...Object.fromEntries($$("[data-u]", el).map((i) => [i.dataset.u, 0])), z: true } : Object.fromEntries(Object.entries(e.c[pid] || {}).filter(([kk]) => kk !== "z" && !$(`[data-u="${kk}"]`, el))); $$("[data-u]", el).forEach((i) => (i.value = on ? "0" : "")); sx.classList.toggle("on", on); e.ok = false; Visita.set(v); kgs(); return ves(); }
         const ve = t.closest("[data-ve-ig],[data-ve-cam]");
         if (ve) { const el = ve.closest(".vemp"), pid = el.closest(".inv").dataset.p; if (ve.dataset.veIg) { v.vencE = v.vencE || {}; v.vencE[pid + el.dataset.ve] = { fecha: ve.dataset.veIg, igual: true }; el.dataset.cam = ""; e.ok = false; Visita.set(v); } else el.dataset.cam = "1"; return ves(el); }
         if (t.closest("[data-volver]")) return volver();
         if (t.closest("[data-catbtn]")) return this.elegirCategoria(cats, actual.id, info, (c) => { actual = c; v.exhCat = c.id; Visita.set(v); pintar(); }, "mueble");
         if (t.closest("[data-todas]")) { todas = !todas; return pintar(); }
-        if (t.closest("[data-quitar]")) { v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods, cat); return volver(); }
+        if (t.closest("[data-quitar]")) {
+          if (!v.mueblesFoto.some((x) => x.k !== k && x.mueble === m.mueble) && this.surtBase(v, cat, m, 0, "") === "activo") { // la tienda sí tenía este mueble: es un espacio perdido
+            if (!(await confirmar(`Esta tienda sí tenía ${m.nombre}. Se registrará como espacio perdido.`, "Sí, ya no lo tiene", "Cancelar", "¿Quitar este mueble?"))) return;
+            await this.espacio(v, m, 0, "", "perdido"); await this.surtSet(v, cat, m, [[0, ""]], "fuera");
+          }
+          v.mueblesFoto = v.mueblesFoto.filter((x) => x.k !== k); delete v.exh[k]; FOTOS.guardar(v); await this.guardarExh(v, prods, cat); return volver();
+        }
         const bo = t.closest("[data-borrar]");
         if (bo) {
           if (!(await confirmar("La foto se borra y puedes tomar otra en su lugar.", "Borrar foto", "Cancelar", "¿Borrar esta foto?"))) return;
@@ -467,6 +506,10 @@ const V = {
           if (!FOTOS.de(v, k).length) return toast("Toma la foto de cómo quedó el mueble");
           const hay = prods.some((p) => this.exhKg(e.c[p.id], p) > 0), marcado = prods.length > 0 && prods.every((p) => e.c[p.id]?.z);
           if (!hay && !marcado && !(await confirmar("No contaste ningún producto en este mueble. ¿Está sin producto nuestro?", "Sí, guardar en cero", "Volver a contar", "Mueble sin producto"))) return;
+          const nuevos = [];
+          if (this.surtBase(v, cat, m, 0, "") !== "activo" && this.surtEst(v, cat, m, 0, "") !== "activo") nuevos.push([0, ""]);
+          prods.forEach((p) => PRES.forEach(([pr]) => { if (Number(e.c[p.id]?.[pr]) > 0 && this.surtEst(v, cat, m, p.id, pr) == null) nuevos.push([p.id, pr]); }));
+          if (nuevos.length) await this.surtSet(v, cat, m, nuevos, "activo");
           e.ok = true; Visita.set(v); await this.guardarExh(v, prods, cat); toast(`${m.nombre} guardado ✓`); volver();
         }
       };
@@ -644,11 +687,12 @@ const V = {
     box.innerHTML = `<p class="muted small" style="margin-top:0">Cuenta lo que queda en la bodega.</p>
       <div class="list">${prods.map((p) => `
         <div class="inv" data-p="${p.id}" data-fam="${famDe[p.id]}"><div class="row"><div class="sp" style="min-width:0"><div class="nm">${esc(p.nombre)}</div>
-          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div><span data-cam-w="${p.id}">${camHtml(p)}</span></div>
+          <div class="tiny muted">1 ${esc(p.unidad_conteo)} = ${fmtNum(p.peso_kg_unidad, 3)} kg</div></div></div>
           <div class="tiny muted" style="margin:10px 0 4px">En bodega (${esc(plural(2, p.unidad_conteo))})</div>
           <div class="row" style="gap:10px"><div class="stepper sp"><button type="button" data-m="bodega" aria-label="Menos">−</button><input inputmode="decimal" data-u="bodega" value="${val(p.id)}" placeholder="0" aria-label="${esc(plural(2, p.unidad_conteo))} de ${esc(p.nombre)} en bodega"><button type="button" data-s="bodega" aria-label="Más">+</button></div>
-            <button type="button" class="agot ${val(p.id) === 0 ? "on" : ""}" data-cero="${p.id}">Sin existencia</button></div>
-          <div class="kg"></div><div data-fotos="${p.id}">${fotosHtml(p)}</div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
+            <button type="button" class="agot ${val(p.id) === 0 ? "on" : ""}" data-cero="${p.id}">Agotado</button></div>
+          <div class="kg"></div><div class="venc" data-venc="${p.id}">${this.vencHtml(v, p, cat)}</div></div>`).join("")}</div>
+      <h3 class="sec-t" style="margin-top:16px">Fotos de la bodega</h3><div class="inv" id="bodf"></div>
       <div class="card flat" style="margin-top:12px"><div class="row"><span class="sp muted">Total en bodega</span><b id="totkg"></b></div></div>
       <button class="btn block" style="margin-top:4px" data-ok>Guardar inventario</button>`;
     const calc = () => {
@@ -657,13 +701,17 @@ const V = {
         const p = prods.find((x) => x.id == el.dataset.p), raw = $("[data-u=bodega]", el).value, b = parseFloat(raw) || 0;
         const kg = b * Number(p.peso_kg_unidad); tot += kg;
         $("[data-cero]", el).classList.toggle("on", raw !== "" && b === 0);
-        $(".kg", el).innerHTML = raw === "" ? "" : b === 0 ? `<b style="color:var(--rosa-t)">Sin existencia en bodega</b>` : `${fmtNum(b)} ${esc(plural(b, p.unidad_conteo))} = <b>${fmtNum(kg, 2)} kg</b>${FOTOS.deProd(v, p.id).length ? "" : ` <span class="pill p-durazno">Falta la foto</span>`}`;
+        $(".kg", el).innerHTML = raw === "" ? "" : b === 0 ? `<b style="color:var(--rosa-t)">Agotado en bodega</b>` : `${fmtNum(b)} ${esc(plural(b, p.unidad_conteo))} = <b>${fmtNum(kg, 2)} kg</b>`;
       });
       $("#totkg").textContent = fmtNum(tot, 2) + " kg";
     };
     // una sola acción por pantalla (onclick reemplaza; addEventListener se acumulaba al volver a dibujar y sumaba de a 2)
     const pintarVenc = (pid) => { const el = $(`[data-venc="${pid}"]`, box), pr = prods.find((x) => x.id == pid); if (el && pr) el.innerHTML = this.vencHtml(v, pr, cat); };
-    const pintarFotos = () => prods.forEach((p) => { $(`[data-cam-w="${p.id}"]`, box).innerHTML = camHtml(p); $(`[data-fotos="${p.id}"]`, box).innerHTML = fotosHtml(p); });
+    const pintarFotos = () => { const fs = FOTOS.de(v, "bodega");
+      $("#bodf", box).innerHTML = `<div class="row"><span class="foto-ic">${ic("caja", 24)}</span><div class="sp" style="min-width:0"><div class="nm">Cómo quedó la bodega</div><div class="tiny muted">${fs.length ? plur(fs.length, "foto") + " · última " + fmtHora(fs[fs.length - 1].at) : "Obligatoria · al menos 1 foto"}</div></div>${fs.length ? `<span class="pill p-menta">✓ Foto</span>` : `<span class="pill p-durazno">Falta la foto</span>`}</div>
+        ${fs.length ? `<div class="thumbs" style="margin-top:10px">${fs.map((f) => `<div class="thumb-b"><img src="${f.thumb}" alt="Foto de la bodega"><button type="button" class="thumb-x" data-borrar="${f.key}" aria-label="Borrar foto">✕</button></div>`).join("")}</div>` : ""}
+        <button type="button" class="btn ${fs.length ? "ghost" : "sec"} sm block" style="margin-top:10px" data-cam>${ic("camara", 18)} ${fs.length ? "Otra foto" : "Tomar foto"}</button>
+        <p class="tiny muted" style="margin:8px 0 0">Toma las fotos que hagan falta para que se vean todos los productos.</p>`; };
     box.onclick = async (e) => {
       const vi = e.target.closest("[data-vi]"), vc = e.target.closest("[data-vc]");
       if (vi || vc) {
@@ -675,11 +723,10 @@ const V = {
       const cam = e.target.closest("[data-cam]");
       if (cam) {
         try {
-          const pr = prods.find((x) => x.id == cam.dataset.cam), corto = pr.nombre.replace(/^Queso /, "");
-          const r = await Camara.evidencia({ titulo: corto + " en bodega", marca: v.tienda }); if (!r) return;
+          const r = await Camara.evidencia({ titulo: "Bodega", marca: v.tienda }); if (!r) return;
           const key = uid(); await IDB.putBlob(key, r.blob);
-          v.fotos.push({ key, tipo: "bodega", slot: "bodega", pid: pr.id, tipoTxt: "Bodega · " + corto, at: r.at, thumb: r.thumb }); Visita.set(v);
-          await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "bodega", mueble: null, producto_id: pr.id, at: r.at, lat: v.lat, lng: v.lng } });
+          v.fotos.push({ key, tipo: "bodega", slot: "bodega", tipoTxt: "Bodega", at: r.at, thumb: r.thumb }); Visita.set(v);
+          await DB.encolar({ t: "foto", lid: v.lid, blob: key, data: { tipo: "bodega", mueble: null, at: r.at, lat: v.lat, lng: v.lng } });
           pintarFotos(); calc();
         } catch (err) { toast(err.message, 4000); }
         return;
@@ -701,7 +748,7 @@ const V = {
       const i = e.target.closest("[data-u]"); if (!i) return;
       v.inv[i.closest(".inv").dataset.p + ":bodega"] = i.value === "" ? "" : Math.max(0, parseFloat(i.value) || 0); Visita.set(v); calc();
     };
-    calc();
+    calc(); pintarFotos();
     // El selector de categoría va siempre, aunque la tienda tenga una sola: así la pantalla es la misma con 2 productos o con 200
     return this.invPorCategoria(box, v, prods, cats, calc, siguiente);
   },
@@ -711,7 +758,7 @@ const V = {
     const lista = (c) => c.prods.every((x) => this.contado(v, x));
     const info = (c) => { const n = c.prods.filter((x) => this.contado(v, x)).length; return { listo: n === c.prods.length, texto: `${n} de ${c.prods.length}` }; };
     let actual = cats.find((c) => c.id === v.invCat) || cats.find((c) => !lista(c)) || cats[0], q = "";
-    $("p.muted", box).outerHTML = `<p class="muted small" style="margin-top:0">Cuenta lo que queda en la bodega <b>después de sacar lo que vas a exhibir</b> y toma la foto de cada producto con su cámara.</p>
+    $("p.muted", box).outerHTML = `<p class="muted small" style="margin-top:0">Cuenta lo que queda en la bodega <b>después de sacar lo que vas a exhibir</b>. Al final, toma la foto de la bodega.</p>
       <button type="button" class="cat-sel" data-catbtn></button>
       <div class="cat-av"><span class="cat-bar"><i></i></span><span class="tiny muted" data-catav></span></div>
       <input class="in" id="invq" placeholder="Buscar producto o código…" style="margin-bottom:10px">`;
@@ -732,9 +779,8 @@ const V = {
     const guardarContados = async () => { const hechos = prods.filter((x) => this.contado(v, x)); this.recalcAgot(v, prods); if (hechos.length) await DB.encolar({ t: "inventario", lid: v.lid, rows: this.filasInv(v, hechos) }); await this.vencGuardar(v, hechos); };
     okBtn.onclick = async () => {
       const falta = actual.prods.filter((x) => !this.contado(v, x));
-      if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}. Si no hay en bodega, toca «Sin existencia»`, 4500); return; }
-      const sinF = actual.prods.filter((x) => Number(v.inv[x.id + ":bodega"]) > 0 && !FOTOS.deProd(v, x.id).length);
-      if (sinF.length) { toast(`Falta la foto de ${sinF.length === 1 ? sinF[0].nombre : sinF.length + " productos"} en bodega: toca su cámara`, 4500); return; }
+      if (falta.length) { toast(`En ${actual.nombre} falta contar ${falta.length === 1 ? falta[0].nombre : falta.length + " productos"}. Si no hay en bodega, toca «Agotado»`, 4500); return; }
+      if (!FOTOS.de(v, "bodega").length) { toast("Toma la foto de la bodega (está al final de la lista)", 4500); $("#bodf", box)?.scrollIntoView({ block: "center" }); return; }
       const fv = this.vencFalta(v, actual.prods); if (fv) { toast(fv, 4000); return; }
       await guardarContados();
       const sig = cats.find((c) => !lista(c));
