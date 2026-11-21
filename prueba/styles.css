@@ -222,7 +222,7 @@ table.perm td:not(:first-child),table.perm th:not(:first-child){text-align:cente
 .kpi.alerta{border-color:#F3C4C0;background:var(--rosa)}
 .kpi.alerta .v{color:var(--rosa-t)}
 .grid2>.card{min-width:0}
-.agot{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid var(--borde);background:#fff;font-size:13px;font-weight:600;color:var(--gris);cursor:pointer}
+.agot{min-height:40px;display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid var(--borde);background:#fff;font-size:13px;font-weight:600;color:var(--gris);cursor:pointer}
 .agot.on{background:var(--rosa);border-color:#F3C4C0;color:var(--rosa-t)}
 .inv.agotado .stepper{opacity:.4;pointer-events:none}
 
@@ -1064,3 +1064,6 @@ table.perm tr.perm-g td{background:#F1F3F7;color:var(--tinta)}
 button.inv.mue{min-height:84px;height:84px}
 button.inv.mue .grow>b,button.inv.mue .grow>span,button.inv.mue .grow>.tiny{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .inv .row>.cam-b{flex:none;margin-left:8px}
+
+/* Presentación fuera de surtido: línea discreta con «Agregar» */
+.pres.fs{align-items:center}.pres.fs b{color:var(--gris)}

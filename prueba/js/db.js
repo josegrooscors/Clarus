@@ -97,7 +97,7 @@ const DB = {
     const c = LS.get("cat");
     if (c && !forzar && (!navigator.onLine || Date.now() - c.at < 10 * 60 * 1000)) return c;
     if (!navigator.onLine) return c || { clientes: [], productos: [], ruta: [], tareas: [], ap: [] };
-    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua, vj, fa, uv, fm] = await Promise.all([
+    const [cl, pr, ru, ta, ap, ob, pm, pls, plt, tm, ua, vj, fa, uv, fm, su] = await Promise.all([
       sb.from("clientes").select("*").eq("activo", true).order("nombre"),
       sb.from("productos").select("*").eq("activo", true).order("nombre"),
       sb.from("asignacion_tiendas").select("*").eq("vendedor_id", this.user.id),
@@ -113,11 +113,12 @@ const DB = {
       sb.from("familias_producto").select("id, nombre").eq("activo", true).order("nombre"),
       sb.from("v_ultimo_vencimiento").select("cliente_id, producto_id, vence, presentacion"),
       sb.rpc("facturacion_desde", { p_desde: MERMA.meses(mesActual(), 4)[0] }), // venta facturada y merma por tienda: mes en curso y los 3 anteriores
+      sb.from("tienda_surtido").select("cliente_id, clave, estado"), // qué maneja cada tienda: muebles, productos y presentaciones
     ]);
     const err = [cl, pr, ru, ta, ap].find((r) => r.error);
     if (err) { if (c) return c; throw err.error; }
     if (!pm.error) { this.permisos = pm.data.filter((x) => x.permitido !== false).map((x) => x.permiso); LS.set("permisos", this.permisos); this.permMap = Object.fromEntries(pm.data.map((x) => [x.permiso, x.permitido !== false])); LS.set("permMap", this.permMap); }
-    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data, familias: fa.error ? c?.familias || [] : fa.data, venc: uv.error ? c?.venc || [] : uv.data, merma: fm.error || !fm.data ? c?.merma || null : { corte: fm.data.corte, filas: DB.mermaPorTienda(fm.data.filas || []) } };
+    const out = { at: Date.now(), clientes: cl.data, productos: pr.data, ruta: ru.data, tareas: ta.data, ap: ap.data, obj: ob.error ? [] : ob.data, planos: pls.error ? [] : pls.data, planoTiendas: plt.error ? [] : plt.data, tiendaMuebles: tm.error ? c?.tiendaMuebles || [] : tm.data, ultAud: ua.error ? c?.ultAud || [] : ua.data, familias: fa.error ? c?.familias || [] : fa.data, venc: uv.error ? c?.venc || [] : uv.data, surtido: su.error ? c?.surtido || [] : su.data, merma: fm.error || !fm.data ? c?.merma || null : { corte: fm.data.corte, filas: DB.mermaPorTienda(fm.data.filas || []) } };
     LS.set("cat", out);
     if (!vj.error) { // justificaciones: manda el servidor, salvo lo que aún está en cola en este teléfono
       const loc = LS.get("just", {}), nuevo = {};
@@ -211,6 +212,15 @@ const DB = {
       case "vencimientos": { // fecha más próxima a vencer por producto, confirmada o cambiada en la visita
         const id = await this.idVisita(op.lid);
         ok(await sb.from("vencimientos").upsert(op.rows.map((x) => ({ visita_id: id, cliente_id: op.cliente_id, producto_id: x.producto_id, presentacion: x.presentacion || "", vence: x.vence || null, unidades: x.unidades ?? null, confirmada: !!x.confirmada, sin_fecha: !!x.sin_fecha })), { onConflict: "visita_id,producto_id,presentacion" }));
+        return;
+      }
+      case "surtido": { // lo que la tienda maneja o deja fuera de surtido (mueble, producto, presentación)
+        ok(await sb.from("tienda_surtido").upsert(op.rows.map((x) => ({ cliente_id: op.cliente_id, clave: x.clave, mueble: x.mueble, producto_id: x.producto_id || null, presentacion: x.presentacion || "", estado: x.estado, actualizado_at: new Date().toISOString(), actualizado_por: this.user.id })), { onConflict: "cliente_id,clave" }));
+        return;
+      }
+      case "espacio": { // espacio adicional ganado o perdido en la visita
+        const id = await this.idVisita(op.lid);
+        ok(await sb.from("espacios_adicionales").upsert({ cliente_id: op.cliente_id, visita_id: id, clave: op.clave, mueble: op.mueble, producto_id: op.producto_id || null, presentacion: op.presentacion || "", tipo: op.tipo, motivo: op.motivo || null }, { onConflict: "visita_id,clave,tipo", ignoreDuplicates: true }));
         return;
       }
       case "inv_incompleto": { // cerró el inventario sin contar todas las categorías: queda el motivo para gerencia (o se borra si al final las contó)
